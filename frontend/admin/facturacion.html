@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Facturación – SISCO Admin</title>
+  <link rel="stylesheet" href="../css/main.css"/><link rel="stylesheet" href="../css/admin.css"/>
+</head>
+<body class="admin-body">
+<aside class="admin-sidebar">
+  <div class="sidebar-logo"><div class="logo-text">✨ SISCO</div><div class="logo-sub">Shiny Skin · Panel Admin</div></div>
+  <nav class="sidebar-nav">
+    <div class="sidebar-section">Principal</div>
+    <a href="dashboard.html" class="sidebar-item"><span class="sidebar-icon">📊</span>Dashboard</a>
+    <div class="sidebar-section">Gestión</div>
+    <a href="productos.html" class="sidebar-item"><span class="sidebar-icon">📦</span>Productos</a>
+    <a href="inventario.html" class="sidebar-item"><span class="sidebar-icon">🗃️</span>Inventario</a>
+    <a href="pedidos.html" class="sidebar-item"><span class="sidebar-icon">🛒</span>Pedidos</a>
+    <a href="facturacion.html" class="sidebar-item active"><span class="sidebar-icon">💳</span>Facturación</a>
+    <a href="../index.html" class="sidebar-item" target="_blank"><span class="sidebar-icon">🌐</span>Ver Tienda</a>
+    <a href="../login.html" class="sidebar-item"><span class="sidebar-icon">🚪</span>Cerrar sesión</a>
+  </nav>
+  <div class="sidebar-footer"><div class="sidebar-user"><div class="sidebar-avatar">A</div><div><div class="sidebar-user-name">Administrador</div><div class="sidebar-user-role">Admin</div></div></div></div>
+</aside>
+
+<div class="admin-main">
+  <header class="admin-topbar">
+    <div class="topbar-title">💳 Facturación</div>
+    <div class="topbar-actions">
+      <button class="btn-admin-primary" onclick="openNuevaFactura()">🧾 Nueva Factura</button>
+    </div>
+  </header>
+
+  <div class="admin-content">
+
+    <!-- KPIs -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
+      <div class="kpi-card pink"><div class="kpi-icon">💰</div><div class="kpi-value" id="kpiTotalIngresos">–</div><div class="kpi-label">Ingresos totales</div></div>
+      <div class="kpi-card gold"><div class="kpi-icon">🧾</div><div class="kpi-value" id="kpiTotalFacturas">–</div><div class="kpi-label">Total facturas</div></div>
+      <div class="kpi-card blue"><div class="kpi-icon">⏳</div><div class="kpi-value" id="kpiPendientesPago">–</div><div class="kpi-label">Pendientes de pago</div></div>
+      <div class="kpi-card green"><div class="kpi-icon">✅</div><div class="kpi-value" id="kpiPagadas">–</div><div class="kpi-label">Pagadas</div></div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="actions-bar">
+      <div class="actions-bar-left">
+        <div class="search-wrapper">
+          <span class="search-icon">🔍</span>
+          <input class="search-input-admin" type="text" id="factSearch" placeholder="Buscar factura o cliente..." oninput="filterFacturas()" />
+        </div>
+        <select class="admin-form-control" style="width:160px;padding:10px 14px;" id="factEstadoFilter" onchange="filterFacturas()">
+          <option value="">Todos los estados</option>
+          <option value="emitida">⏳ Emitida</option>
+          <option value="pagada">✅ Pagada</option>
+          <option value="anulada">❌ Anulada</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="admin-card">
+      <div class="admin-table-wrapper">
+        <table class="admin-table">
+          <thead>
+            <tr><th>Nº Factura</th><th>Cliente</th><th>Subtotal</th><th>IVA</th><th>Total</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr>
+          </thead>
+          <tbody id="factTableBody">
+            <tr><td colspan="8" style="text-align:center;padding:32px;color:rgba(255,255,255,0.3);">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Nueva Factura -->
+<div class="modal-overlay" id="nuevaFacturaModal">
+  <div class="admin-modal">
+    <div class="modal-header">
+      <div class="modal-title">🧾 Emitir Nueva Factura</div>
+      <button class="modal-close" onclick="closeModal('nuevaFacturaModal')">✕</button>
+    </div>
+    <div class="admin-form-grid">
+      <div class="admin-form-group"><label class="admin-form-label">Cliente *</label><input class="admin-form-control" id="fnCliente" placeholder="Nombre del cliente" required/></div>
+      <div class="admin-form-group"><label class="admin-form-label">Email</label><input class="admin-form-control" id="fnEmail" type="email" placeholder="cliente@email.com"/></div>
+      <div class="admin-form-group"><label class="admin-form-label">Subtotal (C$) *</label><input class="admin-form-control" id="fnSubtotal" type="number" min="0" step="0.01" placeholder="0.00" oninput="calcFactura()"/></div>
+      <div class="admin-form-group"><label class="admin-form-label">Descuento (C$)</label><input class="admin-form-control" id="fnDescuento" type="number" min="0" step="0.01" value="0" oninput="calcFactura()"/></div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border-radius:var(--radius-md);padding:16px;margin:16px 0;">
+      <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:6px;"><span style="color:rgba(255,255,255,0.4);">Subtotal</span><span id="preSubtotal" style="font-weight:600;">C$ 0.00</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:6px;"><span style="color:rgba(255,255,255,0.4);">Descuento</span><span id="preDescuento" style="color:var(--color-warning);">- C$ 0.00</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:6px;"><span style="color:rgba(255,255,255,0.4);">IVA 15%</span><span id="preIva">C$ 0.00</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:1rem;font-weight:800;color:white;border-top:1px solid rgba(255,255,255,0.1);padding-top:10px;"><span>TOTAL</span><span id="preTotal" style="color:var(--color-primary-light);">C$ 0.00</span></div>
+    </div>
+    <div class="admin-form-group" style="margin-bottom:0;">
+      <label class="admin-form-label">Notas</label>
+      <textarea class="admin-form-control" id="fnNotas" rows="2" placeholder="Observaciones de la factura..."></textarea>
+    </div>
+    <div style="display:flex;gap:12px;margin-top:20px;">
+      <button class="btn-admin-primary" style="flex:1;" onclick="emitirFactura()">✅ Emitir factura</button>
+      <button class="btn-admin-secondary" onclick="closeModal('nuevaFacturaModal')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Ver Factura (impresión) -->
+<div class="modal-overlay" id="viewFactModal">
+  <div class="admin-modal" style="max-width:560px;">
+    <div class="modal-header">
+      <div class="modal-title" id="viewFactTitle">Factura</div>
+      <button class="modal-close" onclick="closeModal('viewFactModal')">✕</button>
+    </div>
+    <div id="viewFactContent"></div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button class="btn-admin-primary" onclick="window.print()">🖨️ Imprimir</button>
+      <button class="btn-admin-secondary" onclick="closeModal('viewFactModal')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+let allFacturas = [];
+
+const MOCK_FACTURAS = [
+  { id:1, numero_factura:'FAC-202609-0001', nombre_cliente:'María González', email_cliente:'maria@gmail.com', subtotal:1250.0, descuento:0, iva:187.5, total:1437.5, estado:'pagada', fecha:'2026-09-01T10:00:00', notas:'' },
+  { id:2, numero_factura:'FAC-202609-0002', nombre_cliente:'Andrea López', email_cliente:'andrea@gmail.com', subtotal:750.0, descuento:0, iva:112.5, total:862.5, estado:'emitida', fecha:'2026-09-03T14:00:00', notas:'' },
+  { id:3, numero_factura:'FAC-202609-0003', nombre_cliente:'Valeria Castro', email_cliente:'', subtotal:1100.0, descuento:50, iva:157.5, total:1207.5, estado:'emitida', fecha:'2026-09-05T09:00:00', notas:'Descuento por cliente frecuente' },
+  { id:4, numero_factura:'FAC-202609-0004', nombre_cliente:'Sofía Martínez', email_cliente:'', subtotal:600.0, descuento:0, iva:90.0, total:690.0, estado:'pagada', fecha:'2026-09-05T16:00:00', notas:'' },
+];
+
+async function loadFacturas() {
+  try { allFacturas = await api.facturas.list(); }
+  catch { allFacturas = MOCK_FACTURAS; }
+  renderKPIs();
+  filterFacturas();
+}
+
+function renderKPIs() {
+  const pagadas = allFacturas.filter(f=>f.estado==='pagada');
+  const pendientes = allFacturas.filter(f=>f.estado==='emitida');
+  const totalIngresos = pagadas.reduce((s,f)=>s+f.total,0);
+  document.getElementById('kpiTotalIngresos').textContent = 'C$'+totalIngresos.toLocaleString('es-NI',{maximumFractionDigits:0});
+  document.getElementById('kpiTotalFacturas').textContent = allFacturas.length;
+  document.getElementById('kpiPendientesPago').textContent = pendientes.length;
+  document.getElementById('kpiPagadas').textContent = pagadas.length;
+}
+
+function filterFacturas() {
+  const q = document.getElementById('factSearch').value.toLowerCase();
+  const estado = document.getElementById('factEstadoFilter').value;
+  let filtered = allFacturas.filter(f => {
+    if (q && !f.numero_factura.toLowerCase().includes(q) && !f.nombre_cliente.toLowerCase().includes(q)) return false;
+    if (estado && f.estado !== estado) return false;
+    return true;
+  });
+  renderFactTable(filtered);
+}
+
+function renderFactTable(facturas) {
+  const body = document.getElementById('factTableBody');
+  if (!facturas.length) { body.innerHTML='<tr><td colspan="8" style="text-align:center;padding:32px;color:rgba(255,255,255,0.3);">Sin facturas</td></tr>'; return; }
+  body.innerHTML = facturas.map(f=>`
+    <tr>
+      <td><div style="font-weight:700;font-family:monospace;color:var(--color-primary-light);font-size:0.82rem;">${f.numero_factura}</div></td>
+      <td><div class="table-product-name">${f.nombre_cliente}</div><div class="table-product-sku">${f.email_cliente||'–'}</div></td>
+      <td>${formatCurrency(f.subtotal)}</td>
+      <td style="color:rgba(255,255,255,0.4);">${formatCurrency(f.iva)}</td>
+      <td style="font-weight:800;color:var(--color-primary-light);">${formatCurrency(f.total)}</td>
+      <td><span class="status-badge status-${f.estado}">${f.estado}</span></td>
+      <td style="font-size:0.78rem;color:rgba(255,255,255,0.4);">${formatDate(f.fecha)}</td>
+      <td>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn-table btn-table-view" onclick="viewFactura(${f.id})">👁 Ver</button>
+          ${f.estado==='emitida'?`<button class="btn-table btn-table-edit" onclick="marcarPagada(${f.id})">✅ Pagar</button>`:''}
+          ${f.estado==='emitida'?`<button class="btn-table btn-table-delete" onclick="anularFactura(${f.id})">❌ Anular</button>`:''}
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function calcFactura() {
+  const sub = parseFloat(document.getElementById('fnSubtotal').value)||0;
+  const desc = parseFloat(document.getElementById('fnDescuento').value)||0;
+  const base = sub-desc;
+  const iva = base*0.15;
+  const total = base+iva;
+  document.getElementById('preSubtotal').textContent = formatCurrency(sub);
+  document.getElementById('preDescuento').textContent = '- '+formatCurrency(desc);
+  document.getElementById('preIva').textContent = formatCurrency(iva);
+  document.getElementById('preTotal').textContent = formatCurrency(total);
+}
+
+async function emitirFactura() {
+  const cliente = document.getElementById('fnCliente').value;
+  const sub = parseFloat(document.getElementById('fnSubtotal').value)||0;
+  if (!cliente||!sub) { showToast('Completa los campos requeridos', 'error'); return; }
+  const desc = parseFloat(document.getElementById('fnDescuento').value)||0;
+  const base = sub-desc;
+  const iva = base*0.15;
+  const total = base+iva;
+  const num = 'FAC-'+new Date().toISOString().slice(0,7).replace('-','')+'-'+String(allFacturas.length+1).padStart(4,'0');
+  const newFact = {
+    id: Date.now(), numero_factura: num, nombre_cliente: cliente,
+    email_cliente: document.getElementById('fnEmail').value,
+    subtotal: sub, descuento: desc, iva: parseFloat(iva.toFixed(2)),
+    total: parseFloat(total.toFixed(2)), estado: 'emitida',
+    fecha: new Date().toISOString(), notas: document.getElementById('fnNotas').value
+  };
+  try { await api.facturas.create({ nombre_cliente: cliente, subtotal: sub, descuento: desc }); }
+  catch { allFacturas.unshift(newFact); }
+  closeModal('nuevaFacturaModal');
+  showToast(`Factura ${num} emitida ✅`, 'success');
+  renderKPIs(); filterFacturas();
+}
+
+async function marcarPagada(id) {
+  const f = allFacturas.find(x=>x.id===id);
+  if(f) f.estado='pagada';
+  try { await api.facturas.updateEstado(id,'pagada'); } catch {}
+  showToast('Factura marcada como pagada ✅', 'success');
+  renderKPIs(); filterFacturas();
+}
+
+async function anularFactura(id) {
+  if (!confirm('¿Anular esta factura?')) return;
+  const f = allFacturas.find(x=>x.id===id);
+  if(f) f.estado='anulada';
+  try { await api.facturas.updateEstado(id,'anulada'); } catch {}
+  showToast('Factura anulada', 'info');
+  renderKPIs(); filterFacturas();
+}
+
+function viewFactura(id) {
+  const f = allFacturas.find(x=>x.id===id);
+  if(!f) return;
+  document.getElementById('viewFactTitle').textContent = f.numero_factura;
+  document.getElementById('viewFactContent').innerHTML = `
+    <div style="border:1px solid var(--admin-border);border-radius:var(--radius-md);padding:20px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:20px;">
+        <div><div style="font-size:1.4rem;font-weight:800;color:var(--color-primary);">Shiny Skin</div><div style="font-size:0.75rem;color:rgba(255,255,255,0.4);">Managua, Nicaragua · NIT: 001-010101-0000Z</div></div>
+        <div style="text-align:right;"><div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.3);">Factura</div><div style="font-size:1rem;font-weight:700;color:var(--color-primary-light);">${f.numero_factura}</div><div style="font-size:0.78rem;color:rgba(255,255,255,0.35);">${formatDate(f.fecha)}</div></div>
+      </div>
+      <div style="margin-bottom:16px;padding:12px;background:rgba(255,255,255,0.04);border-radius:8px;">
+        <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:rgba(255,255,255,0.3);margin-bottom:6px;">CLIENTE</div>
+        <div style="font-weight:600;font-size:0.92rem;">${f.nombre_cliente}</div>
+        <div style="font-size:0.8rem;color:rgba(255,255,255,0.4);">${f.email_cliente||'–'}</div>
+      </div>
+      <div style="margin-top:16px;display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;justify-content:space-between;font-size:0.85rem;"><span style="color:rgba(255,255,255,0.4);">Subtotal</span><span>${formatCurrency(f.subtotal)}</span></div>
+        ${f.descuento>0?`<div style="display:flex;justify-content:space-between;font-size:0.85rem;"><span style="color:rgba(255,255,255,0.4);">Descuento</span><span style="color:var(--color-warning);">- ${formatCurrency(f.descuento)}</span></div>`:''}
+        <div style="display:flex;justify-content:space-between;font-size:0.85rem;"><span style="color:rgba(255,255,255,0.4);">IVA 15%</span><span>${formatCurrency(f.iva)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:1.1rem;font-weight:800;color:white;border-top:1px solid rgba(255,255,255,0.1);padding-top:10px;margin-top:4px;"><span>TOTAL</span><span style="color:var(--color-primary-light);">${formatCurrency(f.total)}</span></div>
+      </div>
+      ${f.notas?`<div style="margin-top:14px;padding:10px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:0.8rem;color:rgba(255,255,255,0.4);">Notas: ${f.notas}</div>`:''}
+      <div style="text-align:center;margin-top:20px;font-size:0.75rem;color:rgba(255,255,255,0.25);">¡Gracias por tu compra! – Shiny Skin · SISCO v1.0</div>
+    </div>`;
+  document.getElementById('viewFactModal').classList.add('active');
+}
+
+function openNuevaFactura() {
+  document.getElementById('fnCliente').value='';
+  document.getElementById('fnEmail').value='';
+  document.getElementById('fnSubtotal').value='';
+  document.getElementById('fnDescuento').value='0';
+  document.getElementById('fnNotas').value='';
+  calcFactura();
+  document.getElementById('nuevaFacturaModal').classList.add('active');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => { if(e.target===overlay) overlay.classList.remove('active'); });
+});
+
+loadFacturas();
+</script>
+</body>
+</html>

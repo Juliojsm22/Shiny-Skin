@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pedidos – SISCO Admin</title>
+  <link rel="stylesheet" href="../css/main.css"/><link rel="stylesheet" href="../css/admin.css"/>
+</head>
+<body class="admin-body">
+<aside class="admin-sidebar">
+  <div class="sidebar-logo"><div class="logo-text">✨ SISCO</div><div class="logo-sub">Shiny Skin · Panel Admin</div></div>
+  <nav class="sidebar-nav">
+    <div class="sidebar-section">Principal</div>
+    <a href="dashboard.html" class="sidebar-item"><span class="sidebar-icon">📊</span>Dashboard</a>
+    <div class="sidebar-section">Gestión</div>
+    <a href="productos.html" class="sidebar-item"><span class="sidebar-icon">📦</span>Productos</a>
+    <a href="inventario.html" class="sidebar-item"><span class="sidebar-icon">🗃️</span>Inventario</a>
+    <a href="pedidos.html" class="sidebar-item active"><span class="sidebar-icon">🛒</span>Pedidos</a>
+    <a href="facturacion.html" class="sidebar-item"><span class="sidebar-icon">💳</span>Facturación</a>
+    <a href="../index.html" class="sidebar-item" target="_blank"><span class="sidebar-icon">🌐</span>Ver Tienda</a>
+    <a href="../login.html" class="sidebar-item"><span class="sidebar-icon">🚪</span>Cerrar sesión</a>
+  </nav>
+  <div class="sidebar-footer"><div class="sidebar-user"><div class="sidebar-avatar">A</div><div><div class="sidebar-user-name">Administrador</div><div class="sidebar-user-role">Admin</div></div></div></div>
+</aside>
+
+<div class="admin-main">
+  <header class="admin-topbar">
+    <div class="topbar-title">🛒 Gestión de Pedidos</div>
+    <div class="topbar-actions">
+      <button class="btn-admin-primary" onclick="openNuevoPedidoModal()">➕ Nuevo pedido</button>
+    </div>
+  </header>
+
+  <div class="admin-content">
+
+    <!-- Estado KPIs -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;" id="estadoKpis">
+      <div class="kpi-card" style="flex:1;min-width:120px;background:rgba(245,166,35,0.08);border-color:rgba(245,166,35,0.2);">
+        <div class="kpi-icon" style="background:rgba(245,166,35,0.15);">⏳</div>
+        <div class="kpi-value" id="cntPendiente" style="font-size:1.5rem;">–</div>
+        <div class="kpi-label">Pendientes</div>
+      </div>
+      <div class="kpi-card" style="flex:1;min-width:120px;background:rgba(52,152,219,0.08);border-color:rgba(52,152,219,0.2);">
+        <div class="kpi-icon" style="background:rgba(52,152,219,0.15);">✅</div>
+        <div class="kpi-value" id="cntConfirmado" style="font-size:1.5rem;">–</div>
+        <div class="kpi-label">Confirmados</div>
+      </div>
+      <div class="kpi-card" style="flex:1;min-width:120px;background:rgba(155,81,224,0.08);border-color:rgba(155,81,224,0.2);">
+        <div class="kpi-icon" style="background:rgba(155,81,224,0.15);">🚚</div>
+        <div class="kpi-value" id="cntEnCamino" style="font-size:1.5rem;">–</div>
+        <div class="kpi-label">En camino</div>
+      </div>
+      <div class="kpi-card" style="flex:1;min-width:120px;background:rgba(76,175,125,0.08);border-color:rgba(76,175,125,0.2);">
+        <div class="kpi-icon" style="background:rgba(76,175,125,0.15);">📦</div>
+        <div class="kpi-value" id="cntEntregado" style="font-size:1.5rem;">–</div>
+        <div class="kpi-label">Entregados</div>
+      </div>
+      <div class="kpi-card" style="flex:1;min-width:120px;background:rgba(231,76,60,0.08);border-color:rgba(231,76,60,0.2);">
+        <div class="kpi-icon" style="background:rgba(231,76,60,0.15);">❌</div>
+        <div class="kpi-value" id="cntCancelado" style="font-size:1.5rem;">–</div>
+        <div class="kpi-label">Cancelados</div>
+      </div>
+    </div>
+
+    <!-- Filtros + Tabla -->
+    <div class="actions-bar">
+      <div class="actions-bar-left">
+        <div class="search-wrapper">
+          <span class="search-icon">🔍</span>
+          <input class="search-input-admin" type="text" id="orderSearch" placeholder="Buscar pedido o cliente..." oninput="filterOrders()" />
+        </div>
+        <select class="admin-form-control" style="width:160px;padding:10px 14px;" id="estadoFilter" onchange="filterOrders()">
+          <option value="">Todos los estados</option>
+          <option value="pendiente">⏳ Pendiente</option>
+          <option value="confirmado">✅ Confirmado</option>
+          <option value="en_camino">🚚 En camino</option>
+          <option value="entregado">📦 Entregado</option>
+          <option value="cancelado">❌ Cancelado</option>
+        </select>
+      </div>
+      <button class="btn-admin-secondary" onclick="loadOrders()">🔄 Actualizar</button>
+    </div>
+
+    <div class="admin-card">
+      <div class="admin-table-wrapper">
+        <table class="admin-table">
+          <thead>
+            <tr><th>Pedido</th><th>Cliente</th><th>Teléfono</th><th>Total</th><th>Estado</th><th>Canal</th><th>Fecha</th><th>Acciones</th></tr>
+          </thead>
+          <tbody id="ordersTableBody">
+            <tr><td colspan="8" style="text-align:center;padding:32px;color:rgba(255,255,255,0.3);">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Ver Pedido -->
+<div class="modal-overlay" id="orderDetailModal">
+  <div class="admin-modal" style="max-width:680px;">
+    <div class="modal-header">
+      <div class="modal-title" id="orderDetailTitle">Pedido #</div>
+      <button class="modal-close" onclick="closeModal('orderDetailModal')">✕</button>
+    </div>
+    <div id="orderDetailContent"></div>
+  </div>
+</div>
+
+<!-- Modal Nuevo Pedido Manual -->
+<div class="modal-overlay" id="nuevoPedidoModal">
+  <div class="admin-modal">
+    <div class="modal-header">
+      <div class="modal-title">➕ Nuevo Pedido Manual</div>
+      <button class="modal-close" onclick="closeModal('nuevoPedidoModal')">✕</button>
+    </div>
+    <div style="padding:8px 0;color:rgba(255,255,255,0.5);font-size:0.85rem;margin-bottom:20px;">Para pedidos recibidos por WhatsApp o en tienda física.</div>
+    <div class="admin-form-grid">
+      <div class="admin-form-group"><label class="admin-form-label">Cliente *</label><input class="admin-form-control" id="npCliente" placeholder="Nombre completo" required/></div>
+      <div class="admin-form-group"><label class="admin-form-label">Teléfono</label><input class="admin-form-control" id="npTel" placeholder="505-8888-0000"/></div>
+      <div class="admin-form-group admin-form-full"><label class="admin-form-label">Dirección</label><input class="admin-form-control" id="npDir" placeholder="Dirección de entrega"/></div>
+      <div class="admin-form-group"><label class="admin-form-label">Canal</label>
+        <select class="admin-form-control" id="npCanal">
+          <option value="whatsapp">💬 WhatsApp</option>
+          <option value="tienda_fisica">🏪 Tienda física</option>
+          <option value="web">🌐 Web</option>
+        </select>
+      </div>
+      <div class="admin-form-group"><label class="admin-form-label">Pago</label>
+        <select class="admin-form-control" id="npPago">
+          <option value="efectivo_entrega">💵 Efectivo al recibir</option>
+          <option value="transferencia">🏦 Transferencia</option>
+          <option value="efectivo_tienda">🏪 Efectivo en tienda</option>
+        </select>
+      </div>
+      <div class="admin-form-group admin-form-full"><label class="admin-form-label">Notas</label><textarea class="admin-form-control" id="npNotas" rows="2" placeholder="Instrucciones especiales..."></textarea></div>
+    </div>
+    <div style="display:flex;gap:12px;margin-top:24px;">
+      <button class="btn-admin-primary" style="flex:1;" onclick="createManualOrder()">✅ Crear pedido</button>
+      <button class="btn-admin-secondary" onclick="closeModal('nuevoPedidoModal')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+let allOrders = [];
+const ESTADOS = ['pendiente','confirmado','en_camino','entregado','cancelado'];
+
+async function loadOrders() {
+  allOrders = await fetchPedidos();
+  renderKPIs();
+  filterOrders();
+}
+
+function renderKPIs() {
+  ['pendiente','confirmado','en_camino','entregado','cancelado'].forEach(e => {
+    const el = document.getElementById('cnt'+e.split('_').map(w=>w[0].toUpperCase()+w.slice(1)).join(''));
+    if(el) el.textContent = allOrders.filter(o=>o.estado===e).length;
+  });
+}
+
+function filterOrders() {
+  const q = document.getElementById('orderSearch').value.toLowerCase();
+  const estado = document.getElementById('estadoFilter').value;
+  let filtered = allOrders.filter(o => {
+    if (q && !o.numero_pedido.toLowerCase().includes(q) && !o.nombre_cliente.toLowerCase().includes(q)) return false;
+    if (estado && o.estado !== estado) return false;
+    return true;
+  });
+  renderOrdersTable(filtered);
+}
+
+function renderOrdersTable(orders) {
+  const body = document.getElementById('ordersTableBody');
+  if (!orders.length) { body.innerHTML='<tr><td colspan="8" style="text-align:center;padding:32px;color:rgba(255,255,255,0.3);">No hay pedidos</td></tr>'; return; }
+  const canalIcons = { web:'🌐', whatsapp:'💬', tienda_fisica:'🏪' };
+  body.innerHTML = orders.map(o => `
+    <tr>
+      <td><div style="font-weight:700;font-family:monospace;color:var(--color-primary-light);">${o.numero_pedido}</div></td>
+      <td><div class="table-product-name">${o.nombre_cliente}</div></td>
+      <td style="font-size:0.82rem;color:rgba(255,255,255,0.5);">${o.telefono_cliente||'–'}</td>
+      <td style="font-weight:700;color:var(--color-primary-light);">${formatCurrency(o.total)}</td>
+      <td><span class="status-badge status-${o.estado}">${o.estado.replace('_',' ')}</span></td>
+      <td style="font-size:0.85rem;">${canalIcons[o.canal]||''} ${o.canal||'web'}</td>
+      <td style="font-size:0.78rem;color:rgba(255,255,255,0.4);">${formatDateTime(o.fecha)}</td>
+      <td>
+        <div style="display:flex;gap:6px;">
+          <button class="btn-table btn-table-view" onclick="viewOrder(${o.id})">👁 Ver</button>
+          <select class="btn-table btn-table-edit" style="padding:5px 8px;font-size:0.75rem;" onchange="updateEstado(${o.id},this.value)" aria-label="Cambiar estado">
+            ${ESTADOS.map(e=>`<option value="${e}" ${o.estado===e?'selected':''}>${e.replace('_',' ')}</option>`).join('')}
+          </select>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+async function updateEstado(orderId, nuevoEstado) {
+  try { await api.pedidos.updateEstado(orderId, nuevoEstado); }
+  catch { /* mock */ const o = allOrders.find(x=>x.id===orderId); if(o) o.estado=nuevoEstado; }
+  showToast(`Estado actualizado: ${nuevoEstado} ✅`, 'success');
+  renderKPIs();
+}
+
+function viewOrder(orderId) {
+  const o = allOrders.find(x=>x.id===orderId);
+  if(!o) return;
+  document.getElementById('orderDetailTitle').textContent = `Pedido ${o.numero_pedido}`;
+  const canalIcons = { web:'🌐', whatsapp:'💬', tienda_fisica:'🏪' };
+  document.getElementById('orderDetailContent').innerHTML = `
+    <div class="admin-form-grid" style="margin-bottom:20px;">
+      <div><div class="admin-form-label">Cliente</div><div style="color:rgba(255,255,255,0.85);font-weight:600;margin-top:4px;">${o.nombre_cliente}</div></div>
+      <div><div class="admin-form-label">Teléfono</div><div style="color:rgba(255,255,255,0.85);margin-top:4px;">${o.telefono_cliente||'–'}</div></div>
+      <div><div class="admin-form-label">Email</div><div style="color:rgba(255,255,255,0.85);margin-top:4px;">${o.email_cliente||'–'}</div></div>
+      <div><div class="admin-form-label">Canal</div><div style="color:rgba(255,255,255,0.85);margin-top:4px;">${canalIcons[o.canal]||''} ${o.canal}</div></div>
+      <div style="grid-column:1/-1;"><div class="admin-form-label">Dirección</div><div style="color:rgba(255,255,255,0.85);margin-top:4px;">${o.direccion_entrega||'No especificada'}</div></div>
+      <div style="grid-column:1/-1;"><div class="admin-form-label">Notas</div><div style="color:rgba(255,255,255,0.6);margin-top:4px;">${o.notas||'–'}</div></div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border-radius:var(--radius-md);padding:16px;margin-bottom:16px;">
+      <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:rgba(255,255,255,0.3);margin-bottom:12px;">ITEMS DEL PEDIDO</div>
+      ${(o.items&&o.items.length) ? o.items.map(i=>`
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.85rem;">
+          <span style="color:rgba(255,255,255,0.75);">${i.nombre_producto} × ${i.cantidad}</span>
+          <span style="font-weight:700;color:var(--color-primary-light);">${formatCurrency(i.subtotal)}</span>
+        </div>`).join('') : '<div style="color:rgba(255,255,255,0.3);font-size:0.85rem;">Sin detalle de items</div>'}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div style="display:flex;justify-content:space-between;font-size:0.9rem;"><span style="color:rgba(255,255,255,0.4);">Subtotal</span><span>${formatCurrency(o.subtotal)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:0.9rem;"><span style="color:rgba(255,255,255,0.4);">IVA 15%</span><span>${formatCurrency(o.iva)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:1rem;font-weight:800;color:white;border-top:1px solid rgba(255,255,255,0.1);padding-top:10px;"><span>TOTAL</span><span style="color:var(--color-primary-light);">${formatCurrency(o.total)}</span></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;">
+      ${ESTADOS.filter(e=>e!==o.estado).map(e=>`<button class="btn-admin-${e==='cancelado'?'secondary':'primary'}" onclick="updateEstado(${o.id},'${e}');closeModal('orderDetailModal')">→ ${e.replace('_',' ')}</button>`).join('')}
+    </div>`;
+  document.getElementById('orderDetailModal').classList.add('active');
+}
+
+function openNuevoPedidoModal() { document.getElementById('nuevoPedidoModal').classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+async function createManualOrder() {
+  const cliente = document.getElementById('npCliente').value;
+  if (!cliente) { showToast('Ingresa el nombre del cliente', 'error'); return; }
+  const num = 'SS-'+Math.random().toString(36).substr(2,6).toUpperCase();
+  const newOrder = {
+    id: Date.now(), numero_pedido: num, nombre_cliente: cliente,
+    telefono_cliente: document.getElementById('npTel').value,
+    direccion_entrega: document.getElementById('npDir').value,
+    notas: document.getElementById('npNotas').value,
+    canal: document.getElementById('npCanal').value,
+    metodo_pago: document.getElementById('npPago').value,
+    estado: 'pendiente', total: 0, subtotal: 0, iva: 0,
+    fecha: new Date().toISOString(), items: []
+  };
+  allOrders.unshift(newOrder);
+  closeModal('nuevoPedidoModal');
+  renderKPIs();
+  filterOrders();
+  showToast(`Pedido ${num} creado ✅`, 'success');
+}
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => { if(e.target===overlay) overlay.classList.remove('active'); });
+});
+
+loadOrders();
+</script>
+</body>
+</html>

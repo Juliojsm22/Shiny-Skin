@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tienda – Shiny Skin K-Beauty Nicaragua</title>
+  <meta name="description" content="Explora todo el catálogo de skincare y maquillaje K-beauty de Shiny Skin. Filtra por categoría, precio y marca. Envío a todo Nicaragua." />
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/tienda.css" />
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+  <div class="navbar-inner">
+    <a href="index.html" class="navbar-logo"><img src="img/SS%20LOGO%20COPIA.png" alt="Shiny Skin Logo" /></a>
+    <nav class="navbar-nav">
+      <a href="index.html" class="nav-link">Inicio</a>
+      <a href="tienda.html" class="nav-link active">Tienda</a>
+      <a href="tienda.html?cat=skincare" class="nav-link">Skincare</a>
+      <a href="tienda.html?cat=makeup" class="nav-link">Makeup</a>
+      <a href="tienda.html?nuevo=true" class="nav-link">Lo Nuevo</a>
+    </nav>
+    <div class="navbar-actions">
+      <a href="login.html" class="btn btn-ghost btn-sm" title="Mi cuenta">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </a>
+      <button class="cart-btn" onclick="window.location='carrito.html'" title="Carrito">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        <span class="cart-badge" id="cartBadge">0</span>
+      </button>
+      <a href="admin/dashboard.html" class="btn btn-primary btn-sm">Admin</a>
+    </div>
+  </div>
+</nav>
+
+<!-- TIENDA HEADER -->
+<div style="background: linear-gradient(135deg,var(--color-surface-2),var(--color-surface-3));padding:32px 20px 0;">
+  <div style="max-width:1240px;margin:0 auto;">
+    <nav class="breadcrumb">
+      <a href="index.html">Inicio</a>
+      <span class="breadcrumb-sep">/</span>
+      <span id="breadcrumbCat">Tienda</span>
+    </nav>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:24px;flex-wrap:wrap;gap:12px;">
+      <div>
+        <h1 style="font-size:1.8rem;font-weight:800;margin-bottom:4px;" id="pageTitle">Todos los productos</h1>
+        <p style="color:var(--color-text-muted);font-size:0.9rem;" id="pageSubtitle">K-Beauty directamente desde Corea del Sur</p>
+      </div>
+      <div class="search-bar" style="max-width:340px;">
+        <svg class="search-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="searchInput" placeholder="Buscar producto o marca..." aria-label="Buscar productos" oninput="filterProducts()" />
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TIENDA LAYOUT -->
+<div class="tienda-layout">
+
+  <!-- SIDEBAR FILTROS -->
+  <aside class="filtros-sidebar" aria-label="Filtros de productos">
+    <div class="filtros-card">
+      <div class="filtros-title">🔍 Filtrar</div>
+
+      <div class="filtros-section">
+        <div class="filtros-section-title">Categoría</div>
+        <div class="filtro-item active" onclick="setCatFilter('all', this)" id="filterAll">
+          <span>Todos los productos</span>
+          <span class="filtro-count" id="countAll">12</span>
+        </div>
+        <div class="filtro-item" onclick="setCatFilter('skincare', this)">
+          <span>✨ Skincare</span>
+          <span class="filtro-count">8</span>
+        </div>
+        <div class="filtro-item" onclick="setCatFilter('makeup', this)">
+          <span>💄 Makeup</span>
+          <span class="filtro-count">3</span>
+        </div>
+        <div class="filtro-item" onclick="setCatFilter('serums', this)" style="padding-left:20px;">
+          <span>🧪 Sueros</span>
+          <span class="filtro-count">3</span>
+        </div>
+        <div class="filtro-item" onclick="setCatFilter('protectores', this)" style="padding-left:20px;">
+          <span>☀️ Solares</span>
+          <span class="filtro-count">2</span>
+        </div>
+        <div class="filtro-item" onclick="setCatFilter('limpiadores', this)" style="padding-left:20px;">
+          <span>💧 Limpiadores</span>
+          <span class="filtro-count">2</span>
+        </div>
+        <div class="filtro-item" onclick="setCatFilter('mascarillas', this)" style="padding-left:20px;">
+          <span>🌿 Mascarillas</span>
+          <span class="filtro-count">2</span>
+        </div>
+        <div class="filtro-item" onclick="setCatFilter('tonicos', this)" style="padding-left:20px;">
+          <span>💦 Tónicos</span>
+          <span class="filtro-count">1</span>
+        </div>
+        <div class="filtro-item" onclick="setCatFilter('labios', this)" style="padding-left:20px;">
+          <span>💋 Labios</span>
+          <span class="filtro-count">2</span>
+        </div>
+        <div class="filtro-item" onclick="setCatFilter('rostro', this)" style="padding-left:20px;">
+          <span>🫧 Rostro</span>
+          <span class="filtro-count">1</span>
+        </div>
+      </div>
+
+      <div class="filtros-section">
+        <div class="filtros-section-title">Precio</div>
+        <div class="price-range">
+          <input class="price-input form-control" type="number" id="minPrice" placeholder="Mín" oninput="filterProducts()" />
+          <span class="price-sep">–</span>
+          <input class="price-input form-control" type="number" id="maxPrice" placeholder="Máx" oninput="filterProducts()" />
+        </div>
+        <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;">
+          <button class="badge badge-muted" style="cursor:pointer;" onclick="setPriceRange(0,500)">C$0–500</button>
+          <button class="badge badge-muted" style="cursor:pointer;" onclick="setPriceRange(500,800)">C$500–800</button>
+          <button class="badge badge-muted" style="cursor:pointer;" onclick="setPriceRange(800,9999)">C$800+</button>
+        </div>
+      </div>
+
+      <div class="filtros-section">
+        <div class="filtros-section-title">Marca</div>
+        <div id="brandFilters">
+          <!-- generado por JS -->
+        </div>
+      </div>
+
+      <div class="filtros-section" style="margin-bottom:0;">
+        <div class="filtros-section-title">Estado</div>
+        <div class="filtro-item" onclick="toggleNewFilter(this)" id="filterNuevo">
+          <input type="checkbox" id="chkNuevo" onchange="filterProducts()" />
+          <label for="chkNuevo" style="cursor:pointer;">🆕 Lo Nuevo</label>
+        </div>
+        <div class="filtro-item">
+          <input type="checkbox" id="chkDescuento" onchange="filterProducts()" />
+          <label for="chkDescuento" style="cursor:pointer;">🏷️ Con descuento</label>
+        </div>
+      </div>
+
+      <button class="btn btn-outline btn-sm" style="width:100%;margin-top:16px;" onclick="clearFilters()">Limpiar filtros</button>
+    </div>
+  </aside>
+
+  <!-- PRODUCTOS MAIN -->
+  <main>
+    <div class="productos-header">
+      <span class="productos-count"><strong id="prodCount">0</strong> productos encontrados</span>
+      <div class="productos-sort">
+        <select class="sort-select" id="sortSelect" onchange="filterProducts()" aria-label="Ordenar por">
+          <option value="default">Más recientes</option>
+          <option value="price-asc">Precio: menor a mayor</option>
+          <option value="price-desc">Precio: mayor a menor</option>
+          <option value="name">Nombre A–Z</option>
+        </select>
+        <div class="view-toggle">
+          <button class="view-btn active" id="gridViewBtn" onclick="setView('grid')" title="Vista cuadrícula">⊞</button>
+          <button class="view-btn" id="listViewBtn" onclick="setView('list')" title="Vista lista">☰</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="products-grid" id="productsGrid">
+      <div class="page-loader" style="grid-column:1/-1;">
+        <div class="spinner"></div><p>Cargando productos...</p>
+      </div>
+    </div>
+
+    <div class="pagination" id="pagination"></div>
+  </main>
+
+</div>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-bottom" style="padding-top:0;border-top:none;">
+      <span>© 2026 Shiny Skin – SISCO v1.0</span>
+      <a href="index.html" style="color:var(--color-primary-light);">← Volver al inicio</a>
+    </div>
+  </div>
+</footer>
+
+<script src="js/api.js"></script>
+<script>
+let allProducts = [];
+let catFilter = 'all';
+let brandFilter = '';
+let currentPage = 1;
+const PAGE_SIZE = 9;
+
+// ---- Init ----
+async function init() {
+  allProducts = await fetchProductos();
+  renderBrandFilters();
+  handleURLParams();
+  filterProducts();
+}
+
+function handleURLParams() {
+  const params = new URLSearchParams(window.location.search);
+  const cat = params.get('cat');
+  const nuevo = params.get('nuevo');
+  if (cat) {
+    catFilter = cat;
+    document.querySelectorAll('.filtro-item').forEach(el => el.classList.remove('active'));
+    document.getElementById('pageTitle').textContent = getCatLabel(cat);
+    document.getElementById('breadcrumbCat').textContent = getCatLabel(cat);
+  }
+  if (nuevo === 'true') {
+    document.getElementById('chkNuevo').checked = true;
+    document.getElementById('pageTitle').textContent = 'Lo Nuevo';
+  }
+}
+
+function getCatLabel(cat) {
+  const map = { skincare: 'Skincare ✨', makeup: 'Makeup 💄', serums: 'Sueros & Esencias', protectores: 'Protectores Solares', limpiadores: 'Limpiadores', mascarillas: 'Mascarillas', tonicos: 'Tónicos', labios: 'Labios 💋', rostro: 'Rostro', all: 'Todos los productos' };
+  return map[cat] || 'Tienda';
+}
+
+function renderBrandFilters() {
+  const brands = [...new Set(allProducts.map(p => p.marca).filter(Boolean))];
+  const container = document.getElementById('brandFilters');
+  container.innerHTML = brands.map(b => `
+    <div class="filtro-item" onclick="setBrandFilter('${b}', this)">
+      <span>${b}</span>
+      <span class="filtro-count">${allProducts.filter(p => p.marca === b).length}</span>
+    </div>`).join('');
+}
+
+function getFiltered() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const minP = parseFloat(document.getElementById('minPrice').value) || 0;
+  const maxP = parseFloat(document.getElementById('maxPrice').value) || Infinity;
+  const onlyNew = document.getElementById('chkNuevo').checked;
+  const onlyDiscount = document.getElementById('chkDescuento').checked;
+  const sort = document.getElementById('sortSelect').value;
+
+  let result = allProducts.filter(p => {
+    if (q && !p.nombre.toLowerCase().includes(q) && !(p.marca || '').toLowerCase().includes(q)) return false;
+    if (catFilter !== 'all') {
+      const cat = (p.categoria || '').toLowerCase();
+      if (!cat.includes(catFilter) && catFilter !== p.categoria) return false;
+    }
+    if (brandFilter && p.marca !== brandFilter) return false;
+    if (p.precio_final < minP || p.precio_final > maxP) return false;
+    if (onlyNew && !p.es_nuevo) return false;
+    if (onlyDiscount && p.descuento <= 0) return false;
+    return true;
+  });
+
+  if (sort === 'price-asc')  result.sort((a,b) => a.precio_final - b.precio_final);
+  if (sort === 'price-desc') result.sort((a,b) => b.precio_final - a.precio_final);
+  if (sort === 'name')       result.sort((a,b) => a.nombre.localeCompare(b.nombre));
+  return result;
+}
+
+function filterProducts() {
+  currentPage = 1;
+  renderProducts();
+}
+
+function renderProducts() {
+  const filtered = getFiltered();
+  document.getElementById('prodCount').textContent = filtered.length;
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const page = filtered.slice(start, start + PAGE_SIZE);
+  const grid = document.getElementById('productsGrid');
+
+  if (page.length === 0) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+      <div class="empty-icon">🔍</div>
+      <div class="empty-title">Sin resultados</div>
+      <div class="empty-text">Intenta con otros filtros o términos de búsqueda.</div>
+      <button class="btn btn-primary" onclick="clearFilters()">Limpiar filtros</button>
+    </div>`;
+    document.getElementById('pagination').innerHTML = '';
+    return;
+  }
+
+  grid.innerHTML = page.map(p => renderProductCard(p)).join('');
+  renderPagination(filtered.length);
+}
+
+function renderPagination(total) {
+  const pages = Math.ceil(total / PAGE_SIZE);
+  if (pages <= 1) { document.getElementById('pagination').innerHTML = ''; return; }
+  let html = '';
+  if (currentPage > 1) html += `<button class="page-btn" onclick="goPage(${currentPage-1})">←</button>`;
+  for (let i = 1; i <= pages; i++) {
+    html += `<button class="page-btn${i === currentPage ? ' active' : ''}" onclick="goPage(${i})">${i}</button>`;
+  }
+  if (currentPage < pages) html += `<button class="page-btn" onclick="goPage(${currentPage+1})">→</button>`;
+  document.getElementById('pagination').innerHTML = html;
+}
+
+function goPage(p) { currentPage = p; renderProducts(); window.scrollTo({top:200,behavior:'smooth'}); }
+function setCatFilter(cat, el) {
+  catFilter = cat;
+  document.querySelectorAll('.filtro-item').forEach(e => e.classList.remove('active'));
+  el.classList.add('active');
+  filterProducts();
+}
+function setBrandFilter(brand, el) {
+  brandFilter = brandFilter === brand ? '' : brand;
+  document.querySelectorAll('#brandFilters .filtro-item').forEach(e => e.classList.remove('active'));
+  if (brandFilter) el.classList.add('active');
+  filterProducts();
+}
+function toggleNewFilter(el) {
+  const chk = document.getElementById('chkNuevo');
+  chk.checked = !chk.checked;
+  filterProducts();
+}
+function setPriceRange(min, max) {
+  document.getElementById('minPrice').value = min || '';
+  document.getElementById('maxPrice').value = max >= 9999 ? '' : max;
+  filterProducts();
+}
+function clearFilters() {
+  catFilter = 'all'; brandFilter = '';
+  document.getElementById('searchInput').value = '';
+  document.getElementById('minPrice').value = '';
+  document.getElementById('maxPrice').value = '';
+  document.getElementById('chkNuevo').checked = false;
+  document.getElementById('chkDescuento').checked = false;
+  document.getElementById('sortSelect').value = 'default';
+  document.querySelectorAll('.filtro-item').forEach(e => e.classList.remove('active'));
+  document.getElementById('filterAll').classList.add('active');
+  filterProducts();
+}
+function setView(v) {
+  const grid = document.getElementById('productsGrid');
+  if (v === 'list') { grid.classList.add('list-view'); document.getElementById('listViewBtn').classList.add('active'); document.getElementById('gridViewBtn').classList.remove('active'); }
+  else { grid.classList.remove('list-view'); document.getElementById('gridViewBtn').classList.add('active'); document.getElementById('listViewBtn').classList.remove('active'); }
+}
+
+// Reutilizar desde api.js / index logic
+function renderProductCard(p) {
+  const hasDiscount = p.descuento > 0;
+  return `<article class="product-card fade-in" data-product-id="${p.id}">
+    <a href="producto.html?id=${p.id}" style="display:contents;">
+      <div class="product-card-img">
+        <img src="${p.imagen_url||'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=400'}" alt="${p.nombre}" loading="lazy"/>
+        <div class="product-card-badges">
+          ${p.es_nuevo?'<span class="badge tag-new">New</span>':''}
+          ${hasDiscount?`<span class="badge tag-sale">-${p.descuento}%</span>`:''}
+        </div>
+      </div>
+    </a>
+    <div class="product-card-body">
+      <div class="product-brand">${p.marca||''}</div>
+      <a href="producto.html?id=${p.id}"><div class="product-name">${p.nombre}</div></a>
+      <div class="product-price">
+        <span class="price-main">${formatCurrency(p.precio_final)}</span>
+        ${hasDiscount?`<span class="price-original">${formatCurrency(p.precio_venta)}</span>`:''}
+      </div>
+    </div>
+    <div class="product-card-footer">
+      <button class="btn-add-cart" onclick="addToCart(${p.id})">
+        🛒 Agregar al carrito
+      </button>
+    </div>
+  </article>`;
+}
+
+function getCart() { return JSON.parse(localStorage.getItem('sisco_cart')||'[]'); }
+function addToCart(productId) {
+  const p = allProducts.find(x => x.id == productId);
+  if (!p) return;
+  const cart = getCart();
+  const existing = cart.find(i => i.id == productId);
+  if (existing) existing.cantidad++;
+  else cart.push({ id: p.id, nombre: p.nombre, precio: p.precio_final, imagen: p.imagen_url, marca: p.marca, cantidad: 1 });
+  localStorage.setItem('sisco_cart', JSON.stringify(cart));
+  const total = cart.reduce((s,i) => s+i.cantidad, 0);
+  const badge = document.getElementById('cartBadge');
+  badge.textContent = total;
+  badge.classList.add('visible');
+  showToast(`${p.nombre.split(' ').slice(0,3).join(' ')} agregado 🛒`, 'success');
+}
+
+// Cart badge init
+(function(){
+  const cart = getCart();
+  const total = cart.reduce((s,i)=>s+i.cantidad,0);
+  const badge = document.getElementById('cartBadge');
+  badge.textContent = total;
+  if (total > 0) badge.classList.add('visible');
+})();
+
+init();
+</script>
+</body>
+</html>

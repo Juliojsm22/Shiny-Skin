@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.venv/
+
+# Flask / Backend
+instance/
+*.db
+backend/instance/
+tienda.db
+sisco.db
+.env
+
+# Frontend Uploads (User generated content)
+frontend/uploads/
+backend/uploads/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

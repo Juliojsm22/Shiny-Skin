@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title id="pageTitle">Producto – Shiny Skin</title>
+  <meta name="description" id="pageDesc" content="Producto K-beauty de Shiny Skin Nicaragua." />
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/tienda.css" />
+</head>
+<body>
+<nav class="navbar">
+  <div class="navbar-inner">
+    <a href="index.html" class="navbar-logo"><img src="img/SS%20LOGO%20COPIA.png" alt="Shiny Skin Logo" /></a>
+    <nav class="navbar-nav">
+      <a href="tienda.html" class="nav-link active">Tienda</a>
+      <a href="tienda.html?cat=skincare" class="nav-link">Skincare</a>
+      <a href="tienda.html?cat=makeup" class="nav-link">Makeup</a>
+    </nav>
+    <div class="navbar-actions">
+      <button class="cart-btn" onclick="window.location='carrito.html'" title="Carrito">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        <span class="cart-badge" id="cartBadge">0</span>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<div style="max-width:1100px;margin:0 auto;padding:16px 20px 0;">
+  <nav class="breadcrumb" id="breadcrumb">
+    <a href="index.html">Inicio</a>
+    <span class="breadcrumb-sep">/</span>
+    <a href="tienda.html">Tienda</a>
+    <span class="breadcrumb-sep">/</span>
+    <span id="breadcrumbProd">...</span>
+  </nav>
+</div>
+
+<!-- Product Detail -->
+<div id="productDetail" class="page-loader" style="min-height:60vh;">
+  <div class="spinner"></div><p>Cargando producto...</p>
+</div>
+
+<!-- Related Products -->
+<section class="section" style="background:var(--color-surface-2);">
+  <div class="container">
+    <div class="section-header" style="margin-bottom:32px;">
+      <h2 class="section-title" style="font-size:1.4rem;">También te puede gustar</h2>
+    </div>
+    <div class="grid-4" id="relatedGrid">
+      <div class="page-loader"><div class="spinner"></div></div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer"><div class="container"><div class="footer-bottom" style="padding-top:0;border-top:none;"><span>© 2026 Shiny Skin</span><a href="tienda.html" style="color:var(--color-primary-light);">← Volver a la tienda</a></div></div></footer>
+
+<script src="js/api.js"></script>
+<script>
+let productData = null;
+let qty = 1;
+
+async function init() {
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  if (!id) { window.location='tienda.html'; return; }
+
+  const products = await fetchProductos();
+  productData = products.find(p => p.id == id);
+  if (!productData) { document.getElementById('productDetail').innerHTML='<div class="empty-state"><div class="empty-icon">❌</div><div class="empty-title">Producto no encontrado</div><a href="tienda.html" class="btn btn-primary">Volver a la tienda</a></div>'; return; }
+
+  document.title = `${productData.nombre} – Shiny Skin`;
+  document.getElementById('pageDesc').content = productData.descripcion || '';
+  document.getElementById('breadcrumbProd').textContent = productData.nombre.split(' ').slice(0,4).join(' ');
+  document.getElementById('pageTitle').textContent = productData.nombre + ' – Shiny Skin';
+
+  const hasDiscount = productData.descuento > 0;
+  const beneficiosHTML = productData.beneficios
+    ? productData.beneficios.split('·').map(b => `<div class="beneficio-item"><div class="beneficio-dot"></div><span>${b.trim()}</span></div>`).join('')
+    : '';
+
+  document.getElementById('productDetail').className = '';
+  document.getElementById('productDetail').innerHTML = `
+  <div class="producto-detalle" style="background:var(--color-surface); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border:1px solid rgba(255,255,255,0.8); border-radius:var(--radius-xl); padding:40px; box-shadow:var(--shadow-md); margin-top:24px; margin-bottom:48px;">
+    <!-- Gallery -->
+    <div class="producto-gallery fade-in">
+      <div class="gallery-main">
+        <img id="mainImg" src="${productData.imagen_url||'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=700'}" alt="${productData.nombre}" />
+      </div>
+      ${productData.imagen_url2 ? `<div class="gallery-thumbs">
+        <div class="gallery-thumb active" onclick="setImg('${productData.imagen_url}',this)"><img src="${productData.imagen_url}" alt="Vista 1"/></div>
+        <div class="gallery-thumb" onclick="setImg('${productData.imagen_url2}',this)"><img src="${productData.imagen_url2}" alt="Vista 2"/></div>
+      </div>` : ''}
+    </div>
+
+    <!-- Info -->
+    <div class="producto-info fade-in-delay-1">
+      <div class="producto-marca">${productData.marca||''}</div>
+      <h1 class="producto-titulo">${productData.nombre}</h1>
+
+      <div class="${productData.stock > 0 ? 'stock-badge in-stock' : 'stock-badge out-stock'}">
+        <div class="stock-dot"></div>
+        ${productData.stock > 0 ? `En stock (${productData.stock} disponibles)` : 'Agotado'}
+      </div>
+
+      <div class="producto-precio-wrapper">
+        <span class="producto-precio-main">${formatCurrency(productData.precio_final)}</span>
+        ${hasDiscount ? `<span class="producto-precio-original">${formatCurrency(productData.precio_venta)}</span>` : ''}
+        ${hasDiscount ? `<span class="producto-descuento">-${productData.descuento}%</span>` : ''}
+      </div>
+
+      <p class="producto-descripcion">${productData.descripcion||''}</p>
+
+      ${beneficiosHTML ? `<div class="producto-beneficios"><div style="font-size:0.82rem;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px;">Beneficios</div>${beneficiosHTML}</div>` : ''}
+
+      <div class="cantidad-selector">
+        <button class="qty-btn" onclick="changeQty(-1)" id="qtyMinus">–</button>
+        <span class="qty-display" id="qtyDisplay">1</span>
+        <button class="qty-btn" onclick="changeQty(1)">+</button>
+      </div>
+
+      <div class="producto-actions">
+        <button class="btn btn-primary btn-lg btn-comprar" onclick="addToCartAndGo()" ${productData.stock===0?'disabled':''}>
+          🛒 Agregar al carrito
+        </button>
+        <a href="carrito.html" class="btn btn-outline btn-lg" onclick="addToCartAndGo(event, false)">Comprar ahora</a>
+        <button class="btn-wishlist" id="wishBtn" onclick="toggleWishlist()" title="Guardar en favoritos">🤍</button>
+      </div>
+
+      <div style="margin-top:28px;padding:16px;background:var(--color-surface-2);border-radius:var(--radius-md);">
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:0.82rem;color:var(--color-text-muted);">
+          <span>🚀 <strong>Envío rápido</strong> a domicilio en Managua</span>
+          <span>📞 <strong>Pedidos</strong> también por WhatsApp</span>
+          <span>🛡️ <strong>Producto auténtico</strong> importado directamente</span>
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  loadRelated(products);
+  updateCartBadge();
+}
+
+function setImg(src, thumb) {
+  document.getElementById('mainImg').src = src;
+  document.querySelectorAll('.gallery-thumb').forEach(t => t.classList.remove('active'));
+  thumb.classList.add('active');
+}
+
+function changeQty(delta) {
+  qty = Math.max(1, Math.min(productData.stock||99, qty + delta));
+  document.getElementById('qtyDisplay').textContent = qty;
+  document.getElementById('qtyMinus').disabled = qty <= 1;
+}
+
+function addToCartAndGo(event, stay = true) {
+  if (event) event.preventDefault();
+  const cart = JSON.parse(localStorage.getItem('sisco_cart')||'[]');
+  const existing = cart.find(i => i.id == productData.id);
+  if (existing) existing.cantidad += qty;
+  else cart.push({ id: productData.id, nombre: productData.nombre, precio: productData.precio_final, imagen: productData.imagen_url, marca: productData.marca, cantidad: qty });
+  localStorage.setItem('sisco_cart', JSON.stringify(cart));
+  if (stay) { showToast('Agregado al carrito 🛒', 'success'); updateCartBadge(); }
+  else window.location='carrito.html';
+}
+
+function toggleWishlist() {
+  const btn = document.getElementById('wishBtn');
+  btn.classList.toggle('active');
+  btn.textContent = btn.classList.contains('active') ? '❤️' : '🤍';
+  showToast(btn.classList.contains('active') ? 'Guardado en favoritos ❤️' : 'Eliminado de favoritos', 'info');
+}
+
+function loadRelated(products) {
+  const related = products.filter(p => p.id != productData.id && (p.categoria === productData.categoria || p.marca === productData.marca)).slice(0, 4);
+  const grid = document.getElementById('relatedGrid');
+  grid.innerHTML = related.map(p => `<article class="product-card fade-in">
+    <a href="producto.html?id=${p.id}"><div class="product-card-img"><img src="${p.imagen_url||''}" alt="${p.nombre}" loading="lazy"/></div></a>
+    <div class="product-card-body">
+      <div class="product-brand">${p.marca||''}</div>
+      <a href="producto.html?id=${p.id}"><div class="product-name">${p.nombre}</div></a>
+      <div class="product-price"><span class="price-main">${formatCurrency(p.precio_final)}</span></div>
+    </div>
+    <div class="product-card-footer">
+      <a href="producto.html?id=${p.id}" class="btn-add-cart">Ver producto →</a>
+    </div>
+  </article>`).join('');
+}
+
+function getCart() { return JSON.parse(localStorage.getItem('sisco_cart')||'[]'); }
+function updateCartBadge() {
+  const total = getCart().reduce((s,i) => s+i.cantidad, 0);
+  const badge = document.getElementById('cartBadge');
+  badge.textContent = total;
+  badge.classList.toggle('visible', total > 0);
+}
+
+init();
+</script>
+</body>
+</html>

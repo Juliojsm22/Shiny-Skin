@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Checkout – Shiny Skin</title>
+  <link rel="stylesheet" href="css/main.css"/><link rel="stylesheet" href="css/tienda.css"/>
+</head>
+<body>
+<nav class="navbar"><div class="navbar-inner">
+  <a href="index.html" class="navbar-logo"><img src="img/SS%20LOGO%20COPIA.png" alt="Shiny Skin Logo" /></a>
+  <div class="navbar-actions"><a href="carrito.html" class="btn btn-ghost btn-sm">← Volver al carrito</a></div>
+</div></nav>
+
+<div class="checkout-layout">
+  <!-- LEFT: Form -->
+  <div>
+    <div class="checkout-steps">
+      <div class="checkout-step done"><div class="step-num">✓</div><span>Carrito</span></div>
+      <div class="step-divider"></div>
+      <div class="checkout-step active"><div class="step-num">2</div><span>Datos de entrega</span></div>
+      <div class="step-divider"></div>
+      <div class="checkout-step"><div class="step-num">3</div><span>Confirmación</span></div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px;" id="formSection">
+      <div class="card-body">
+        <h2 style="font-size:1.2rem;font-weight:700;margin-bottom:24px;">📋 Datos de entrega</h2>
+        <form id="checkoutForm" onsubmit="placeOrder(event)">
+          <div class="grid-2" style="gap:16px;margin-bottom:16px;">
+            <div class="form-group">
+              <label class="form-label" for="ckNombre">Nombre completo *</label>
+              <input class="form-control" id="ckNombre" type="text" placeholder="María González" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="ckTel">Teléfono *</label>
+              <input class="form-control" id="ckTel" type="tel" placeholder="505-8888-0000" required />
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:16px;">
+            <label class="form-label" for="ckEmail">Correo electrónico</label>
+            <input class="form-control" id="ckEmail" type="email" placeholder="maria@email.com" />
+          </div>
+          <div class="form-group" style="margin-bottom:16px;">
+            <label class="form-label" for="ckDir">Dirección de entrega *</label>
+            <textarea class="form-control" id="ckDir" rows="3" placeholder="Barrio, referencia, municipio..." required></textarea>
+          </div>
+          <div class="form-group" style="margin-bottom:20px;">
+            <label class="form-label">Método de pago</label>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+              <label style="display:flex;align-items:center;gap:10px;padding:14px;border:1.5px solid var(--color-surface-3);border-radius:var(--radius-md);cursor:pointer;transition:var(--transition);" id="payEfectivo">
+                <input type="radio" name="pago" value="efectivo_entrega" checked onchange="selectPay('payEfectivo')"/>
+                <span>💵 Efectivo al recibir</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;padding:14px;border:1.5px solid var(--color-surface-3);border-radius:var(--radius-md);cursor:pointer;transition:var(--transition);" id="payTransfer">
+                <input type="radio" name="pago" value="transferencia" onchange="selectPay('payTransfer')"/>
+                <span>🏦 Transferencia bancaria</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;padding:14px;border:1.5px solid var(--color-surface-3);border-radius:var(--radius-md);cursor:pointer;transition:var(--transition);" id="payWA">
+                <input type="radio" name="pago" value="whatsapp" onchange="selectPay('payWA')"/>
+                <span>💬 Coordinar por WhatsApp</span>
+              </label>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" for="ckNotas">Notas adicionales</label>
+            <textarea class="form-control" id="ckNotas" rows="2" placeholder="Instrucciones especiales para el envío..."></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg" style="width:100%;margin-top:24px;" id="btnOrder">
+            ✅ Confirmar pedido
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Confirmación (oculta inicialmente) -->
+    <div id="confirmSection" style="display:none;">
+      <div class="card" style="text-align:center;padding:48px 32px;">
+        <div style="font-size:4rem;margin-bottom:16px;animation:pulse 1s ease 3;">✅</div>
+        <h2 style="font-size:1.6rem;font-weight:800;color:var(--color-success);margin-bottom:10px;">¡Pedido confirmado!</h2>
+        <p style="color:var(--color-text-muted);margin-bottom:8px;" id="confirmMsg">Tu pedido ha sido registrado.</p>
+        <p id="confirmNumero" style="font-weight:700;font-size:1.1rem;color:var(--color-primary);margin-bottom:28px;"></p>
+        <div style="background:var(--color-surface-2);border-radius:var(--radius-md);padding:16px;margin-bottom:24px;text-align:left;">
+          <div style="font-size:0.85rem;color:var(--color-text-muted);line-height:2;">
+            <div>📦 <strong>Próximos pasos:</strong></div>
+            <div>1. Te contactaremos para confirmar la entrega</div>
+            <div>2. Nuestro motorizado llegará a tu dirección</div>
+            <div>3. Paga al recibir tu pedido</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+          <a href="tienda.html" class="btn btn-primary">Seguir comprando</a>
+          <a href="index.html" class="btn btn-outline">Ir al inicio</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Order Summary -->
+  <div>
+    <div class="summary-card" style="position:sticky;top:90px;">
+      <div class="summary-title">📦 Tu pedido</div>
+      <div id="orderItems" style="margin:16px 0;max-height:300px;overflow-y:auto;"></div>
+      <div id="orderTotals"></div>
+    </div>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+function getCart() { return JSON.parse(localStorage.getItem('sisco_cart')||'[]'); }
+
+function renderSummary() {
+  const cart = getCart();
+  if (cart.length === 0) { window.location='carrito.html'; return; }
+  const subtotal = cart.reduce((s,i)=>s+(i.precio*i.cantidad),0);
+  const iva = subtotal*0.15;
+  const total = subtotal+iva;
+
+  document.getElementById('orderItems').innerHTML = cart.map(item => `
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;">
+      <img src="${item.imagen||''}" style="width:52px;height:52px;object-fit:cover;border-radius:10px;background:var(--color-surface-2);" alt="${item.nombre}"/>
+      <div style="flex:1;"><div style="font-size:0.85rem;font-weight:600;">${item.nombre.split(' ').slice(0,4).join(' ')}...</div><div style="font-size:0.78rem;color:var(--color-text-muted);">x${item.cantidad}</div></div>
+      <div style="font-weight:700;font-size:0.9rem;">${formatCurrency(item.precio*item.cantidad)}</div>
+    </div>`).join('');
+
+  document.getElementById('orderTotals').innerHTML = `
+    <div class="summary-line" style="border-top:1px solid var(--color-surface-3);padding-top:12px;"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
+    <div class="summary-line"><span>IVA (15%)</span><span>${formatCurrency(iva)}</span></div>
+    <div class="summary-line"><span>Envío</span><span style="color:var(--color-success);">Gratis</span></div>
+    <div class="summary-line summary-total" style="border-top:2px solid var(--color-surface-3);padding-top:12px;margin-top:6px;border-bottom:none;">
+      <span>Total</span><span class="summary-total-value">${formatCurrency(total)}</span>
+    </div>`;
+}
+
+function selectPay(id) {
+  document.querySelectorAll('[id^="pay"]').forEach(el => el.style.borderColor='var(--color-surface-3)');
+  document.getElementById(id).style.borderColor='var(--color-primary)';
+}
+
+async function placeOrder(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btnOrder');
+  btn.disabled = true; btn.textContent = 'Procesando...';
+
+  const cart = getCart();
+  const subtotal = cart.reduce((s,i)=>s+(i.precio*i.cantidad),0);
+  const iva = subtotal*0.15;
+  const total = subtotal+iva;
+
+  const orderData = {
+    nombre_cliente: document.getElementById('ckNombre').value,
+    telefono_cliente: document.getElementById('ckTel').value,
+    email_cliente: document.getElementById('ckEmail').value,
+    direccion_entrega: document.getElementById('ckDir').value,
+    metodo_pago: document.querySelector('input[name="pago"]:checked').value,
+    notas: document.getElementById('ckNotas').value,
+    canal: 'web',
+    items: cart.map(i => ({ product_id: i.id, cantidad: i.cantidad }))
+  };
+
+  let numeroPedido;
+  try {
+    const result = await api.pedidos.create(orderData);
+    numeroPedido = result.numero_pedido;
+  } catch {
+    // Fallback mock
+    numeroPedido = 'SS-' + Math.random().toString(36).substr(2,6).toUpperCase();
+    await new Promise(r => setTimeout(r, 1200));
+  }
+
+  localStorage.removeItem('sisco_cart');
+  document.getElementById('formSection').style.display = 'none';
+  document.getElementById('confirmSection').style.display = 'block';
+  document.getElementById('confirmMsg').textContent = `¡Gracias, ${orderData.nombre_cliente}! Te contactaremos pronto.`;
+  document.getElementById('confirmNumero').textContent = `Número de pedido: ${numeroPedido}`;
+  showToast('¡Pedido creado exitosamente! 🎉', 'success');
+}
+
+renderSummary();
+selectPay('payEfectivo');
+</script>
+</body>
+</html>

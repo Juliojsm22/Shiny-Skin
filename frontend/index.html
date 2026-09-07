@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shiny Skin – K-Beauty & Skincare | Managua, Nicaragua</title>
+  <meta name="description" content="Descubre los mejores productos de K-beauty, skincare y maquillaje importados de Corea del Sur y Estados Unidos. Tienda oficial de Shiny Skin en Nicaragua." />
+  <meta name="keywords" content="skincare Nicaragua, K-beauty Managua, maquillaje coreano, ANUA, COSRX, rom&nd, Shiny Skin" />
+  <link rel="canonical" href="/" />
+  <link rel="stylesheet" href="css/main.css" />
+  <style>
+    /* ---- Hero ---- */
+    .hero-content { position: relative; z-index: 2; max-width: 1240px; margin: 0 auto; padding: 80px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; }
+    .hero-eyebrow { display: inline-flex; align-items: center; gap: 8px; background: var(--color-primary-glow); color: var(--color-primary); padding: 6px 18px; border-radius: var(--radius-full); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 18px; }
+    .hero-eyebrow::before { content: '✨'; font-style: normal; }
+    .hero-title { font-size: clamp(2.4rem, 5vw, 3.8rem); font-weight: 800; line-height: 1.08; margin-bottom: 20px; }
+    .hero-desc { font-size: 1.05rem; color: var(--color-text-muted); line-height: 1.7; margin-bottom: 36px; max-width: 480px; }
+    .hero-cta { display: flex; gap: 14px; flex-wrap: wrap; }
+    .hero-stats { display: flex; gap: 32px; margin-top: 48px; }
+    .hero-stat-num { font-family: 'Poppins', sans-serif; font-size: 1.8rem; font-weight: 800; background: linear-gradient(135deg, var(--color-primary), var(--color-gold)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .hero-stat-label { font-size: 0.78rem; color: var(--color-text-muted); font-weight: 500; }
+    .hero-visual { position: relative; display: flex; align-items: center; justify-content: center; }
+    .hero-img-main { width: 400px; height: 480px; object-fit: cover; border-radius: 40% 60% 60% 40% / 40% 40% 60% 60%; box-shadow: var(--shadow-xl); animation: float 6s ease-in-out infinite; }
+    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+    .hero-badge {
+      position: absolute;
+      background: white;
+      border-radius: var(--radius-lg);
+      padding: 12px 16px;
+      box-shadow: var(--shadow-md);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.82rem;
+      animation: float 5s 1s ease-in-out infinite;
+    }
+    .hero-badge-icon { font-size: 1.4rem; }
+    .hero-badge-text { font-weight: 700; color: var(--color-text); }
+    .hero-badge-sub { font-size: 0.7rem; color: var(--color-text-muted); }
+    .badge-tl { top: 40px; left: -20px; }
+    .badge-br { bottom: 60px; right: -20px; animation-delay: 2s; }
+
+    /* ---- Category Banner ---- */
+    .cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .cat-card {
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      aspect-ratio: 1;
+      position: relative;
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--color-surface-2), var(--color-surface-3));
+      transition: var(--transition-slow);
+    }
+    .cat-card:first-child { grid-column: span 2; grid-row: span 2; aspect-ratio: auto; min-height: 320px; }
+    .cat-card:hover { transform: scale(1.02); box-shadow: var(--shadow-lg); }
+    .cat-card-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.65) 0%, transparent 60%); }
+    .cat-card-img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.6s ease; }
+    .cat-card:hover .cat-card-img { transform: scale(1.06); }
+    .cat-card-content { position: absolute; bottom: 0; left: 0; right: 0; padding: 20px; }
+    .cat-card-tag { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: rgba(255,255,255,0.7); margin-bottom: 4px; }
+    .cat-card-name { font-family: 'Poppins', sans-serif; font-size: 1.1rem; font-weight: 700; color: white; }
+    .cat-card:first-child .cat-card-name { font-size: 1.6rem; }
+    .cat-card-count { font-size: 0.78rem; color: rgba(255,255,255,0.6); margin-top: 4px; }
+
+    /* ---- Brands ---- */
+    .brands-strip { overflow: hidden; background: var(--color-surface); padding: 24px 0; border-top: 1px solid var(--color-surface-3); border-bottom: 1px solid var(--color-surface-3); }
+    .brands-track { display: flex; gap: 48px; animation: scroll 20s linear infinite; width: max-content; }
+    .brand-item { font-family: 'Poppins', sans-serif; font-size: 1rem; font-weight: 700; color: var(--color-text-light); white-space: nowrap; transition: var(--transition); }
+    .brand-item:hover { color: var(--color-primary); }
+    @keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+    /* ---- Features ---- */
+    .features-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+    .feature-card { text-align: center; padding: 32px 20px; }
+    .feature-icon { font-size: 2.4rem; margin-bottom: 14px; }
+    .feature-title { font-family: 'Poppins', sans-serif; font-size: 0.95rem; font-weight: 700; margin-bottom: 6px; }
+    .feature-desc { font-size: 0.82rem; color: var(--color-text-muted); }
+
+    /* ---- Newsletter ---- */
+    .newsletter {
+      background: linear-gradient(135deg, var(--color-primary-dark) 0%, #6B2040 100%);
+      border-radius: var(--radius-xl);
+      padding: 60px 40px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .newsletter::before { content: '✨'; position: absolute; font-size: 8rem; top: -20px; right: -20px; opacity: 0.08; }
+    .newsletter-title { font-size: 1.8rem; font-weight: 800; color: white; margin-bottom: 10px; }
+    .newsletter-sub { color: rgba(255,255,255,0.7); margin-bottom: 28px; font-size: 0.95rem; }
+    .newsletter-form { display: flex; gap: 10px; max-width: 440px; margin: 0 auto; }
+    .newsletter-input { flex: 1; padding: 14px 20px; border-radius: var(--radius-full); border: none; font-size: 0.9rem; outline: none; }
+    .newsletter-btn { padding: 14px 24px; background: white; color: var(--color-primary-dark); border-radius: var(--radius-full); font-weight: 700; font-size: 0.9rem; white-space: nowrap; transition: var(--transition); }
+    .newsletter-btn:hover { background: var(--color-gold-light); }
+
+    @media (max-width: 900px) {
+      .hero-content { grid-template-columns: 1fr; text-align: center; }
+      .hero-cta { justify-content: center; }
+      .hero-stats { justify-content: center; }
+      .hero-visual { display: none; }
+      .cat-grid { grid-template-columns: repeat(2, 1fr); }
+      .cat-card:first-child { grid-column: span 2; }
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 560px) {
+      .cat-grid { grid-template-columns: 1fr 1fr; }
+      .features-grid { grid-template-columns: 1fr 1fr; }
+      .newsletter-form { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ===== NAVBAR ===== -->
+<nav class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <a href="index.html" class="navbar-logo"><img src="img/SS%20LOGO%20COPIA.png" alt="Shiny Skin Logo" /></a>
+
+    <nav class="navbar-nav" aria-label="Navegación principal">
+      <a href="index.html" class="nav-link active">Inicio</a>
+      <a href="tienda.html" class="nav-link">Tienda</a>
+      <a href="tienda.html?cat=skincare" class="nav-link">Skincare</a>
+      <a href="tienda.html?cat=makeup" class="nav-link">Makeup</a>
+      <a href="tienda.html?nuevo=true" class="nav-link">Lo Nuevo</a>
+    </nav>
+
+    <div class="navbar-actions">
+      <a href="tienda.html" class="btn btn-ghost btn-sm" style="display:flex;align-items:center;gap:6px;" title="Buscar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </a>
+      <a href="login.html" class="btn btn-ghost btn-sm" title="Mi cuenta">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </a>
+      <button class="cart-btn" id="cartBtn" onclick="window.location='carrito.html'" title="Carrito">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        <span class="cart-badge" id="cartBadge">0</span>
+      </button>
+      <a href="admin/dashboard.html" class="btn btn-primary btn-sm">Panel Admin</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ===== HERO ===== -->
+<section class="hero" aria-label="Banner principal">
+  <div class="hero-content">
+    <div>
+      <div class="hero-eyebrow">Ahora disponible en Managua</div>
+      <h1 class="hero-title">Tu rutina de <span class="text-gradient">K-beauty</span> está aquí 🌸</h1>
+      <p class="hero-desc">Productos de skincare y maquillaje importados directamente de Corea del Sur y Estados Unidos. Auténticos, efectivos y al mejor precio de Nicaragua.</p>
+      <div class="hero-cta">
+        <a href="tienda.html" class="btn btn-primary btn-lg">Explorar tienda</a>
+        <a href="tienda.html?nuevo=true" class="btn btn-outline btn-lg">Lo Nuevo ✨</a>
+      </div>
+      <div class="hero-stats">
+        <div><div class="hero-stat-num">200+</div><div class="hero-stat-label">Productos</div></div>
+        <div><div class="hero-stat-num">50+</div><div class="hero-stat-label">Marcas K-beauty</div></div>
+        <div><div class="hero-stat-num">5★</div><div class="hero-stat-label">Calificación</div></div>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <img class="hero-img-main" src="https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=600" alt="Productos de skincare K-beauty" />
+      <div class="hero-badge badge-tl">
+        <div class="hero-badge-icon">🇰🇷</div>
+        <div><div class="hero-badge-text">K-Beauty</div><div class="hero-badge-sub">Importado directo</div></div>
+      </div>
+      <div class="hero-badge badge-br">
+        <div class="hero-badge-icon">✈️</div>
+        <div><div class="hero-badge-text">Envío rápido</div><div class="hero-badge-sub">Managua y resto del país</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== BRANDS STRIP ===== -->
+<div class="brands-strip" aria-label="Marcas disponibles">
+  <div class="brands-track" id="brandsTrack">
+    <span class="brand-item">ANUA</span><span class="brand-item">COSRX</span><span class="brand-item">rom&amp;nd</span>
+    <span class="brand-item">Numbuzin</span><span class="brand-item">Medicube</span><span class="brand-item">Purito</span>
+    <span class="brand-item">Biodance</span><span class="brand-item">Skin1004</span><span class="brand-item">Innisfree</span>
+    <span class="brand-item">Laneige</span><span class="brand-item">Missha</span><span class="brand-item">I'm From</span>
+    <span class="brand-item">Beauty of Joseon</span><span class="brand-item">Isntree</span>
+    <!-- duplicar para loop infinito -->
+    <span class="brand-item">ANUA</span><span class="brand-item">COSRX</span><span class="brand-item">rom&amp;nd</span>
+    <span class="brand-item">Numbuzin</span><span class="brand-item">Medicube</span><span class="brand-item">Purito</span>
+    <span class="brand-item">Biodance</span><span class="brand-item">Skin1004</span><span class="brand-item">Innisfree</span>
+    <span class="brand-item">Laneige</span><span class="brand-item">Missha</span><span class="brand-item">I'm From</span>
+    <span class="brand-item">Beauty of Joseon</span><span class="brand-item">Isntree</span>
+  </div>
+</div>
+
+<!-- ===== CATEGORÍAS ===== -->
+<section class="section" aria-labelledby="cats-title">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-tag">Explorar</div>
+      <h2 class="section-title" id="cats-title">Encuentra lo que tu piel <span class="text-gradient">necesita</span></h2>
+      <p class="section-subtitle">Desde limpiadores hasta maquillaje, todo lo que necesitas en un solo lugar.</p>
+    </div>
+    <div class="cat-grid">
+      <a href="tienda.html?cat=skincare" class="cat-card">
+        <img class="cat-card-img" src="https://images.unsplash.com/photo-1620916297397-a4a5402a3c6c?w=700" alt="Skincare productos" loading="lazy" />
+        <div class="cat-card-overlay"></div>
+        <div class="cat-card-content">
+          <div class="cat-card-tag">Colección completa</div>
+          <div class="cat-card-name">Skincare ✨</div>
+          <div class="cat-card-count">+150 productos</div>
+        </div>
+      </a>
+      <a href="tienda.html?cat=serums" class="cat-card">
+        <img class="cat-card-img" src="https://images.unsplash.com/photo-1631730359585-5b07fe4eb3f0?w=400" alt="Sueros y esencias" loading="lazy" />
+        <div class="cat-card-overlay"></div>
+        <div class="cat-card-content">
+          <div class="cat-card-tag">Tratamientos</div>
+          <div class="cat-card-name">Sueros</div>
+        </div>
+      </a>
+      <a href="tienda.html?cat=protectores" class="cat-card">
+        <img class="cat-card-img" src="https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400" alt="Protectores solares" loading="lazy" />
+        <div class="cat-card-overlay"></div>
+        <div class="cat-card-content">
+          <div class="cat-card-tag">Protección</div>
+          <div class="cat-card-name">Solares</div>
+        </div>
+      </a>
+      <a href="tienda.html?cat=makeup" class="cat-card">
+        <img class="cat-card-img" src="https://images.unsplash.com/photo-1631214524020-3c69b4eef11d?w=400" alt="Maquillaje K-beauty" loading="lazy" />
+        <div class="cat-card-overlay"></div>
+        <div class="cat-card-content">
+          <div class="cat-card-tag">K-Beauty</div>
+          <div class="cat-card-name">Makeup 💄</div>
+        </div>
+      </a>
+      <a href="tienda.html?cat=mascarillas" class="cat-card">
+        <img class="cat-card-img" src="https://images.unsplash.com/photo-1603706582948-64b9b9f8f9da?w=400" alt="Mascarillas faciales" loading="lazy" />
+        <div class="cat-card-overlay"></div>
+        <div class="cat-card-content">
+          <div class="cat-card-tag">Tratamiento</div>
+          <div class="cat-card-name">Mascarillas</div>
+        </div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== DESTACADOS ===== -->
+<section class="section" style="background: var(--color-surface-2);" aria-labelledby="featured-title">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-tag">⭐ Más populares</div>
+      <h2 class="section-title" id="featured-title">Productos <span class="text-gradient">destacados</span></h2>
+      <p class="section-subtitle">Los favoritos de nuestra comunidad. Calidad comprobada.</p>
+    </div>
+    <div id="featuredGrid" class="grid-4">
+      <div class="page-loader"><div class="spinner"></div><p>Cargando productos...</p></div>
+    </div>
+    <div style="text-align:center;margin-top:40px;">
+      <a href="tienda.html" class="btn btn-outline btn-lg">Ver todos los productos →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== LO NUEVO ===== -->
+<section class="section" aria-labelledby="new-title">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-tag">🆕 Recién llegados</div>
+      <h2 class="section-title" id="new-title">Lo <span class="text-gradient">Nuevo</span></h2>
+      <p class="section-subtitle">Últimas importaciones directas de Corea del Sur.</p>
+    </div>
+    <div id="newProductsGrid" class="grid-4">
+      <div class="page-loader"><div class="spinner"></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FEATURES ===== -->
+<section style="padding: 60px 0; background: var(--color-surface);" aria-labelledby="why-title">
+  <div class="container">
+    <div class="section-header" style="margin-bottom:36px;">
+      <h2 class="section-title" id="why-title" style="font-size:1.6rem;">¿Por qué elegir <span class="text-gradient">Shiny Skin</span>?</h2>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🇰🇷</div>
+        <div class="feature-title">100% Auténtico</div>
+        <div class="feature-desc">Importamos directamente desde Corea del Sur y EE.UU. Sin intermediarios.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🚀</div>
+        <div class="feature-title">Envío Rápido</div>
+        <div class="feature-desc">Motorizado propio en Managua. Entrega a domicilio en todo el país.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💬</div>
+        <div class="feature-title">Asesoría Personalizada</div>
+        <div class="feature-desc">Te ayudamos a encontrar la rutina perfecta para tu tipo de piel.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🛡️</div>
+        <div class="feature-title">Garantía de Calidad</div>
+        <div class="feature-desc">Productos verificados con fecha de vencimiento y empaque original.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== NEWSLETTER ===== -->
+<section class="section" aria-labelledby="newsletter-title">
+  <div class="container">
+    <div class="newsletter">
+      <h2 class="newsletter-title" id="newsletter-title">Únete a la comunidad ✨</h2>
+      <p class="newsletter-sub">Recibe primero las novedades, descuentos exclusivos y consejos de skincare.</p>
+      <form class="newsletter-form" id="newsletterForm" onsubmit="handleNewsletter(event)">
+        <input class="newsletter-input" type="email" placeholder="tu@email.com" required aria-label="Correo electrónico" id="nlEmail" />
+        <button type="submit" class="newsletter-btn">Suscribirme</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer class="footer" role="contentinfo">
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <div class="footer-logo">Shiny <span>Skin</span></div>
+        <p style="font-size:0.85rem;color:rgba(255,255,255,0.4);max-width:280px;margin-top:10px;line-height:1.6;">
+          Tienda especializada en productos K-beauty, skincare y maquillaje. Camino de Oriente, Managua, Nicaragua.
+        </p>
+        <div style="display:flex;gap:10px;margin-top:18px;">
+          <a href="#" style="font-size:1.2rem;" aria-label="Instagram">📸</a>
+          <a href="#" style="font-size:1.2rem;" aria-label="Facebook">📘</a>
+          <a href="#" style="font-size:1.2rem;" aria-label="WhatsApp">💬</a>
+        </div>
+      </div>
+      <div>
+        <div class="footer-title">Tienda</div>
+        <div class="footer-links">
+          <a href="tienda.html" class="footer-link">Todos los productos</a>
+          <a href="tienda.html?cat=skincare" class="footer-link">Skincare</a>
+          <a href="tienda.html?cat=makeup" class="footer-link">Makeup</a>
+          <a href="tienda.html?nuevo=true" class="footer-link">Lo Nuevo</a>
+        </div>
+      </div>
+      <div>
+        <div class="footer-title">Mi cuenta</div>
+        <div class="footer-links">
+          <a href="login.html" class="footer-link">Iniciar sesión</a>
+          <a href="login.html#register" class="footer-link">Registrarse</a>
+          <a href="carrito.html" class="footer-link">Mi carrito</a>
+        </div>
+      </div>
+      <div>
+        <div class="footer-title">Contacto</div>
+        <div class="footer-links">
+          <span class="footer-link">📍 Camino de Oriente, Managua</span>
+          <span class="footer-link">📱 WhatsApp: +505 8888-0000</span>
+          <span class="footer-link">📧 info@shinyskin.ni</span>
+          <span class="footer-link">⏰ Lun–Sáb: 9am–7pm</span>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Shiny Skin · SISCO v1.0</span>
+      <span>Desarrollado con ❤️ en Nicaragua · UNI Ingeniería</span>
+    </div>
+  </div>
+</footer>
+
+<!-- ===== SCRIPTS ===== -->
+<script src="js/api.js"></script>
+<script>
+// ---- Carrito ----
+function getCart() { return JSON.parse(localStorage.getItem('sisco_cart') || '[]'); }
+function updateCartBadge() {
+  const cart = getCart();
+  const total = cart.reduce((s, i) => s + i.cantidad, 0);
+  const badge = document.getElementById('cartBadge');
+  badge.textContent = total;
+  badge.classList.toggle('visible', total > 0);
+}
+
+// ---- Render product card ----
+function renderProductCard(p) {
+  const hasDiscount = p.descuento > 0;
+  return `
+  <article class="product-card fade-in" data-product-id="${p.id}">
+    <div class="product-card-img">
+      <img src="${p.imagen_url || 'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=400'}"
+           alt="${p.nombre}" loading="lazy" />
+      <div class="product-card-badges">
+        ${p.es_nuevo ? '<span class="badge tag-new">New</span>' : ''}
+        ${hasDiscount ? `<span class="badge tag-sale">-${p.descuento}%</span>` : ''}
+      </div>
+      <div class="product-card-actions">
+        <button class="product-action-btn" onclick="addToCart(${p.id}, event)" title="Agregar al carrito">🛒</button>
+        <a href="producto.html?id=${p.id}" class="product-action-btn" title="Ver producto">👁</a>
+      </div>
+    </div>
+    <div class="product-card-body">
+      <div class="product-brand">${p.marca || ''}</div>
+      <div class="product-name">${p.nombre}</div>
+      <div class="product-price">
+        <span class="price-main">${formatCurrency(p.precio_final)}</span>
+        ${hasDiscount ? `<span class="price-original">${formatCurrency(p.precio_venta)}</span>` : ''}
+      </div>
+    </div>
+    <div class="product-card-footer">
+      <button class="btn-add-cart" onclick="addToCart(${p.id}, event)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        Agregar
+      </button>
+    </div>
+  </article>`;
+}
+
+// ---- Add to cart ----
+async function addToCart(productId, event) {
+  event?.stopPropagation();
+  const products = await fetchProductos();
+  const product = products.find(p => p.id == productId);
+  if (!product) return;
+  const cart = getCart();
+  const existing = cart.find(i => i.id == productId);
+  if (existing) existing.cantidad++;
+  else cart.push({ id: product.id, nombre: product.nombre, precio: product.precio_final, imagen: product.imagen_url, marca: product.marca, cantidad: 1 });
+  localStorage.setItem('sisco_cart', JSON.stringify(cart));
+  updateCartBadge();
+  showToast(`${product.nombre.split(' ').slice(0,3).join(' ')} agregado al carrito`, 'success');
+}
+
+// ---- Load featured products ----
+async function loadFeatured() {
+  const grid = document.getElementById('featuredGrid');
+  const products = await fetchProductos();
+  const featured = products.filter(p => p.es_destacado).slice(0, 8);
+  grid.innerHTML = featured.map(renderProductCard).join('') || '<div class="empty-state"><div class="empty-icon">📦</div><p>No hay productos disponibles</p></div>';
+}
+
+// ---- Load new products ----
+async function loadNew() {
+  const grid = document.getElementById('newProductsGrid');
+  const products = await fetchProductos();
+  const newProds = products.filter(p => p.es_nuevo).slice(0, 4);
+  grid.innerHTML = newProds.map(renderProductCard).join('') || '<div class="empty-state"><div class="empty-icon">🆕</div><p>No hay novedades</p></div>';
+}
+
+// ---- Newsletter ----
+function handleNewsletter(e) {
+  e.preventDefault();
+  const email = document.getElementById('nlEmail').value;
+  showToast(`¡Gracias! ${email} registrado con éxito 🎉`, 'success');
+  e.target.reset();
+}
+
+// ---- Init ----
+updateCartBadge();
+loadFeatured();
+loadNew();
+</script>
+</body>
+</html>

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login – Shiny Skin</title>
+  <link rel="stylesheet" href="css/main.css"/><link rel="stylesheet" href="css/tienda.css"/>
+</head>
+<body>
+<div class="login-page">
+  <div class="login-card fade-in">
+    <div class="login-logo">
+      <div class="login-logo-text">Shiny Skin</div>
+      <div style="font-size:0.75rem;color:var(--color-text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:1.5px;">Sistema SISCO v1.0</div>
+    </div>
+
+    <div class="login-tabs">
+      <div class="login-tab active" id="tabLogin" onclick="switchTab('login')">Iniciar sesión</div>
+      <div class="login-tab" id="tabRegister" onclick="switchTab('register')">Registrarse</div>
+    </div>
+
+    <!-- Login Form -->
+    <form id="loginForm" onsubmit="doLogin(event)">
+      <p class="login-subtitle" style="margin-bottom:24px;">Bienvenida de vuelta 🌸</p>
+      <div class="form-group" style="margin-bottom:16px;">
+        <label class="form-label" for="loginEmail">Correo electrónico</label>
+        <input class="form-control" id="loginEmail" type="email" placeholder="tu@email.com" required value="admin@shinyskin.com"/>
+      </div>
+      <div class="form-group" style="margin-bottom:24px;">
+        <label class="form-label" for="loginPass">Contraseña</label>
+        <input class="form-control" id="loginPass" type="password" placeholder="••••••••" required value="admin123"/>
+      </div>
+      <div style="background:var(--color-surface-2);border-radius:var(--radius-md);padding:12px;margin-bottom:20px;font-size:0.8rem;color:var(--color-text-muted);">
+        <div style="font-weight:700;margin-bottom:4px;">🔑 Credenciales de demo:</div>
+        <div>Admin: admin@shinyskin.com / admin123</div>
+        <div>Cliente: maria@gmail.com / cliente123</div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-lg" style="width:100%;" id="loginBtn">Iniciar sesión</button>
+      <div style="text-align:center;margin-top:16px;font-size:0.82rem;color:var(--color-text-muted);">
+        ¿No tienes cuenta? <a onclick="switchTab('register')" style="color:var(--color-primary);cursor:pointer;font-weight:600;">Regístrate</a>
+      </div>
+    </form>
+
+    <!-- Register Form -->
+    <form id="registerForm" style="display:none;" onsubmit="doRegister(event)">
+      <p class="login-subtitle" style="margin-bottom:24px;">Crea tu cuenta en segundos ✨</p>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label" for="regNombre">Nombre completo</label>
+        <input class="form-control" id="regNombre" type="text" placeholder="María González" required/>
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label" for="regEmail">Correo electrónico</label>
+        <input class="form-control" id="regEmail" type="email" placeholder="tu@email.com" required/>
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label" for="regTel">Teléfono</label>
+        <input class="form-control" id="regTel" type="tel" placeholder="505-8888-0000"/>
+      </div>
+      <div class="form-group" style="margin-bottom:24px;">
+        <label class="form-label" for="regPass">Contraseña</label>
+        <input class="form-control" id="regPass" type="password" placeholder="Mín. 6 caracteres" required minlength="6"/>
+      </div>
+      <button type="submit" class="btn btn-primary btn-lg" style="width:100%;" id="regBtn">Crear cuenta</button>
+      <div style="text-align:center;margin-top:16px;font-size:0.82rem;color:var(--color-text-muted);">
+        ¿Ya tienes cuenta? <a onclick="switchTab('login')" style="color:var(--color-primary);cursor:pointer;font-weight:600;">Iniciar sesión</a>
+      </div>
+    </form>
+
+    <div style="text-align:center;margin-top:24px;">
+      <a href="index.html" style="font-size:0.82rem;color:var(--color-text-light);">← Volver a la tienda sin iniciar sesión</a>
+    </div>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+// Check if already has tab in URL
+if (window.location.hash === '#register') switchTabInit('register');
+
+function switchTab(tab) {
+  document.getElementById('tabLogin').classList.toggle('active', tab==='login');
+  document.getElementById('tabRegister').classList.toggle('active', tab==='register');
+  document.getElementById('loginForm').style.display = tab==='login'?'block':'none';
+  document.getElementById('registerForm').style.display = tab==='register'?'block':'none';
+}
+function switchTabInit(tab) { setTimeout(()=>switchTab(tab),50); }
+
+async function doLogin(e) {
+  e.preventDefault();
+  const btn = document.getElementById('loginBtn');
+  btn.disabled=true; btn.textContent='Entrando...';
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPass').value;
+  try {
+    const result = await api.auth.login({ email, password });
+    localStorage.setItem('sisco_token', result.token);
+    localStorage.setItem('sisco_user', JSON.stringify(result.user));
+    if (result.user.rol === 'admin' || result.user.rol === 'vendedor') window.location = 'admin/dashboard.html';
+    else window.location = 'index.html';
+  } catch (err) {
+    // Mock login para demo
+    if (email === 'admin@shinyskin.com' && password === 'admin123') {
+      localStorage.setItem('sisco_user', JSON.stringify({nombre:'Administrador', email, rol:'admin'}));
+      window.location='admin/dashboard.html';
+    } else if (email === 'maria@gmail.com' && password === 'cliente123') {
+      localStorage.setItem('sisco_user', JSON.stringify({nombre:'María González', email, rol:'cliente'}));
+      window.location='index.html';
+    } else {
+      showToast('Credenciales incorrectas. Usa las del demo.', 'error');
+      btn.disabled=false; btn.textContent='Iniciar sesión';
+    }
+  }
+}
+
+async function doRegister(e) {
+  e.preventDefault();
+  const btn = document.getElementById('regBtn');
+  btn.disabled=true; btn.textContent='Creando cuenta...';
+  try {
+    const result = await api.auth.register({
+      nombre: document.getElementById('regNombre').value,
+      email: document.getElementById('regEmail').value,
+      telefono: document.getElementById('regTel').value,
+      password: document.getElementById('regPass').value,
+    });
+    localStorage.setItem('sisco_token', result.token);
+    localStorage.setItem('sisco_user', JSON.stringify(result.user));
+    showToast('¡Cuenta creada exitosamente! 🎉', 'success');
+    setTimeout(()=>window.location='index.html', 1500);
+  } catch(err) {
+    showToast(err.message || 'Error al crear la cuenta', 'error');
+    btn.disabled=false; btn.textContent='Crear cuenta';
+  }
+}
+</script>
+</body>
+</html>

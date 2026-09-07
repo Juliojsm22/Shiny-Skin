@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mi Carrito – Shiny Skin</title>
+  <link rel="stylesheet" href="css/main.css" /><link rel="stylesheet" href="css/tienda.css" />
+</head>
+<body>
+<nav class="navbar"><div class="navbar-inner">
+  <a href="index.html" class="navbar-logo"><img src="img/SS%20LOGO%20COPIA.png" alt="Shiny Skin Logo" /></a>
+  <nav class="navbar-nav"><a href="tienda.html" class="nav-link">← Seguir comprando</a></nav>
+  <div class="navbar-actions"><span style="font-size:0.9rem;color:var(--color-text-muted);">Tu carrito</span></div>
+</div></nav>
+
+<div style="max-width:1100px;margin:0 auto;padding:32px 20px 0;">
+  <h1 style="font-size:1.8rem;font-weight:800;margin-bottom:6px;">🛒 Mi carrito</h1>
+  <p style="color:var(--color-text-muted);font-size:0.9rem;" id="cartSubtitle">...</p>
+</div>
+
+<div class="carrito-layout" id="carritoLayout">
+  <div class="page-loader"><div class="spinner"></div><p>Cargando carrito...</p></div>
+</div>
+
+<footer class="footer"><div class="container"><div class="footer-bottom" style="padding-top:0;border-top:none;"><span>© 2026 Shiny Skin</span></div></div></footer>
+
+<script src="js/api.js"></script>
+<script>
+function getCart() { return JSON.parse(localStorage.getItem('sisco_cart')||'[]'); }
+function saveCart(c) { localStorage.setItem('sisco_cart', JSON.stringify(c)); }
+
+function render() {
+  const cart = getCart();
+  const layout = document.getElementById('carritoLayout');
+  const subtitle = document.getElementById('cartSubtitle');
+
+  if (cart.length === 0) {
+    subtitle.textContent = 'Tu carrito está vacío';
+    layout.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+      <div class="empty-icon">🛒</div>
+      <div class="empty-title">Tu carrito está vacío</div>
+      <div class="empty-text">Agrega productos desde la tienda para comenzar tu pedido.</div>
+      <a href="tienda.html" class="btn btn-primary btn-lg">Explorar tienda</a>
+    </div>`;
+    return;
+  }
+
+  subtitle.textContent = `${cart.reduce((s,i)=>s+i.cantidad,0)} artículo(s) en tu carrito`;
+
+  const subtotal = cart.reduce((s,i)=>s+(i.precio*i.cantidad),0);
+  const iva = subtotal * 0.15;
+  const total = subtotal + iva;
+
+  layout.innerHTML = `
+  <div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h2 style="font-size:1rem;font-weight:700;">Productos (${cart.length})</h2>
+      <button class="btn btn-ghost btn-sm" onclick="clearCart()" style="color:var(--color-danger);">Vaciar carrito</button>
+    </div>
+    ${cart.map(item => `
+    <div class="cart-item" id="cartItem-${item.id}">
+      <div class="cart-item-img">
+        <img src="${item.imagen||'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=200'}" alt="${item.nombre}" />
+      </div>
+      <div class="cart-item-info">
+        <div class="cart-item-marca">${item.marca||''}</div>
+        <div class="cart-item-name">${item.nombre}</div>
+        <div style="font-size:0.82rem;color:var(--color-text-muted);">Precio unitario: ${formatCurrency(item.precio)}</div>
+        <div class="cart-item-controls" style="margin-top:10px;">
+          <div class="cantidad-selector" style="border:1.5px solid var(--color-surface-3);">
+            <button class="qty-btn" onclick="changeQty(${item.id},-1)">–</button>
+            <span class="qty-display">${item.cantidad}</span>
+            <button class="qty-btn" onclick="changeQty(${item.id},1)">+</button>
+          </div>
+          <div class="cart-item-price">${formatCurrency(item.precio * item.cantidad)}</div>
+          <button class="btn-remove-item" onclick="removeItem(${item.id})">🗑 Eliminar</button>
+        </div>
+      </div>
+    </div>`).join('')}
+  </div>
+
+  <div class="cart-summary">
+    <div class="summary-card">
+      <div class="summary-title">Resumen del pedido</div>
+      <div class="summary-line"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
+      <div class="summary-line"><span>IVA (15%)</span><span>${formatCurrency(iva)}</span></div>
+      <div class="summary-line"><span>Envío</span><span style="color:var(--color-success);font-weight:600;">Gratis 🚀</span></div>
+      <div class="summary-line summary-total" style="border-bottom:none;padding-top:14px;margin-top:6px;border-top:2px solid var(--color-surface-3);">
+        <span>Total</span><span class="summary-total-value">${formatCurrency(total)}</span>
+      </div>
+      <a href="checkout.html" class="btn btn-primary btn-lg" style="width:100%;margin-top:20px;justify-content:center;">Proceder al pago →</a>
+      <a href="tienda.html" class="btn btn-ghost btn-sm" style="width:100%;margin-top:10px;justify-content:center;">← Seguir comprando</a>
+      <div style="margin-top:18px;padding:12px;background:var(--color-surface-2);border-radius:var(--radius-md);">
+        <div style="font-size:0.78rem;color:var(--color-text-muted);text-align:center;line-height:1.6;">
+          💳 Pago en efectivo al recibir<br>🚀 Envío rápido · WhatsApp: +505 8888-0000
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function changeQty(id, delta) {
+  const cart = getCart();
+  const item = cart.find(i => i.id == id);
+  if (!item) return;
+  item.cantidad = Math.max(1, item.cantidad + delta);
+  saveCart(cart);
+  render();
+}
+
+function removeItem(id) {
+  const cart = getCart().filter(i => i.id != id);
+  saveCart(cart);
+  render();
+  showToast('Producto eliminado del carrito', 'info');
+}
+
+function clearCart() {
+  if (confirm('¿Vaciar el carrito?')) { saveCart([]); render(); }
+}
+
+render();
+</script>
+</body>
+</html>
