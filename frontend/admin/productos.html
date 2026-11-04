@@ -12,7 +12,8 @@
 <div class="admin-main">
   <header class="admin-topbar">
     <div class="topbar-title">🧴 Gestión de Catálogo y Precios</div>
-    <div class="topbar-actions">
+    <div class="topbar-actions" style="display:flex;gap:8px;">
+      <button type="button" class="btn-admin-secondary" onclick="exportProductsCSV()">📊 Exportar Excel</button>
       <button class="btn-admin-primary" onclick="openModal()">➕ Nuevo Producto</button>
     </div>
   </header>
@@ -467,6 +468,17 @@ async function deactivateProduct(id) {
   } catch (err) {
     showToast(err.message || 'No se pudo desactivar', 'error');
   }
+}
+
+function exportProductsCSV() {
+  const headers = ['SKU', 'Nombre Producto', 'Marca', 'Línea', 'Categoría', 'Tamaño', 'Tono', 'Costo (C$)', 'Precio Venta (C$)', 'Descuento (%)', 'Precio Final (C$)', 'Stock Físico', 'Stock Online', 'Stock Total', 'Vencimiento', 'Estado'];
+  const rows = allProducts.map(p => [
+    p.sku || '', p.nombre, p.marca || '', p.linea || 'Skincare', p.categoria || '',
+    p.tamano || '', p.tono || '', p.precio_costo, p.precio_venta, p.descuento || 0,
+    p.precio_final, p.stock_fisico ?? p.stock, p.stock_online ?? 0, p.stock,
+    p.fecha_vencimiento || '', p.activo ? 'Activo' : 'Inactivo'
+  ]);
+  downloadCSVFile(`SISCO_Catalogo_Productos_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
 }
 
 init();

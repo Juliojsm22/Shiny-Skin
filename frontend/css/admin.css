@@ -467,9 +467,10 @@
 }
 
 @media print {
-  .admin-sidebar, .admin-topbar, .actions-bar, .kpi-grid, .modal-close, .no-print { display: none !important; }
+  .admin-sidebar, .admin-topbar, .actions-bar, .kpi-grid, .modal-close, .no-print, .admin-content { display: none !important; }
   .admin-body { background: #ffffff !important; color: #000000 !important; }
   .admin-main { margin-left: 0 !important; }
-  .modal-overlay { position: static !important; background: none !important; padding: 0 !important; opacity: 1 !important; visibility: visible !important; }
-  .admin-modal { background: #ffffff !important; color: #000000 !important; border: none !important; box-shadow: none !important; max-width: 100% !important; max-height: none !important; padding: 0 !important; }
+  .modal-overlay { display: none !important; }
+  .modal-overlay.active { display: block !important; position: static !important; background: none !important; padding: 0 !important; opacity: 1 !important; visibility: visible !important; }
+  .modal-overlay.active .admin-modal { background: #ffffff !important; color: #000000 !important; border: none !important; box-shadow: none !important; max-width: 100% !important; max-height: none !important; padding: 0 !important; overflow: visible !important; }
 }

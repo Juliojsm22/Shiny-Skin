@@ -12,8 +12,11 @@
 <div class="admin-main">
   <header class="admin-topbar">
     <div class="topbar-title">📊 Resumen Ejecutivo</div>
-    <div class="topbar-actions">
-      <span style="font-size:0.8rem;color:rgba(188,210,233,0.7);" id="currentDate"></span>
+    <div class="topbar-actions" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <span style="font-size:0.8rem;color:rgba(188,210,233,0.7);margin-right:4px;" id="currentDate"></span>
+      <button type="button" class="btn-admin-secondary" onclick="openExecutiveReportModal()">📄 Cierre / Reporte PDF</button>
+      <button type="button" class="btn-admin-secondary" onclick="exportDashboardCSV()">📊 Exportar Excel</button>
+      <button type="button" class="btn-admin-secondary" data-admin-only onclick="openBackupModal()">🛡️ Respaldo BD</button>
       <a href="facturacion.html#nueva" class="btn-admin-primary">🧾 Punto de Venta (POS)</a>
     </div>
   </header>
@@ -226,6 +229,25 @@ async function loadCriticalStock() {
       <td><span style="color:#f87171;font-weight:700;">${p.stock}</span></td>
       <td>${p.stock_minimo ?? 5}</td>
     </tr>`).join('');
+}
+
+async function exportDashboardCSV() {
+  const [k, top, orders] = await Promise.all([
+    fetchKPIs(),
+    api.dashboard.topProductos().catch(() => []),
+    fetchPedidos()
+  ]);
+  const headers = ['Sección', 'Concepto / Código', 'Detalle / Cliente', 'Unidades / Canal', 'Monto (C$)', 'Estado'];
+  const rows = [
+    ['KPI FINANCIERO', 'Ventas de Hoy', 'Omnicanal', '-', k.ventas_hoy || 0, 'Activo'],
+    ['KPI FINANCIERO', 'Ingresos Acumulados del Mes', 'Omnicanal', '-', k.ventas_mes || 0, 'Activo'],
+    ['KPI FINANCIERO', 'Gastos Operativos del Mes', 'Egresos', '-', k.gastos_mes || 0, 'Registrado'],
+    ['KPI FINANCIERO', 'Utilidad Operativa Neta', 'Ingresos - Gastos', '-', (k.ventas_mes || 0) - (k.gastos_mes || 0), 'Balance'],
+    ...top.map(t => ['TOP PRODUCTOS', t.producto || t.nombre, 'Rotación destacada', t.total_vendido, t.ingresos, 'Vendido']),
+    ...orders.map(o => ['PEDIDO', o.numero_pedido, o.nombre_cliente, o.canal || 'web', o.total, o.estado])
+  ];
+  const dateStr = new Date().toISOString().slice(0, 10);
+  downloadCSVFile(`SISCO_Reporte_Ejecutivo_${dateStr}.csv`, headers, rows);
 }
 
 loadKPIs();

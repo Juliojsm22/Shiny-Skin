@@ -12,7 +12,8 @@
 <div class="admin-main">
   <header class="admin-topbar">
     <div class="topbar-title">📦 Control de Inventario Dual (Concept Store + Online)</div>
-    <div class="topbar-actions">
+    <div class="topbar-actions" style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button type="button" class="btn-admin-secondary" onclick="exportInventoryCSV()">📊 Exportar Excel</button>
       <button class="btn-admin-secondary" onclick="openMovModal('traslado')">🔄 Trasladar Stock</button>
       <button class="btn-admin-secondary" onclick="openMovModal('salida')">⚠️ Merma / Salida</button>
       <button class="btn-admin-primary" onclick="openMovModal('entrada')">📥 Entrada de Mercadería</button>
@@ -431,6 +432,16 @@ async function submitMovimiento(e) {
   } finally {
     btn.disabled = false;
   }
+}
+
+function exportInventoryCSV() {
+  const headers = ['SKU', 'Producto', 'Marca', 'Stock Tienda Física', 'Stock Online', 'Stock Total', 'Stock Mínimo', 'Costo Unitario (C$)', 'Precio Final (C$)', 'Valor en Stock (C$)', 'Vencimiento'];
+  const rows = allProducts.map(p => [
+    p.sku || '', p.nombre, p.marca || '', p.stock_fisico ?? p.stock, p.stock_online ?? 0,
+    p.stock, p.stock_minimo ?? 5, p.precio_costo, p.precio_final,
+    ((p.stock || 0) * (p.precio_final || 0)).toFixed(2), p.fecha_vencimiento || ''
+  ]);
+  downloadCSVFile(`SISCO_Inventario_Dual_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
 }
 
 init();
