@@ -232,8 +232,8 @@ async function handleLocalApi(method, path, body) {
     const idf = String(data.email || data.username || '').trim().toLowerCase();
     const pwd = String(data.password || '');
     let u = db.usuarios.find(x => (x.email || '').toLowerCase() === idf || (x.username || '').toLowerCase() === idf);
-    if (!u && (idf === 'admin' || idf === 'admin@shinyskin.ni')) u = db.usuarios[0];
-    if (!u && (idf === 'vendedora' || idf === 'vendedora@shinyskin.ni')) u = db.usuarios[1];
+    if (!u && (idf === 'admin' || idf === 'admin@shinyskin.ni' || idf === 'admin@shinyskin.com')) u = db.usuarios[0];
+    if (!u && (idf === 'vendedora' || idf === 'vendedora@shinyskin.ni' || idf === 'ventas' || idf === 'ventas@shinyskin.ni')) u = db.usuarios[1];
     if (!u || (u.password && u.password !== pwd)) {
       const err = new Error('Credenciales inválidas. Verifica tu usuario y contraseña.');
       err.status = 401;
@@ -244,7 +244,7 @@ async function handleLocalApi(method, path, body) {
     }
     u.ultimo_acceso = nowIso;
     saveLocalDB(db);
-    return { token: `local_jwt_${u.id}_${Date.now()}`, usuario: u };
+    return { token: `local_jwt_${u.id}_${Date.now()}`, user: u, usuario: u };
   }
 
   if (pathname === '/auth/register' && method === 'POST') {
@@ -261,7 +261,7 @@ async function handleLocalApi(method, path, body) {
     };
     db.usuarios.push(u);
     saveLocalDB(db);
-    return { token: `local_jwt_${u.id}_${Date.now()}`, usuario: u };
+    return { token: `local_jwt_${u.id}_${Date.now()}`, user: u, usuario: u };
   }
 
   if (pathname === '/auth/forgot-password' && method === 'POST') {
@@ -277,7 +277,8 @@ async function handleLocalApi(method, path, body) {
       (x.email || '').toLowerCase() === String(db.last_reset_target || '').toLowerCase() ||
       (x.username || '').toLowerCase() === String(db.last_reset_target || '').toLowerCase()
     ) || db.usuarios[0];
-    if (u && data.nueva_password) u.password = data.nueva_password;
+    const newPass = data.new_password || data.nueva_password;
+    if (u && newPass) u.password = newPass;
     saveLocalDB(db);
     return { mensaje: 'Contraseña actualizada exitosamente.' };
   }
@@ -524,24 +525,19 @@ async function handleLocalApi(method, path, body) {
         vendidosMap[it.product_id] = (vendidosMap[it.product_id] || 0) + (Number(it.cantidad) || 0);
       });
     });
-    return db.productos.filter(p => p.activo !== false).map(p => {
-      const uv = vendidosMap[p.id] || 0;
-      const denom = p.stock + uv;
-      const indice = denom > 0 ? Math.round((uv / denom) * 1000) / 10 : 0;
-      return {
-        id: p.id,
-        nombre: p.nombre,
-        sku: p.sku,
-        marca: p.marca,
-        stock_actual: p.stock,
-        stock_fisico: p.stock_fisico,
-        stock_online: p.stock_online,
-        unidades_vendidas: uv,
-        ingresos_generados: uv * p.precio_final,
-        indice_rotacion: indice,
-        clasificacion: uv >= 5 ? 'Alta rotación' : (uv >= 1 ? 'Rotación media' : 'Baja rotación')
-      };
-    }).sort((a, b) => b.unidades_vendidas - a.unidades_vendidas);
+    const activos = db.productos.filter(p => p.activo !== false).map(p => ({
+      ...p,
+      unidades_vendidas: vendidosMap[p.id] || 0
+    }));
+    const alta = activos.filter(p => p.unidades_vendidas > 0).sort((a, b) => b.unidades_vendidas - a.unidades_vendidas);
+    const estancado = activos.filter(p => p.unidades_vendidas === 0 && p.stock > 0);
+    const porVencer = activos.filter(p => p.por_vencer);
+    return {
+      alta_rotacion: alta,
+      baja_rotacion: estancado,
+      stock_estancado: estancado,
+      proximos_vencer: porVencer
+    };
   }
 
   if (pathname === '/inventario/entrada' && method === 'POST') {
@@ -735,7 +731,7 @@ async function handleLocalApi(method, path, body) {
     }
 
     saveLocalDB(db);
-    return { mensaje: 'Pedido creado exitosamente', pedido: newOrder };
+    return { ...newOrder, mensaje: 'Pedido creado exitosamente', pedido: newOrder };
   }
 
   const orderStateMatch = pathname.match(/^\/pedidos\/(\d+)\/estado$/);
@@ -763,7 +759,7 @@ async function handleLocalApi(method, path, body) {
     o.historial = o.historial || [];
     o.historial.push({ id: o.historial.length + 1, estado_anterior: ant, estado_nuevo: nuevo, observacion: data.observacion || `Cambio a ${nuevo}`, fecha: nowIso });
     saveLocalDB(db);
-    return { mensaje: 'Estado actualizado', pedido: o };
+    return { ...o, mensaje: 'Estado actualizado', pedido: o };
   }
 
   const orderMotoMatch = pathname.match(/^\/pedidos\/(\d+)\/motorizado$/);
@@ -777,7 +773,7 @@ async function handleLocalApi(method, path, body) {
     o.motorizado_telefono = m ? m.telefono : null;
     if (data.estado) o.estado = data.estado;
     saveLocalDB(db);
-    return { mensaje: 'Motorizado asignado', pedido: o };
+    return { ...o, mensaje: 'Motorizado asignado', pedido: o };
   }
 
   const orderIdMatch = pathname.match(/^\/pedidos\/(\d+)$/);
@@ -876,7 +872,7 @@ async function handleLocalApi(method, path, body) {
     };
     db.facturas.unshift(newFac);
     saveLocalDB(db);
-    return { mensaje: 'Factura emitida exitosamente', factura: newFac };
+    return { ...newFac, mensaje: 'Factura emitida exitosamente', factura: newFac };
   }
 
   const facStateMatch = pathname.match(/^\/facturas\/(\d+)\/estado$/);
@@ -895,7 +891,7 @@ async function handleLocalApi(method, path, body) {
     f.estado = data.estado;
     if (data.motivo_anulacion) f.motivo_anulacion = data.motivo_anulacion;
     saveLocalDB(db);
-    return { mensaje: 'Estado de factura actualizado', factura: f };
+    return { ...f, mensaje: 'Estado de factura actualizado', factura: f };
   }
 
   const facIdMatch = pathname.match(/^\/facturas\/(\d+)$/);
@@ -926,7 +922,7 @@ async function handleLocalApi(method, path, body) {
     const c = { id: nextId(db.clientes), nombre: data.nombre, telefono: data.telefono || '', email: data.email || '', direccion: data.direccion || '', notas: data.notas || '', created_at: nowIso };
     db.clientes.unshift(c);
     saveLocalDB(db);
-    return { mensaje: 'Cliente registrado', cliente: c };
+    return { ...c, mensaje: 'Cliente registrado', cliente: c };
   }
 
   const cliMatch = pathname.match(/^\/clientes\/(\d+)$/);
@@ -941,7 +937,7 @@ async function handleLocalApi(method, path, body) {
     if (method === 'PUT') {
       Object.assign(c, { nombre: data.nombre ?? c.nombre, telefono: data.telefono ?? c.telefono, email: data.email ?? c.email, direccion: data.direccion ?? c.direccion, notas: data.notas ?? c.notas });
       saveLocalDB(db);
-      return { mensaje: 'Cliente actualizado', cliente: c };
+      return { ...c, mensaje: 'Cliente actualizado', cliente: c };
     }
     if (method === 'DELETE') {
       db.clientes = db.clientes.filter(x => Number(x.id) !== cid);
@@ -959,14 +955,19 @@ async function handleLocalApi(method, path, body) {
   }
 
   if (pathname === '/gastos/resumen' && method === 'GET') {
+    const totalHist = db.gastos.reduce((s, g) => s + (Number(g.monto) || 0), 0);
     let list = [...db.gastos];
     if (params.mes) list = list.filter(g => (g.fecha || '').startsWith(params.mes));
-    const porCat = {};
-    list.forEach(g => { porCat[g.categoria_gasto] = (porCat[g.categoria_gasto] || 0) + (Number(g.monto) || 0); });
+    const porCatMap = {};
+    list.forEach(g => { porCatMap[g.categoria_gasto] = (porCatMap[g.categoria_gasto] || 0) + (Number(g.monto) || 0); });
+    const porCatArr = Object.entries(porCatMap).map(([categoria, monto]) => ({ categoria, monto }));
+    const totalMes = list.reduce((s, g) => s + (Number(g.monto) || 0), 0);
     return {
-      total_gastos: list.reduce((s, g) => s + (Number(g.monto) || 0), 0),
+      total_mes: totalMes,
+      total_gastos: totalMes,
+      total_historico: totalHist,
       cantidad_registros: list.length,
-      por_categoria: porCat
+      por_categoria: porCatArr
     };
   }
 
@@ -974,7 +975,7 @@ async function handleLocalApi(method, path, body) {
     const g = { id: nextId(db.gastos), categoria_gasto: data.categoria_gasto || 'OTRO', concepto: data.concepto, monto: parseFloat(data.monto) || 0, fecha: data.fecha || nowIso.slice(0, 10), notas: data.notas || '', usuario: currentUser.nombre };
     db.gastos.unshift(g);
     saveLocalDB(db);
-    return { mensaje: 'Gasto registrado', gasto: g };
+    return { ...g, mensaje: 'Gasto registrado', gasto: g };
   }
 
   const gastoMatch = pathname.match(/^\/gastos\/(\d+)$/);
@@ -985,7 +986,7 @@ async function handleLocalApi(method, path, body) {
     if (method === 'PUT') {
       Object.assign(g, { categoria_gasto: data.categoria_gasto ?? g.categoria_gasto, concepto: data.concepto ?? g.concepto, monto: parseFloat(data.monto ?? g.monto) || 0, fecha: data.fecha ?? g.fecha, notas: data.notas ?? g.notas });
       saveLocalDB(db);
-      return { mensaje: 'Gasto actualizado', gasto: g };
+      return { ...g, mensaje: 'Gasto actualizado', gasto: g };
     }
     if (method === 'DELETE') {
       db.gastos = db.gastos.filter(x => Number(x.id) !== gid);

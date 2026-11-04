@@ -130,13 +130,15 @@ async function doLogin(e) {
 
   try {
     const result = await api.auth.login({ email: identifier, username: identifier, password });
+    const userObj = result.user || result.usuario;
     localStorage.setItem('sisco_token', result.token);
-    localStorage.setItem('sisco_user', JSON.stringify(result.user));
-    const nextUrl = new URLSearchParams(window.location.search).get('next');
-    if (result.user.rol === 'admin' || result.user.rol === 'vendedor') {
-      window.location = nextUrl && nextUrl.includes('/admin/') ? nextUrl : 'admin/dashboard.html';
+    localStorage.setItem('sisco_user', JSON.stringify(userObj));
+    const nextUrl = new URLSearchParams(window.location.search).get('next') || '';
+    if (userObj && (userObj.rol === 'admin' || userObj.rol === 'vendedor')) {
+      const targetAdminPage = nextUrl.includes('/admin/') ? ('admin/' + nextUrl.split('/admin/').pop()) : 'admin/dashboard.html';
+      window.location.href = targetAdminPage;
     } else {
-      window.location = 'index.html';
+      window.location.href = 'index.html';
     }
   } catch (err) {
     if (err.isNetworkError) {
@@ -172,8 +174,9 @@ async function doRegister(e) {
       telefono: document.getElementById('regTel').value.trim(),
       password: document.getElementById('regPass').value,
     });
+    const userObj = result.user || result.usuario;
     localStorage.setItem('sisco_token', result.token);
-    localStorage.setItem('sisco_user', JSON.stringify(result.user));
+    localStorage.setItem('sisco_user', JSON.stringify(userObj));
     showToast('¡Cuenta creada exitosamente!', 'success');
     setTimeout(() => window.location = 'index.html', 900);
   } catch (err) {
