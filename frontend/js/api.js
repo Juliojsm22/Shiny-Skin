@@ -165,27 +165,64 @@ function createInitialLocalDB() {
   };
 }
 
+let MEMORY_DB = null;
+const WN_PREFIX = 'SISCO_WN_DB:';
+
 function getLocalDB() {
+  if (MEMORY_DB && Array.isArray(MEMORY_DB.productos)) {
+    MEMORY_DB.productos = MEMORY_DB.productos.map(enrichProductComputed);
+    return MEMORY_DB;
+  }
   try {
     const raw = localStorage.getItem(LOCAL_DB_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.productos)) {
         parsed.productos = parsed.productos.map(enrichProductComputed);
+        MEMORY_DB = parsed;
+        return parsed;
+      }
+    }
+  } catch {}
+  try {
+    if (window.name && window.name.startsWith(WN_PREFIX)) {
+      const parsed = JSON.parse(window.name.slice(WN_PREFIX.length));
+      if (parsed && Array.isArray(parsed.productos)) {
+        parsed.productos = parsed.productos.map(enrichProductComputed);
+        MEMORY_DB = parsed;
+        try { localStorage.setItem(LOCAL_DB_KEY, JSON.stringify(parsed)); } catch {}
         return parsed;
       }
     }
   } catch {}
   const fresh = createInitialLocalDB();
+  MEMORY_DB = fresh;
   saveLocalDB(fresh);
   return fresh;
 }
 
 function saveLocalDB(db) {
+  MEMORY_DB = db;
+  const serialized = JSON.stringify(db);
   try {
-    localStorage.setItem(LOCAL_DB_KEY, JSON.stringify(db));
+    window.name = WN_PREFIX + serialized;
+  } catch {}
+  try {
+    localStorage.setItem(LOCAL_DB_KEY, serialized);
   } catch (e) {
-    console.warn('Advertencia al guardar en localStorage:', e);
+    // Si una imagen Base64 excedió la cuota de 5MB de localStorage, compactar imágenes grandes y reintentar
+    try {
+      (db.productos || []).forEach(p => {
+        if (p.imagen_url && p.imagen_url.startsWith('data:image/') && p.imagen_url.length > 180000) {
+          p.imagen_url = FALLBACK_PRODUCT_IMG;
+        }
+      });
+      const compact = JSON.stringify(db);
+      localStorage.setItem(LOCAL_DB_KEY, compact);
+      window.name = WN_PREFIX + compact;
+    } catch (e2) {
+      console.warn('Advertencia al guardar en localStorage:', e2);
+    }
   }
 }
 
@@ -193,7 +230,34 @@ function fileToDataUrl(file) {
   return new Promise((resolve) => {
     if (!file || !(file instanceof Blob) || file.size === 0) return resolve('');
     const reader = new FileReader();
-    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onload = () => {
+      const rawDataUrl = typeof reader.result === 'string' ? reader.result : '';
+      if (!rawDataUrl) return resolve('');
+      // Comprimir imagen mediante Canvas para que ocupe ~25KB en localStorage y nunca falle por cuota
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const MAX_DIM = 460;
+          let w = img.width || 400;
+          let h = img.height || 400;
+          if (w > MAX_DIM || h > MAX_DIM) {
+            if (w > h) { h = Math.round((h * MAX_DIM) / w); w = MAX_DIM; }
+            else { w = Math.round((w * MAX_DIM) / h); h = MAX_DIM; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          const compressed = canvas.toDataURL('image/jpeg', 0.74);
+          resolve(compressed || rawDataUrl);
+        } catch {
+          resolve(rawDataUrl);
+        }
+      };
+      img.onerror = () => resolve(rawDataUrl);
+      img.src = rawDataUrl;
+    };
     reader.onerror = () => resolve('');
     reader.readAsDataURL(file);
   });
@@ -437,7 +501,7 @@ async function handleLocalApi(method, path, body) {
     }
 
     saveLocalDB(db);
-    return { mensaje: 'Producto creado exitosamente', producto: newProd };
+    return { ...newProd, mensaje: 'Producto creado exitosamente', producto: newProd };
   }
 
   const prodMatch = pathname.match(/^\/productos\/(\d+)$/);
@@ -474,13 +538,13 @@ async function handleLocalApi(method, path, body) {
 
       enrichProductComputed(prod);
       saveLocalDB(db);
-      return { mensaje: 'Producto actualizado correctamente', producto: prod };
+      return { ...prod, mensaje: 'Producto actualizado correctamente', producto: prod };
     }
 
     if (method === 'DELETE') {
       prod.activo = false;
       saveLocalDB(db);
-      return { mensaje: 'Producto desactivado del catálogo', producto: prod };
+      return { ...prod, mensaje: 'Producto desactivado del catálogo', producto: prod };
     }
   }
 

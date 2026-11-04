@@ -433,15 +433,23 @@ async function saveProduct(e) {
   const btn = document.getElementById('btnSaveProd');
   btn.disabled = true;
   try {
+    let savedRes;
     if (id) {
-      await api.productos.update(id, bodyToSend);
+      savedRes = await api.productos.update(id, bodyToSend);
       showToast('Producto actualizado correctamente', 'success');
     } else {
-      await api.productos.create(bodyToSend);
+      savedRes = await api.productos.create(bodyToSend);
       showToast('Producto agregado al catálogo', 'success');
     }
+    const savedProd = savedRes && (savedRes.producto || (savedRes.id ? savedRes : null));
+    document.getElementById('searchProd').value = '';
+    document.getElementById('filterCat').value = '';
     closeModal();
     await loadProducts();
+    if (savedProd && !allProducts.some(x => Number(x.id) === Number(savedProd.id))) {
+      allProducts.unshift(savedProd);
+      renderTable();
+    }
   } catch (err) {
     showToast(err.message || 'Error al guardar el producto', 'error');
   } finally {
