@@ -255,6 +255,20 @@ loadChart();
 loadTopProducts();
 loadRecentOrders();
 loadCriticalStock();
+
+// Actualizar automáticamente KPIs y últimos pedidos cuando entra un pedido del E-Commerce
+function refreshDashboardLive() {
+  loadKPIs();
+  loadRecentOrders();
+  loadTopProducts();
+  loadCriticalStock();
+}
+window.addEventListener('sisco:db-updated', refreshDashboardLive);
+window.addEventListener('focus', refreshDashboardLive);
+window.addEventListener('pageshow', refreshDashboardLive);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshDashboardLive();
+});
 </script>
 </body>
 </html>

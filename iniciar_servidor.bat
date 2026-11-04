@@ -23,13 +23,13 @@ for %%P in (
     )
 )
 
-where py >nul 2>nul
+py -3 -c "import sys" >nul 2>nul
 if %errorlevel%==0 (
     set PYTHON_CMD=py -3
     goto :found_python
 )
 
-where python >nul 2>nul
+python -c "import sys" >nul 2>nul
 if %errorlevel%==0 (
     set PYTHON_CMD=python
     goto :found_python

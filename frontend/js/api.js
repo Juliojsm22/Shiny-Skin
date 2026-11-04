@@ -162,46 +162,181 @@ function createInitialLocalDB() {
       { id: 2, categoria_gasto: 'IMPORTACION', concepto: 'Desaduanaje lote cosmética coreana DHL', monto: 4200, fecha: todayDate, notas: 'Póliza consolidada', usuario: 'Administradora Shiny Skin' },
       { id: 3, categoria_gasto: 'EMPAQUE', concepto: 'Bolsas satinadas, stickers holográficos y papel seda Shiny Skin', monto: 1450, fecha: todayDate, notas: '200 unidades', usuario: 'Administradora Shiny Skin' },
     ],
+    _updated_at: 1,
   };
 }
 
 let MEMORY_DB = null;
 const WN_PREFIX = 'SISCO_WN_DB:';
+const siscoSyncChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('sisco_sync_channel') : null;
+
+function parseDBCandidate(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && Array.isArray(parsed.productos)) return parsed;
+  } catch {}
+  return null;
+}
+
+function mergeRecordArrays(primaryArr = [], secondaryArr = [], keyFn = (x) => x.id) {
+  const map = new Map();
+  const order = [];
+  const pickBetter = (a, b) => {
+    const tA = Number(a?._updated_at || 0);
+    const tB = Number(b?._updated_at || 0);
+    if (tA !== tB) return tA > tB ? a : b;
+    const hA = Array.isArray(a?.historial) ? a.historial.length : 0;
+    const hB = Array.isArray(b?.historial) ? b.historial.length : 0;
+    if (hA !== hB) return hA > hB ? a : b;
+    if (a?.numero_factura && !b?.numero_factura) return a;
+    if (b?.numero_factura && !a?.numero_factura) return b;
+    if (a?.estado && b?.estado && a.estado !== b.estado) {
+      if (a.estado !== 'pendiente' && b.estado === 'pendiente') return a;
+      if (b.estado !== 'pendiente' && a.estado === 'pendiente') return b;
+    }
+    return a;
+  };
+
+  [...(Array.isArray(primaryArr) ? primaryArr : []), ...(Array.isArray(secondaryArr) ? secondaryArr : [])].forEach((item) => {
+    if (!item || typeof item !== 'object') return;
+    const k = keyFn(item);
+    if (k === undefined || k === null || k === '') return;
+    if (!map.has(k)) {
+      map.set(k, item);
+      order.push(k);
+    } else {
+      map.set(k, pickBetter(map.get(k), item));
+    }
+  });
+  return order.map((k) => map.get(k));
+}
+
+function mergeLocalDBs(dbA, dbB) {
+  if (!dbA) return dbB;
+  if (!dbB) return dbA;
+  const tA = Number(dbA._updated_at || 0);
+  const tB = Number(dbB._updated_at || 0);
+  const primary = tA >= tB ? dbA : dbB;
+  const secondary = tA >= tB ? dbB : dbA;
+
+  const mergedPedidos = mergeRecordArrays(
+    primary.pedidos,
+    secondary.pedidos,
+    (o) => o.numero_pedido || `id_${o.id}`
+  );
+  // Garantizar IDs únicos y orden descendente (más recientes primero)
+  const usedIds = new Set();
+  let maxId = mergedPedidos.reduce((m, o) => Math.max(m, Number(o.id) || 0), 0);
+  mergedPedidos.forEach((o) => {
+    const idNum = Number(o.id) || 0;
+    if (!idNum || usedIds.has(idNum)) {
+      maxId += 1;
+      o.id = maxId;
+    } else {
+      usedIds.add(idNum);
+    }
+  });
+  mergedPedidos.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+
+  const mergedFacturas = mergeRecordArrays(
+    primary.facturas,
+    secondary.facturas,
+    (f) => f.numero_factura || `id_${f.id}`
+  ).sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+
+  const mergedClientes = mergeRecordArrays(
+    primary.clientes,
+    secondary.clientes,
+    (c) => c.id || normalizeText(c.nombre)
+  );
+
+  const mergedMotorizados = mergeRecordArrays(
+    primary.motorizados,
+    secondary.motorizados,
+    (m) => m.id || normalizeText(m.nombre)
+  );
+
+  const mergedMovimientos = mergeRecordArrays(
+    primary.movimientos,
+    secondary.movimientos,
+    (m) => `${m.id}_${m.fecha || ''}_${m.product_id || ''}`
+  ).sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+
+  const mergedGastos = mergeRecordArrays(primary.gastos, secondary.gastos, (g) => g.id);
+  const mergedUsuarios = mergeRecordArrays(primary.usuarios, secondary.usuarios, (u) => u.id);
+  const mergedProductos = mergeRecordArrays(primary.productos, secondary.productos, (p) => p.id)
+    .sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0))
+    .map(enrichProductComputed);
+
+  const sA = Number(primary._session?.updated_at || 0);
+  const sB = Number(secondary._session?.updated_at || 0);
+  const mergedSession = sA >= sB ? (primary._session || secondary._session) : (secondary._session || primary._session);
+
+  const cA = Number(primary._cart_updated_at || 0);
+  const cB = Number(secondary._cart_updated_at || 0);
+  const mergedCart = cA >= cB ? (primary._cart ?? secondary._cart) : (secondary._cart ?? primary._cart);
+
+  return {
+    ...secondary,
+    ...primary,
+    usuarios: mergedUsuarios,
+    productos: mergedProductos,
+    movimientos: mergedMovimientos,
+    motorizados: mergedMotorizados,
+    clientes: mergedClientes,
+    pedidos: mergedPedidos,
+    facturas: mergedFacturas,
+    gastos: mergedGastos,
+    _session: mergedSession || null,
+    _cart: Array.isArray(mergedCart) ? mergedCart : [],
+    _cart_updated_at: Math.max(cA, cB),
+    _updated_at: Math.max(tA, tB, 1),
+  };
+}
 
 function getLocalDB() {
-  if (MEMORY_DB && Array.isArray(MEMORY_DB.productos)) {
-    MEMORY_DB.productos = MEMORY_DB.productos.map(enrichProductComputed);
-    return MEMORY_DB;
-  }
+  let lsDB = null;
+  let wnDB = null;
   try {
-    const raw = localStorage.getItem(LOCAL_DB_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.productos)) {
-        parsed.productos = parsed.productos.map(enrichProductComputed);
-        MEMORY_DB = parsed;
-        return parsed;
-      }
-    }
+    lsDB = parseDBCandidate(localStorage.getItem(LOCAL_DB_KEY));
   } catch {}
   try {
     if (window.name && window.name.startsWith(WN_PREFIX)) {
-      const parsed = JSON.parse(window.name.slice(WN_PREFIX.length));
-      if (parsed && Array.isArray(parsed.productos)) {
-        parsed.productos = parsed.productos.map(enrichProductComputed);
-        MEMORY_DB = parsed;
-        try { localStorage.setItem(LOCAL_DB_KEY, JSON.stringify(parsed)); } catch {}
-        return parsed;
-      }
+      wnDB = parseDBCandidate(window.name.slice(WN_PREFIX.length));
     }
   } catch {}
+
+  let combined = mergeLocalDBs(lsDB, wnDB);
+  if (MEMORY_DB && Array.isArray(MEMORY_DB.productos)) {
+    combined = mergeLocalDBs(combined, MEMORY_DB);
+  }
+
+  if (combined && Array.isArray(combined.productos)) {
+    combined.productos = combined.productos.map(enrichProductComputed);
+    MEMORY_DB = combined;
+    // Sincronizar silenciosamente ambos almacenes para que file:// y multi-pestaña tengan siempre los mismos pedidos
+    const serialized = JSON.stringify(combined);
+    try { window.name = WN_PREFIX + serialized; } catch {}
+    try {
+      if (localStorage.getItem(LOCAL_DB_KEY) !== serialized) {
+        localStorage.setItem(LOCAL_DB_KEY, serialized);
+      }
+    } catch {}
+    return combined;
+  }
+
   const fresh = createInitialLocalDB();
   MEMORY_DB = fresh;
-  saveLocalDB(fresh);
+  saveLocalDB(fresh, { preserveTimestamp: true });
   return fresh;
 }
 
-function saveLocalDB(db) {
+function saveLocalDB(db, opts = {}) {
+  if (!db || typeof db !== 'object') return;
+  if (!opts.preserveTimestamp) {
+    db._updated_at = Date.now();
+  }
   MEMORY_DB = db;
   const serialized = JSON.stringify(db);
   try {
@@ -224,7 +359,33 @@ function saveLocalDB(db) {
       console.warn('Advertencia al guardar en localStorage:', e2);
     }
   }
+  if (!opts.silent) {
+    try {
+      if (siscoSyncChannel) siscoSyncChannel.postMessage({ type: 'db-updated', updated_at: db._updated_at });
+    } catch {}
+    try {
+      window.dispatchEvent(new CustomEvent('sisco:db-updated', { detail: { updated_at: db._updated_at } }));
+    } catch {}
+  }
 }
+
+if (siscoSyncChannel) {
+  siscoSyncChannel.onmessage = (ev) => {
+    if (ev && ev.data && ev.data.type === 'db-updated') {
+      MEMORY_DB = null;
+      getLocalDB();
+      try { window.dispatchEvent(new CustomEvent('sisco:db-updated', { detail: ev.data })); } catch {}
+    }
+  };
+}
+
+window.addEventListener('storage', (ev) => {
+  if (!ev.key || ev.key === LOCAL_DB_KEY) {
+    MEMORY_DB = null;
+    getLocalDB();
+    try { window.dispatchEvent(new CustomEvent('sisco:db-updated', { detail: { source: 'storage' } })); } catch {}
+  }
+});
 
 function fileToDataUrl(file) {
   return new Promise((resolve) => {
@@ -297,7 +458,7 @@ async function handleLocalApi(method, path, body) {
     const pwd = String(data.password || '');
     let u = db.usuarios.find(x => (x.email || '').toLowerCase() === idf || (x.username || '').toLowerCase() === idf);
     if (!u && (idf === 'admin' || idf === 'admin@shinyskin.ni' || idf === 'admin@shinyskin.com')) u = db.usuarios[0];
-    if (!u && (idf === 'vendedora' || idf === 'vendedora@shinyskin.ni' || idf === 'ventas' || idf === 'ventas@shinyskin.ni')) u = db.usuarios[1];
+    if (!u && (idf === 'vendedora' || idf === 'vendedora@shinyskin.ni' || idf === 'vendedor' || idf === 'vendedor@shinyskin.com' || idf === 'ventas' || idf === 'ventas@shinyskin.ni' || idf === 'ventas@shinyskin.com')) u = db.usuarios[1];
     if (!u || (u.password && u.password !== pwd)) {
       const err = new Error('Credenciales inválidas. Verifica tu usuario y contraseña.');
       err.status = 401;
@@ -307,8 +468,11 @@ async function handleLocalApi(method, path, body) {
       throw new Error('Esta cuenta de usuario se encuentra desactivada.');
     }
     u.ultimo_acceso = nowIso;
+    u._updated_at = Date.now();
+    const token = `local_jwt_${u.id}_${Date.now()}`;
+    db._session = { token, user: u, updated_at: Date.now() };
     saveLocalDB(db);
-    return { token: `local_jwt_${u.id}_${Date.now()}`, user: u, usuario: u };
+    return { token, user: u, usuario: u };
   }
 
   if (pathname === '/auth/register' && method === 'POST') {
@@ -321,11 +485,14 @@ async function handleLocalApi(method, path, body) {
       telefono: data.telefono || '',
       activo: true,
       ultimo_acceso: nowIso,
-      created_at: nowIso
+      created_at: nowIso,
+      _updated_at: Date.now()
     };
     db.usuarios.push(u);
+    const token = `local_jwt_${u.id}_${Date.now()}`;
+    db._session = { token, user: u, updated_at: Date.now() };
     saveLocalDB(db);
-    return { token: `local_jwt_${u.id}_${Date.now()}`, user: u, usuario: u };
+    return { token, user: u, usuario: u };
   }
 
   if (pathname === '/auth/forgot-password' && method === 'POST') {
@@ -714,6 +881,13 @@ async function handleLocalApi(method, path, body) {
     const itemsReq = Array.isArray(data.items) ? data.items : [];
     if (!itemsReq.length) throw new Error('El pedido debe incluir al menos un producto.');
 
+    const oid = nextId(db.pedidos);
+    const numPedido = `SS-${String(100 + oid).padStart(6, '0')}`;
+    const canalPedido = data.canal || 'web';
+    const estadoInicial = ['pendiente', 'confirmado', 'en_camino', 'entregado'].includes(data.estado)
+      ? data.estado
+      : 'pendiente';
+
     let subtotal = 0;
     const builtItems = [];
     itemsReq.forEach((it, idx) => {
@@ -721,16 +895,37 @@ async function handleLocalApi(method, path, body) {
       const qty = Math.max(1, parseInt(it.cantidad) || 1);
       const price = p ? p.precio_final : (parseFloat(it.precio_unitario) || 0);
       if (p) {
-        if (data.canal === 'tienda_fisica') {
+        const stockAnt = p.stock;
+        let ubiUsada = 'online';
+        if (canalPedido === 'tienda_fisica') {
           p.stock_fisico = Math.max(0, p.stock_fisico - qty);
+          ubiUsada = 'fisico';
         } else if (p.stock_online >= qty) {
           p.stock_online -= qty;
+          ubiUsada = 'online';
         } else {
           const rem = qty - p.stock_online;
           p.stock_online = 0;
           p.stock_fisico = Math.max(0, p.stock_fisico - rem);
+          ubiUsada = 'online+fisico';
         }
         enrichProductComputed(p);
+        p._updated_at = Date.now();
+        db.movimientos.unshift({
+          id: nextId(db.movimientos),
+          product_id: p.id,
+          producto: p.nombre,
+          sku: p.sku,
+          tipo: 'salida',
+          ubicacion: ubiUsada,
+          cantidad: qty,
+          stock_anterior: stockAnt,
+          stock_nuevo: p.stock,
+          motivo: `Venta Pedido ${numPedido} (${canalPedido})`,
+          usuario: canalPedido === 'web' ? 'E-Commerce Web' : currentUser.nombre,
+          fecha: nowIso,
+          _updated_at: Date.now()
+        });
       }
       subtotal += price * qty;
       builtItems.push({
@@ -750,8 +945,11 @@ async function handleLocalApi(method, path, body) {
     const pagoCli = parseFloat(data.monto_pago_cliente) || null;
     const cambio = pagoCli && pagoCli > total ? pagoCli - total : 0;
 
-    const oid = nextId(db.pedidos);
-    const numPedido = `SS-${String(100100 + oid).slice(-6)}`;
+    let motoObj = null;
+    if (data.motorizado_id) {
+      motoObj = db.motorizados.find(x => Number(x.id) === Number(data.motorizado_id)) || null;
+    }
+
     const newOrder = {
       id: oid,
       numero_pedido: numPedido,
@@ -760,7 +958,10 @@ async function handleLocalApi(method, path, body) {
       email_cliente: data.email_cliente || '',
       metodo_entrega: data.metodo_entrega || 'domicilio',
       direccion_entrega: data.direccion_entrega || 'Managua, Nicaragua',
-      estado: 'pendiente',
+      estado: estadoInicial,
+      motorizado_id: motoObj ? motoObj.id : null,
+      motorizado_nombre: motoObj ? motoObj.nombre : null,
+      motorizado_telefono: motoObj ? motoObj.telefono : null,
       subtotal,
       descuento: desc,
       costo_envio: envio,
@@ -770,12 +971,19 @@ async function handleLocalApi(method, path, body) {
       monto_pago_cliente: pagoCli,
       cambio_entregar: cambio,
       notas: data.notas || '',
-      canal: data.canal || 'web',
+      canal: canalPedido,
       factura_id: null,
       numero_factura: null,
       fecha: nowIso,
       items: builtItems,
-      historial: [{ id: 1, estado_anterior: null, estado_nuevo: 'pendiente', observacion: 'Pedido registrado', fecha: nowIso }]
+      historial: [{
+        id: 1,
+        estado_anterior: null,
+        estado_nuevo: estadoInicial,
+        observacion: canalPedido === 'web' ? 'Pedido recibido desde E-Commerce Web' : `Pedido registrado (${canalPedido})`,
+        fecha: nowIso
+      }],
+      _updated_at: Date.now()
     };
     db.pedidos.unshift(newOrder);
 
@@ -789,7 +997,8 @@ async function handleLocalApi(method, path, body) {
           telefono: newOrder.telefono_cliente,
           email: newOrder.email_cliente,
           direccion: newOrder.direccion_entrega,
-          notas: `Registrado desde pedido ${numPedido}`
+          notas: `Registrado desde pedido ${numPedido}`,
+          _updated_at: Date.now()
         });
       }
     }
@@ -809,19 +1018,43 @@ async function handleLocalApi(method, path, body) {
       (o.items || []).forEach(it => {
         const p = db.productos.find(x => Number(x.id) === Number(it.product_id));
         if (p) {
-          if (o.canal === 'tienda_fisica') p.stock_fisico += Number(it.cantidad) || 0;
-          else p.stock_online += Number(it.cantidad) || 0;
+          const stockAnt = p.stock;
+          const qty = Number(it.cantidad) || 0;
+          const ubi = o.canal === 'tienda_fisica' ? 'fisico' : 'online';
+          if (ubi === 'fisico') p.stock_fisico += qty;
+          else p.stock_online += qty;
           enrichProductComputed(p);
+          p._updated_at = Date.now();
+          db.movimientos.unshift({
+            id: nextId(db.movimientos),
+            product_id: p.id,
+            producto: p.nombre,
+            sku: p.sku,
+            tipo: 'entrada',
+            ubicacion: ubi,
+            cantidad: qty,
+            stock_anterior: stockAnt,
+            stock_nuevo: p.stock,
+            motivo: `Devolución por cancelación de pedido ${o.numero_pedido}`,
+            usuario: currentUser.nombre,
+            fecha: nowIso,
+            _updated_at: Date.now()
+          });
         }
       });
     }
     o.estado = nuevo;
-    if (data.motorizado_id) {
-      const m = db.motorizados.find(x => Number(x.id) === Number(data.motorizado_id));
-      if (m) { o.motorizado_id = m.id; o.motorizado_nombre = m.nombre; o.motorizado_telefono = m.telefono; }
+    if (data.motorizado_id !== undefined) {
+      if (data.motorizado_id) {
+        const m = db.motorizados.find(x => Number(x.id) === Number(data.motorizado_id));
+        if (m) { o.motorizado_id = m.id; o.motorizado_nombre = m.nombre; o.motorizado_telefono = m.telefono; }
+      } else {
+        o.motorizado_id = null; o.motorizado_nombre = null; o.motorizado_telefono = null;
+      }
     }
     o.historial = o.historial || [];
     o.historial.push({ id: o.historial.length + 1, estado_anterior: ant, estado_nuevo: nuevo, observacion: data.observacion || `Cambio a ${nuevo}`, fecha: nowIso });
+    o._updated_at = Date.now();
     saveLocalDB(db);
     return { ...o, mensaje: 'Estado actualizado', pedido: o };
   }
@@ -836,6 +1069,7 @@ async function handleLocalApi(method, path, body) {
     o.motorizado_nombre = m ? m.nombre : null;
     o.motorizado_telefono = m ? m.telefono : null;
     if (data.estado) o.estado = data.estado;
+    o._updated_at = Date.now();
     saveLocalDB(db);
     return { ...o, mensaje: 'Motorizado asignado', pedido: o };
   }
@@ -888,6 +1122,7 @@ async function handleLocalApi(method, path, body) {
       itemsFac = (linkedOrder.items || []).map(it => ({ ...it, descuento: 0 }));
       linkedOrder.factura_id = fid;
       linkedOrder.numero_factura = numFac;
+      linkedOrder._updated_at = Date.now();
     } else {
       const reqItems = Array.isArray(data.items) ? data.items : [];
       if (!reqItems.length) throw new Error('Agrega al menos un producto para emitir la factura.');
@@ -899,6 +1134,7 @@ async function handleLocalApi(method, path, body) {
           if (data.canal === 'online') p.stock_online = Math.max(0, p.stock_online - qty);
           else p.stock_fisico = Math.max(0, p.stock_fisico - qty);
           enrichProductComputed(p);
+          p._updated_at = Date.now();
         }
         subtotal += price * qty;
         itemsFac.push({ id: idx + 1, product_id: p ? p.id : it.product_id, nombre_producto: p ? p.nombre : 'Producto', sku: p ? p.sku : '', cantidad: qty, precio_unitario: price, descuento: 0, subtotal: price * qty });
@@ -932,7 +1168,8 @@ async function handleLocalApi(method, path, body) {
       notas: data.notas || '',
       emisor: currentUser.nombre,
       fecha: nowIso,
-      items: itemsFac
+      items: itemsFac,
+      _updated_at: Date.now()
     };
     db.facturas.unshift(newFac);
     saveLocalDB(db);
@@ -1385,11 +1622,28 @@ function showToast(msg, type = 'info') {
 
 // ---- Carrito compartido con control de stock y Cupones Promocionales ----
 function getCart() {
-  try { return JSON.parse(localStorage.getItem('sisco_cart') || '[]'); }
-  catch { return []; }
+  try {
+    const raw = localStorage.getItem('sisco_cart');
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {}
+  try {
+    const db = getLocalDB();
+    if (Array.isArray(db._cart)) return db._cart;
+  } catch {}
+  return [];
 }
 function saveCart(cart) {
-  localStorage.setItem('sisco_cart', JSON.stringify(cart));
+  const safeCart = Array.isArray(cart) ? cart : [];
+  try { localStorage.setItem('sisco_cart', JSON.stringify(safeCart)); } catch {}
+  try {
+    const db = getLocalDB();
+    db._cart = safeCart;
+    db._cart_updated_at = Date.now();
+    saveLocalDB(db, { silent: true });
+  } catch {}
   updateCartBadge();
 }
 function updateCartBadge() {
@@ -1644,6 +1898,41 @@ function addAllQuizToCart() {
   showToast('¡Rutina K-Beauty completa añadida al carrito!', 'success');
 }
 
+function getActiveSession() {
+  let token = null;
+  let user = null;
+  try {
+    token = localStorage.getItem('sisco_token');
+    user = JSON.parse(localStorage.getItem('sisco_user') || 'null');
+  } catch {}
+  if (!token || !user) {
+    try {
+      const db = getLocalDB();
+      if (db && db._session && db._session.token && db._session.user) {
+        token = db._session.token;
+        user = db._session.user;
+        try {
+          localStorage.setItem('sisco_token', token);
+          localStorage.setItem('sisco_user', JSON.stringify(user));
+        } catch {}
+      }
+    } catch {}
+  }
+  return { token, user };
+}
+
+function clearActiveSession() {
+  try {
+    localStorage.removeItem('sisco_token');
+    localStorage.removeItem('sisco_user');
+  } catch {}
+  try {
+    const db = getLocalDB();
+    db._session = null;
+    saveLocalDB(db, { silent: true });
+  } catch {}
+}
+
 function initPublicNavbar() {
   updateCartBadge();
   const nav = document.querySelector('.navbar-nav');
@@ -1656,9 +1945,7 @@ function initPublicNavbar() {
   const actions = document.querySelector('.navbar-actions');
   if (!actions) return;
 
-  let user = null;
-  try { user = JSON.parse(localStorage.getItem('sisco_user') || 'null'); } catch {}
-  const token = localStorage.getItem('sisco_token');
+  const { token, user } = getActiveSession();
 
   const adminLink = actions.querySelector('[data-nav-auth]');
   if (adminLink) {
@@ -1672,8 +1959,7 @@ function initPublicNavbar() {
       adminLink.className = 'btn btn-outline btn-sm';
       adminLink.onclick = (ev) => {
         ev.preventDefault();
-        localStorage.removeItem('sisco_token');
-        localStorage.removeItem('sisco_user');
+        clearActiveSession();
         showToast('Sesión cerrada correctamente', 'info');
         setTimeout(() => window.location.reload(), 500);
       };

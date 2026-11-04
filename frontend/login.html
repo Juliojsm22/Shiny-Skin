@@ -133,6 +133,13 @@ async function doLogin(e) {
     const userObj = result.user || result.usuario;
     localStorage.setItem('sisco_token', result.token);
     localStorage.setItem('sisco_user', JSON.stringify(userObj));
+    try {
+      if (typeof getLocalDB === 'function' && typeof saveLocalDB === 'function') {
+        const db = getLocalDB();
+        db._session = { token: result.token, user: userObj, updated_at: Date.now() };
+        saveLocalDB(db, { silent: true });
+      }
+    } catch {}
     const nextUrl = new URLSearchParams(window.location.search).get('next') || '';
     if (userObj && (userObj.rol === 'admin' || userObj.rol === 'vendedor')) {
       const targetAdminPage = nextUrl.includes('/admin/') ? ('admin/' + nextUrl.split('/admin/').pop()) : 'admin/dashboard.html';

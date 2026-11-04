@@ -5,9 +5,15 @@
  */
 
 (function () {
-  const token = localStorage.getItem('sisco_token');
+  let token = localStorage.getItem('sisco_token');
   let user = null;
   try { user = JSON.parse(localStorage.getItem('sisco_user') || 'null'); } catch {}
+
+  if ((!token || !user) && typeof getActiveSession === 'function') {
+    const sess = getActiveSession();
+    token = sess.token;
+    user = sess.user;
+  }
 
   // Redirección obligatoria si no es personal autorizado (admin o vendedor)
   if (!token || !user || !['admin', 'vendedor'].includes(user.rol)) {
@@ -20,8 +26,12 @@
 })();
 
 function logout() {
-  localStorage.removeItem('sisco_token');
-  localStorage.removeItem('sisco_user');
+  if (typeof clearActiveSession === 'function') {
+    clearActiveSession();
+  } else {
+    localStorage.removeItem('sisco_token');
+    localStorage.removeItem('sisco_user');
+  }
   window.location.href = '../login.html';
 }
 
@@ -167,9 +177,13 @@ async function refreshAdminNotifications() {
     ]);
 
     const badge = document.getElementById('pendingBadge');
-    if (badge && st && st.pendientes > 0) {
-      badge.textContent = st.pendientes;
-      badge.style.display = 'inline-block';
+    if (badge) {
+      if (st && st.pendientes > 0) {
+        badge.textContent = st.pendientes;
+        badge.style.display = 'inline-block';
+      } else {
+        badge.style.display = 'none';
+      }
     }
 
     const lowStock = (prods || []).filter(p => p.activo !== false && p.alerta_stock);
@@ -419,14 +433,27 @@ function handleRestoreBackupFile(event) {
 
 function resetFactoryDemoDB() {
   if (!confirm('¿Restablecer la base de datos a su estado limpio de demostración (12 productos K-Beauty, pedidos y finanzas iniciales)?')) return;
+  const activeSession = typeof getActiveSession === 'function' ? getActiveSession() : null;
   localStorage.removeItem('sisco_local_db_v2');
   try { window.name = ''; } catch {}
+  try { MEMORY_DB = null; } catch {}
   if (typeof createInitialLocalDB === 'function' && typeof saveLocalDB === 'function') {
-    saveLocalDB(createInitialLocalDB());
+    const fresh = createInitialLocalDB();
+    if (activeSession && activeSession.token && activeSession.user) {
+      fresh._session = { token: activeSession.token, user: activeSession.user, updated_at: Date.now() };
+    }
+    saveLocalDB(fresh);
   }
   showToast('Datos de demostración restablecidos correctamente', 'success');
   setTimeout(() => window.location.reload(), 600);
 }
+
+window.addEventListener('sisco:db-updated', () => {
+  if (typeof refreshAdminNotifications === 'function') refreshAdminNotifications();
+});
+window.addEventListener('focus', () => {
+  if (typeof refreshAdminNotifications === 'function') refreshAdminNotifications();
+});
 
 // =========================================================================
 // REPORTE EJECUTIVO DE CIERRE DE CAJA Y ESTADO DE RESULTADOS (PDF IMPRIMIBLE)

@@ -140,6 +140,7 @@
         </div>
         <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
           <a id="waConfirmBtn" href="#" target="_blank" rel="noopener" class="btn btn-success">💬 Enviar comprobante por WhatsApp</a>
+          <button type="button" id="trackConfirmBtn" class="btn btn-outline">📦 Rastrear mi pedido</button>
           <a href="tienda.html" class="btn btn-primary">Seguir comprando</a>
           <a href="index.html" class="btn btn-outline">Ir al inicio</a>
         </div>
@@ -187,18 +188,14 @@ function getTotals() {
 function applyCheckoutCoupon(codeOverride) {
   const input = document.getElementById('ckPromoInput');
   const code = codeOverride || (input ? input.value : '');
-  const res = typeof applyPromoCoupon === 'function' ? applyPromoCoupon(code) : { ok: false, msg: 'No disponible' };
-  if (res.ok) {
-    showToast(`🎉 Cupón ${res.coupon.code} (${res.coupon.pct}% OFF) aplicado`, 'success');
+  const found = typeof applyPromoCoupon === 'function' ? applyPromoCoupon(code) : null;
+  if (found) {
     renderSummary();
-  } else {
-    showToast(res.msg, 'error');
   }
 }
 
 function removeCheckoutCoupon() {
   if (typeof clearPromoCoupon === 'function') clearPromoCoupon();
-  showToast('Cupón removido', 'info');
   renderSummary();
 }
 
@@ -345,6 +342,10 @@ async function placeOrder(e) {
 
   const msgWA = `Hola Shiny Skin ✨ Acabo de realizar el pedido *${numeroPedido}* a nombre de *${orderData.nombre_cliente}* por *${formatCurrency(total)}* (${entrega === 'retiro' ? 'Retiro en tienda' : 'Envío a domicilio'}).`;
   document.getElementById('waConfirmBtn').href = `https://wa.me/50588880000?text=${encodeURIComponent(msgWA)}`;
+  const trackBtn = document.getElementById('trackConfirmBtn');
+  if (trackBtn && typeof openTrackingModal === 'function') {
+    trackBtn.onclick = () => openTrackingModal(numeroPedido);
+  }
 
   showToast(`Pedido ${numeroPedido} creado exitosamente`, 'success');
 }

@@ -13,6 +13,7 @@
   <header class="admin-topbar">
     <div class="topbar-title">🛒 Gestión Omnicanal de Pedidos y Motorizados</div>
     <div class="topbar-actions">
+      <button class="btn-admin-secondary" onclick="refreshOrdersNow()" title="Sincronizar nuevos pedidos del E-Commerce">🔄 Actualizar</button>
       <button class="btn-admin-secondary" onclick="openMotoModal()">🛵 Motorizados</button>
       <button class="btn-admin-primary" onclick="openManualOrderModal()">➕ Pedido Manual (WhatsApp / IG)</button>
     </div>
@@ -22,8 +23,8 @@
 
     <!-- Pestañas por estado -->
     <div class="admin-tabs">
-      <div class="admin-tab active" onclick="setOrderState('', this)">Todos</div>
-      <div class="admin-tab" onclick="setOrderState('pendiente', this)">⏳ Pendientes</div>
+      <div class="admin-tab active" onclick="setOrderState('', this)">Todos <span id="tabCountAll" style="opacity:0.7;font-size:0.75rem;margin-left:3px;"></span></div>
+      <div class="admin-tab" onclick="setOrderState('pendiente', this)">⏳ Pendientes <span id="tabCountPending" style="display:none;background:#f59e0b;color:#0f172a;font-weight:800;font-size:0.7rem;padding:1px 6px;border-radius:99px;margin-left:4px;">0</span></div>
       <div class="admin-tab" onclick="setOrderState('confirmado', this)">✅ Confirmados</div>
       <div class="admin-tab" onclick="setOrderState('en_camino', this)">🛵 En Camino</div>
       <div class="admin-tab" onclick="setOrderState('entregado', this)">🎉 Entregados</div>
@@ -211,14 +212,40 @@ async function loadMotorizados() {
 
 async function loadOrders() {
   allOrders = await fetchPedidos();
+  updateOrderTabBadges();
   renderOrders();
+  if (typeof refreshAdminNotifications === 'function') {
+    refreshAdminNotifications();
+  }
 }
 
-function setOrderState(st, el) {
+function updateOrderTabBadges() {
+  const totalEl = document.getElementById('tabCountAll');
+  if (totalEl) totalEl.textContent = allOrders.length ? `(${allOrders.length})` : '';
+  const pendingCount = (allOrders || []).filter(o => o.estado === 'pendiente').length;
+  const pendEl = document.getElementById('tabCountPending');
+  if (pendEl) {
+    if (pendingCount > 0) {
+      pendEl.textContent = pendingCount;
+      pendEl.style.display = 'inline-block';
+    } else {
+      pendEl.style.display = 'none';
+    }
+  }
+}
+
+async function refreshOrdersNow() {
+  allProducts = await fetchProductos();
+  await loadMotorizados();
+  await loadOrders();
+  showToast('Lista de pedidos sincronizada', 'info');
+}
+
+async function setOrderState(st, el) {
   stateFilter = st;
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
-  renderOrders();
+  await loadOrders();
 }
 
 function renderOrders() {
@@ -260,10 +287,29 @@ function renderOrders() {
       </td>
       <td style="font-size:0.78rem;white-space:nowrap;">${formatDateTime(o.fecha)}</td>
       <td style="white-space:nowrap;">
+        ${o.estado === 'pendiente'
+          ? `<button class="btn-table" style="background:rgba(16,185,129,0.2);color:#34d399;border:1px solid rgba(16,185,129,0.45);font-weight:700;margin-right:4px;" onclick="quickConfirmOrder(${o.id})" title="Confirmar pedido inmediatamente">✅ Confirmar</button>`
+          : ''}
         <button class="btn-table btn-table-view" onclick="openOrderDetail(${o.id})">👁 Gestionar</button>
         <button class="btn-table" style="background:rgba(52,211,153,0.14);color:#34d399;border:1px solid rgba(52,211,153,0.3);margin-left:4px;" onclick="notifyOrderWhatsApp(${o.id})" title="Avisar estado por WhatsApp al cliente">💬 WhatsApp</button>
       </td>
     </tr>`).join('');
+}
+
+async function quickConfirmOrder(orderId, closeDet = false) {
+  const o = allOrders.find(x => x.id == orderId);
+  try {
+    await api.pedidos.updateEstado(orderId, 'confirmado', {
+      observacion: 'Pedido confirmado por personal en Panel SISCO'
+    });
+    showToast(`✅ Pedido ${o ? o.numero_pedido : ''} confirmado con éxito`, 'success');
+    if (closeDet) document.getElementById('detailModal').classList.remove('active');
+    allProducts = await fetchProductos();
+    await loadOrders();
+    renderAdminSidebar('pedidos');
+  } catch (err) {
+    showToast(err.message || 'Error al confirmar el pedido', 'error');
+  }
 }
 
 function notifyOrderWhatsApp(orderId) {
@@ -348,7 +394,12 @@ function openOrderDetail(id) {
           ? `<button type="button" class="btn-admin-secondary" onclick="quickInvoice(${o.id}, true)">🧾 Emitir Factura de este Pedido</button>`
           : (o.numero_factura ? `<span class="badge badge-success">Facturado: ${o.numero_factura}</span>` : '')}
       </div>
-      <button type="button" class="btn-admin-primary" onclick="saveOrderChanges(${o.id})">💾 Guardar Cambios</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${o.estado === 'pendiente'
+          ? `<button type="button" class="btn-admin-primary" style="background:#10b981;border-color:#10b981;" onclick="quickConfirmOrder(${o.id}, true)">✅ Confirmar Pedido Ahora</button>`
+          : ''}
+        <button type="button" class="btn-admin-primary" onclick="saveOrderChanges(${o.id})">💾 Guardar Cambios</button>
+      </div>
     </div>
   `;
   document.getElementById('detailModal').classList.add('active');
@@ -530,6 +581,26 @@ async function saveMotorizado(e) {
 }
 
 init();
+
+// Sincronización automática cuando entra un pedido desde el E-Commerce (otra pestaña o navegación)
+let _syncingOrders = false;
+async function autoSyncOrders() {
+  if (_syncingOrders) return;
+  _syncingOrders = true;
+  try {
+    await loadOrders();
+  } catch {}
+  _syncingOrders = false;
+}
+window.addEventListener('sisco:db-updated', autoSyncOrders);
+window.addEventListener('focus', autoSyncOrders);
+window.addEventListener('pageshow', autoSyncOrders);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') autoSyncOrders();
+});
+setInterval(() => {
+  if (document.visibilityState === 'visible') autoSyncOrders();
+}, 4000);
 </script>
 </body>
 </html>

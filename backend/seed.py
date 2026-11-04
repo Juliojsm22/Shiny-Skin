@@ -17,7 +17,7 @@ def seed_db():
     admin = User(
         nombre='Geoconda Martínez',
         username='admin',
-        email='admin@shinyskin.com',
+        email='admin@shinyskin.ni',
         password_hash=generate_password_hash('admin123'),
         rol='admin',
         telefono='505-8888-0001',
@@ -26,8 +26,8 @@ def seed_db():
     vendedor = User(
         nombre='María Altamirano',
         username='vendedora',
-        email='vendedor@shinyskin.com',
-        password_hash=generate_password_hash('vendedor123'),
+        email='ventas@shinyskin.ni',
+        password_hash=generate_password_hash('ventas123'),
         rol='vendedor',
         telefono='505-8888-0002',
         direccion='Concept Store Camino de Oriente'
