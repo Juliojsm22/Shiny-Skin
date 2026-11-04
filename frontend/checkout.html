@@ -175,10 +175,31 @@
 function getTotals() {
   const cart = getCart();
   const subtotal = cart.reduce((s, i) => s + (Number(i.precio) * Number(i.cantidad)), 0);
+  const coupon = typeof getAppliedCoupon === 'function' ? getAppliedCoupon() : null;
+  const descuento = coupon ? Math.round((subtotal * coupon.pct) / 100) : 0;
+  const subConDesc = Math.max(0, subtotal - descuento);
   const entrega = document.querySelector('input[name="entrega"]:checked')?.value || 'domicilio';
-  const costoEnvio = entrega === 'retiro' ? 0 : (subtotal >= 1500 ? 0 : 100);
-  const total = subtotal + costoEnvio;
-  return { cart, subtotal, entrega, costoEnvio, total };
+  const costoEnvio = entrega === 'retiro' ? 0 : (subConDesc >= 1500 ? 0 : 100);
+  const total = subConDesc + costoEnvio;
+  return { cart, subtotal, coupon, descuento, entrega, costoEnvio, total };
+}
+
+function applyCheckoutCoupon(codeOverride) {
+  const input = document.getElementById('ckPromoInput');
+  const code = codeOverride || (input ? input.value : '');
+  const res = typeof applyPromoCoupon === 'function' ? applyPromoCoupon(code) : { ok: false, msg: 'No disponible' };
+  if (res.ok) {
+    showToast(`🎉 Cupón ${res.coupon.code} (${res.coupon.pct}% OFF) aplicado`, 'success');
+    renderSummary();
+  } else {
+    showToast(res.msg, 'error');
+  }
+}
+
+function removeCheckoutCoupon() {
+  if (typeof clearPromoCoupon === 'function') clearPromoCoupon();
+  showToast('Cupón removido', 'info');
+  renderSummary();
 }
 
 function updateDeliveryMode() {
@@ -208,7 +229,7 @@ function selectPay(id) {
 }
 
 function renderSummary() {
-  const { cart, subtotal, entrega, costoEnvio, total } = getTotals();
+  const { cart, subtotal, coupon, descuento, entrega, costoEnvio, total } = getTotals();
   if (cart.length === 0 && document.getElementById('confirmSection').style.display === 'none') {
     window.location = 'carrito.html';
     return;
@@ -239,7 +260,21 @@ function renderSummary() {
   }
 
   document.getElementById('orderTotals').innerHTML = `
+    <div style="margin:12px 0;padding:10px 12px;background:var(--color-surface-2);border-radius:12px;border:1px dashed var(--color-surface-3);">
+      ${coupon ? `
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.8rem;">
+          <span style="color:var(--color-success);font-weight:700;">🏷️ Cupón <strong>${coupon.code}</strong> (-${coupon.pct}%)</span>
+          <button type="button" onclick="removeCheckoutCoupon()" style="border:none;background:none;color:var(--color-danger);font-size:0.76rem;font-weight:700;cursor:pointer;">✕ Quitar</button>
+        </div>
+      ` : `
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="ckPromoInput" class="form-control" placeholder="Cupón (ej. SHINY10)" style="padding:6px 10px;font-size:0.8rem;text-transform:uppercase;" />
+          <button type="button" class="btn btn-secondary btn-sm" onclick="applyCheckoutCoupon()" style="white-space:nowrap;">Aplicar</button>
+        </div>
+      `}
+    </div>
     <div class="summary-line" style="border-top:1px solid var(--color-surface-3);padding-top:12px;"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
+    ${descuento > 0 ? `<div class="summary-line" style="color:var(--color-success);font-weight:600;"><span>Descuento (${coupon.code})</span><span>-${formatCurrency(descuento)}</span></div>` : ''}
     <div class="summary-line">
       <span>${entrega === 'retiro' ? 'Retiro en tienda' : 'Costo de envío'}</span>
       <span style="color:${costoEnvio === 0 ? 'var(--color-success)' : 'var(--color-text)'};font-weight:600;">${costoEnvio === 0 ? 'Gratis' : formatCurrency(costoEnvio)}</span>
@@ -251,7 +286,7 @@ function renderSummary() {
 
 async function placeOrder(e) {
   e.preventDefault();
-  const { cart, entrega, costoEnvio, total } = getTotals();
+  const { cart, coupon, descuento, entrega, costoEnvio, total } = getTotals();
   const pago = document.querySelector('input[name="pago"]:checked').value;
   const rawMonto = parseFloat(document.getElementById('ckMontoPago').value);
 
@@ -271,6 +306,8 @@ async function placeOrder(e) {
     metodo_entrega: entrega,
     direccion_entrega: entrega === 'retiro' ? 'Retiro en Concept Store — Camino de Oriente' : document.getElementById('ckDir').value.trim(),
     costo_envio: costoEnvio,
+    descuento: descuento || 0,
+    cupon: coupon ? coupon.code : null,
     metodo_pago: pago,
     monto_pago_cliente: (pago === 'efectivo_entrega' && !isNaN(rawMonto) && rawMonto >= total) ? rawMonto : null,
     notas: document.getElementById('ckNotas').value.trim(),
@@ -295,6 +332,7 @@ async function placeOrder(e) {
   }
 
   saveCart([]);
+  if (typeof clearPromoCoupon === 'function') clearPromoCoupon();
   document.getElementById('st2').classList.remove('active');
   document.getElementById('st2').classList.add('done');
   document.getElementById('st2').querySelector('.step-num').textContent = '✓';

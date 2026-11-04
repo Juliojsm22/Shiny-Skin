@@ -259,10 +259,31 @@ function renderOrders() {
           : (o.estado !== 'cancelado' ? `<button class="btn-table btn-table-edit" onclick="quickInvoice(${o.id})">🧾 Facturar</button>` : '—')}
       </td>
       <td style="font-size:0.78rem;white-space:nowrap;">${formatDateTime(o.fecha)}</td>
-      <td>
+      <td style="white-space:nowrap;">
         <button class="btn-table btn-table-view" onclick="openOrderDetail(${o.id})">👁 Gestionar</button>
+        <button class="btn-table" style="background:rgba(52,211,153,0.14);color:#34d399;border:1px solid rgba(52,211,153,0.3);margin-left:4px;" onclick="notifyOrderWhatsApp(${o.id})" title="Avisar estado por WhatsApp al cliente">💬 WhatsApp</button>
       </td>
     </tr>`).join('');
+}
+
+function notifyOrderWhatsApp(orderId) {
+  const o = allOrders.find(x => x.id == orderId);
+  if (!o) return;
+  const waClean = String(o.telefono_cliente || '').replace(/\D/g, '');
+  if (!waClean) {
+    showToast('Este cliente no tiene número de teléfono registrado', 'error');
+    return;
+  }
+  const phone = waClean.startsWith('505') ? waClean : '505' + waClean;
+  const statusMessages = {
+    pendiente: `Hola *${o.nombre_cliente}* ✨ Te saludamos de *Shiny Skin*. Hemos recibido tu pedido *${o.numero_pedido}* por *${formatCurrency(o.total)}* y estamos verificando tus productos.`,
+    confirmado: `Hola *${o.nombre_cliente}* ✨ Tu pedido *${o.numero_pedido}* de *Shiny Skin* (${formatCurrency(o.total)}) ya está *CONFIRMADO* y listo para despacho.`,
+    en_camino: `Hola *${o.nombre_cliente}* 🛵💨 ¡Tu pedido *${o.numero_pedido}* de *Shiny Skin* va *EN CAMINO*!${o.motorizado_nombre ? ` Nuestro repartidor *${o.motorizado_nombre}* se dirige a tu dirección (${o.direccion_entrega || 'Domicilio'}).` : ''} Total: *${formatCurrency(o.total)}*.`,
+    entregado: `Hola *${o.nombre_cliente}* 💖 Tu pedido *${o.numero_pedido}* figura como *ENTREGADO*. ¡Gracias por confiar en *Shiny Skin* para tu rutina K-Beauty!`,
+    cancelado: `Hola *${o.nombre_cliente}*, te informamos desde *Shiny Skin* que tu pedido *${o.numero_pedido}* ha sido marcado como cancelado. Contáctanos si deseas reactivarlo.`
+  };
+  const msg = statusMessages[o.estado] || statusMessages.pendiente;
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
 function openOrderDetail(id) {

@@ -137,13 +137,139 @@ function renderAdminSidebar(activePage) {
     document.querySelectorAll('[data-admin-only]').forEach(el => { el.style.display = 'none'; });
   }
 
-  api.pedidos.stats().then(st => {
+  // Inyectar Campana de Notificaciones 🔔 en la barra superior de todo el Panel Admin
+  if (topbar && !document.getElementById('adminNotifBtn')) {
+    let actionsEl = topbar.querySelector('.topbar-actions');
+    if (!actionsEl) {
+      actionsEl = document.createElement('div');
+      actionsEl.className = 'topbar-actions';
+      topbar.appendChild(actionsEl);
+    }
+    const notifBtn = document.createElement('button');
+    notifBtn.type = 'button';
+    notifBtn.id = 'adminNotifBtn';
+    notifBtn.className = 'btn-admin-secondary';
+    notifBtn.style.cssText = 'position:relative;padding:7px 12px;border-radius:10px;display:inline-flex;align-items:center;gap:6px;font-size:0.88rem;';
+    notifBtn.title = 'Centro de Alertas y Notificaciones SISCO';
+    notifBtn.onclick = openNotificationsModal;
+    notifBtn.innerHTML = `🔔 <span id="adminNotifBadge" style="display:none;background:#ef4444;color:#fff;font-size:0.7rem;font-weight:800;padding:1px 6px;border-radius:99px;line-height:1.3;">0</span>`;
+    actionsEl.insertBefore(notifBtn, actionsEl.firstChild);
+  }
+
+  refreshAdminNotifications();
+}
+
+async function refreshAdminNotifications() {
+  try {
+    const [st, prods] = await Promise.all([
+      api.pedidos.stats().catch(() => ({ pendientes: 0, en_camino: 0 })),
+      fetchProductos().catch(() => [])
+    ]);
+
     const badge = document.getElementById('pendingBadge');
     if (badge && st && st.pendientes > 0) {
       badge.textContent = st.pendientes;
       badge.style.display = 'inline-block';
     }
-  }).catch(() => {});
+
+    const lowStock = (prods || []).filter(p => p.activo !== false && p.alerta_stock);
+    const expiring = (prods || []).filter(p => p.activo !== false && (p.por_vencer || p.vencido));
+    const pendingCount = Number(st?.pendientes || 0);
+    const totalAlerts = pendingCount + lowStock.length + expiring.length;
+
+    window._SISCO_NOTIFS = {
+      pendingCount,
+      enCaminoCount: Number(st?.en_camino || 0),
+      lowStock,
+      expiring,
+      totalAlerts
+    };
+
+    const notifBadge = document.getElementById('adminNotifBadge');
+    if (notifBadge) {
+      if (totalAlerts > 0) {
+        notifBadge.textContent = totalAlerts;
+        notifBadge.style.display = 'inline-block';
+      } else {
+        notifBadge.style.display = 'none';
+      }
+    }
+  } catch {}
+}
+
+async function openNotificationsModal() {
+  await refreshAdminNotifications();
+  const data = window._SISCO_NOTIFS || { pendingCount: 0, enCaminoCount: 0, lowStock: [], expiring: [], totalAlerts: 0 };
+
+  let modal = document.getElementById('siscoNotifModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'siscoNotifModal';
+    modal.className = 'modal-overlay';
+    modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('active'); };
+    document.body.appendChild(modal);
+  }
+
+  const lowStockHtml = data.lowStock.length
+    ? data.lowStock.map(p => `
+      <div class="flex-between" style="padding:10px 12px;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.22);border-radius:10px;margin-bottom:8px;">
+        <div>
+          <div style="font-weight:700;font-size:0.84rem;color:#fca5a5;">⚠️ ${p.nombre}</div>
+          <div style="font-size:0.75rem;color:rgba(188,210,233,0.7);">SKU: ${p.sku || '—'} · Físico: ${p.stock_fisico} / Online: ${p.stock_online} (Mín: ${p.stock_minimo})</div>
+        </div>
+        <a href="inventario.html" class="btn-table btn-table-edit" style="text-decoration:none;">Reabastecer</a>
+      </div>`).join('')
+    : `<div style="font-size:0.82rem;color:#34d399;padding:8px 0;">✅ Ningún producto en stock crítico.</div>`;
+
+  const expiringHtml = data.expiring.length
+    ? data.expiring.map(p => `
+      <div class="flex-between" style="padding:10px 12px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.24);border-radius:10px;margin-bottom:8px;">
+        <div>
+          <div style="font-weight:700;font-size:0.84rem;color:#fcd34d;">⏳ ${p.nombre}</div>
+          <div style="font-size:0.75rem;color:rgba(188,210,233,0.7);">Vencimiento: <strong>${p.fecha_vencimiento || '—'}</strong> (${p.vencido ? 'VENCIDO' : 'Próximo a vencer'})</div>
+        </div>
+        <a href="productos.html" class="btn-table btn-table-view" style="text-decoration:none;">Ver Lote</a>
+      </div>`).join('')
+    : `<div style="font-size:0.82rem;color:#34d399;padding:8px 0;">✅ Sin lotes próximos a vencer.</div>`;
+
+  modal.innerHTML = `
+    <div class="admin-modal" style="max-width:560px;">
+      <div class="modal-header">
+        <div class="modal-title">🔔 Centro de Alertas Operativas SISCO (${data.totalAlerts})</div>
+        <button class="modal-close" onclick="document.getElementById('siscoNotifModal').classList.remove('active')">✕</button>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <div style="font-size:0.76rem;text-transform:uppercase;letter-spacing:0.06em;color:rgba(188,210,233,0.6);font-weight:700;margin-bottom:8px;">🛒 Pedidos Omnicanal</div>
+        <div class="flex-between" style="padding:12px 14px;background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.22);border-radius:10px;">
+          <div>
+            <div style="font-weight:700;font-size:0.88rem;color:#e2f1ff;">
+              ${data.pendingCount > 0 ? `Tienes ${data.pendingCount} pedido(s) pendiente(s) de atención` : 'Todos los pedidos están al día'}
+            </div>
+            <div style="font-size:0.76rem;color:rgba(188,210,233,0.7);margin-top:2px;">
+              Pedidos en ruta con motorizado: <strong>${data.enCaminoCount}</strong>
+            </div>
+          </div>
+          <a href="pedidos.html" class="btn-admin-primary" style="text-decoration:none;padding:7px 14px;font-size:0.8rem;">Ir a Pedidos</a>
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <div style="font-size:0.76rem;text-transform:uppercase;letter-spacing:0.06em;color:rgba(188,210,233,0.6);font-weight:700;margin-bottom:8px;">📦 Alertas de Stock Crítico (${data.lowStock.length})</div>
+        ${lowStockHtml}
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <div style="font-size:0.76rem;text-transform:uppercase;letter-spacing:0.06em;color:rgba(188,210,233,0.6);font-weight:700;margin-bottom:8px;">⏳ Control de Vencimientos Cosméticos (${data.expiring.length})</div>
+        ${expiringHtml}
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;">
+        <button type="button" class="btn-admin-secondary" onclick="document.getElementById('siscoNotifModal').classList.remove('active')">Cerrar</button>
+      </div>
+    </div>
+  `;
+  modal.classList.add('active');
 }
 
 // =========================================================================

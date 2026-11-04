@@ -1383,7 +1383,7 @@ function showToast(msg, type = 'info') {
   }, 3400);
 }
 
-// ---- Carrito compartido con control de stock ----
+// ---- Carrito compartido con control de stock y Cupones Promocionales ----
 function getCart() {
   try { return JSON.parse(localStorage.getItem('sisco_cart') || '[]'); }
   catch { return []; }
@@ -1401,35 +1401,88 @@ function updateCartBadge() {
   });
 }
 
-// ---- Navegación pública, sesión y modal de Rastreo de Pedido ----
+const VALID_COUPONS = {
+  SHINY10: { code: 'SHINY10', pct: 10, label: '10% OFF Bienvenida Shiny Skin' },
+  VIP15:   { code: 'VIP15',   pct: 15, label: '15% OFF Clienta VIP K-Beauty' },
+  KBEAUTY: { code: 'KBEAUTY', pct: 10, label: '10% OFF Rutina Coreana' },
+};
+
+function getAppliedCoupon() {
+  try {
+    const c = JSON.parse(localStorage.getItem('sisco_coupon') || 'null');
+    if (c && VALID_COUPONS[c.code]) return VALID_COUPONS[c.code];
+  } catch {}
+  return null;
+}
+
+function applyPromoCoupon(rawCode) {
+  const code = String(rawCode || '').trim().toUpperCase();
+  if (!code) {
+    showToast('Ingresa un código promocional.', 'error');
+    return null;
+  }
+  const found = VALID_COUPONS[code];
+  if (!found) {
+    showToast('Cupón inválido. Prueba con SHINY10 o VIP15.', 'error');
+    return null;
+  }
+  localStorage.setItem('sisco_coupon', JSON.stringify(found));
+  showToast(`🎉 Cupón ${found.code} aplicado: ${found.label}`, 'success');
+  return found;
+}
+
+function clearPromoCoupon() {
+  localStorage.removeItem('sisco_coupon');
+  showToast('Cupón promocional retirado', 'info');
+}
+
+// ---- Navegación pública, sesión, Rastreo de Pedido y Test de Piel K-Beauty ----
 function toggleMobileNav() {
   const nav = document.querySelector('.navbar-nav');
   if (nav) nav.classList.toggle('open');
 }
 
-function openTrackingModal(prefill = '') {
+async function openTrackingModal(prefill = '') {
   let modal = document.getElementById('globalTrackingModal');
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'globalTrackingModal';
     modal.className = 'modal-overlay';
     modal.innerHTML = `
-      <div class="modal" style="max-width:500px;">
+      <div class="modal" style="max-width:520px;">
         <div class="modal-header">
-          <div class="modal-title">📦 Rastrear mi pedido</div>
+          <div class="modal-title">📦 Rastrear mi pedido y Mis Compras</div>
           <button class="modal-close" onclick="document.getElementById('globalTrackingModal').classList.remove('active')">✕</button>
         </div>
-        <p style="font-size:0.88rem;color:var(--color-text-muted);margin-bottom:14px;">Ingresa tu código de pedido (ejemplo: <strong>SS-000101</strong>) para consultar su estado en tiempo real.</p>
-        <form onsubmit="submitOrderTracking(event)" style="display:flex;gap:8px;margin-bottom:16px;">
+        <p style="font-size:0.86rem;color:var(--color-text-muted);margin-bottom:12px;">Ingresa tu código de pedido (ej: <strong>SS-000101</strong>) o selecciona uno de tus pedidos recientes:</p>
+        <form onsubmit="submitOrderTracking(event)" style="display:flex;gap:8px;margin-bottom:12px;">
           <input type="text" id="trackingCodeInput" class="form-control" placeholder="Ej. SS-000101" required />
           <button type="submit" class="btn btn-primary btn-sm">Consultar</button>
         </form>
+        <div id="recentOrdersQuickPills" style="margin-bottom:14px;"></div>
         <div id="trackingResultBox"></div>
       </div>`;
     modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
     document.body.appendChild(modal);
   }
   modal.classList.add('active');
+
+  // Mostrar acceso rápido a pedidos recientes ("Mis Pedidos")
+  try {
+    const orders = await fetchPedidos();
+    const pillsBox = document.getElementById('recentOrdersQuickPills');
+    if (pillsBox && orders && orders.length) {
+      pillsBox.innerHTML = `
+        <div style="font-size:0.75rem;color:var(--color-text-muted);margin-bottom:6px;font-weight:600;">📋 Mis pedidos recientes (clic para ver detalle):</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          ${orders.slice(0, 5).map(o => `
+            <button type="button" class="badge badge-primary" style="cursor:pointer;border:none;padding:5px 10px;" onclick="document.getElementById('trackingCodeInput').value='${o.numero_pedido}';submitOrderTracking();">
+              ${o.numero_pedido} · ${formatCurrency(o.total)}
+            </button>`).join('')}
+        </div>`;
+    }
+  } catch {}
+
   const inp = document.getElementById('trackingCodeInput');
   if (prefill && inp) {
     inp.value = prefill;
@@ -1452,6 +1505,7 @@ async function submitOrderTracking(e) {
       entregado: '🎉 Entregado satisfactoriamente',
       cancelado: '❌ Pedido cancelado'
     };
+    const itemsHtml = (o.items || []).map(it => `<div style="font-size:0.78rem;color:var(--color-text-muted);">• ${it.cantidad}x ${it.nombre_producto} (${formatCurrency(it.subtotal)})</div>`).join('');
     box.innerHTML = `
       <div style="background:var(--color-surface-2);border-radius:var(--radius-md);padding:16px;border:1px solid var(--color-surface-3);">
         <div class="flex-between" style="margin-bottom:8px;">
@@ -1461,9 +1515,10 @@ async function submitOrderTracking(e) {
         <div style="font-size:0.84rem;color:var(--color-text-muted);line-height:1.7;">
           <div><strong>Cliente:</strong> ${o.nombre_cliente}</div>
           <div><strong>Modalidad:</strong> ${o.metodo_entrega === 'retiro' ? 'Retiro en Concept Store' : 'Envío a domicilio'}</div>
-          ${o.motorizado_nombre ? `<div><strong>Motorizado:</strong> ${o.motorizado_nombre} (${o.motorizado_telefono || ''})</div>` : ''}
+          ${o.motorizado_nombre ? `<div><strong>Motorizado:</strong> 🛵 ${o.motorizado_nombre} (${o.motorizado_telefono || ''})</div>` : ''}
           <div><strong>Total:</strong> <strong style="color:var(--color-primary-darker);">${formatCurrency(o.total)}</strong></div>
           <div><strong>Fecha:</strong> ${formatDateTime(o.fecha)}</div>
+          ${itemsHtml ? `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--color-surface-3);"><strong>Productos:</strong>${itemsHtml}</div>` : ''}
         </div>
       </div>`;
   } catch (err) {
@@ -1471,8 +1526,133 @@ async function submitOrderTracking(e) {
   }
 }
 
+// =========================================================================
+// ASISTENTE INTERACTIVO "DESCUBRE TU RUTINA K-BEAUTY" (TEST DE TIPO DE PIEL)
+// =========================================================================
+let lastQuizRecommendations = [];
+
+function openSkinQuizModal() {
+  let modal = document.getElementById('skinQuizModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'skinQuizModal';
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal" style="max-width:580px;max-height:90vh;overflow-y:auto;">
+        <div class="modal-header">
+          <div class="modal-title">✨ Asesor K-Beauty: Descubre tu Rutina Ideal</div>
+          <button class="modal-close" onclick="document.getElementById('skinQuizModal').classList.remove('active')">✕</button>
+        </div>
+        <p style="font-size:0.86rem;color:var(--color-text-muted);margin-bottom:14px;">
+          Responde estas 2 preguntas y nuestro sistema SISCO seleccionará los productos coreanos ideales para tu piel:
+        </p>
+        <form onsubmit="runSkinQuiz(event)">
+          <div class="form-group" style="margin-bottom:14px;">
+            <label class="form-label">1. ¿Cómo sientes tu piel habitualmente?</label>
+            <select id="quizSkinType" class="form-control">
+              <option value="sensible">🌿 Sensible, con rojeces o irritación fácil</option>
+              <option value="grasa">💧 Mixta a grasa, con brillo o poros visibles</option>
+              <option value="seca">✨ Seca, tirante o falta de elasticidad</option>
+              <option value="manchas">☀️ Opaca, con manchas o tono desigual</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:16px;">
+            <label class="form-label">2. ¿Qué objetivo deseas priorizar hoy?</label>
+            <select id="quizGoal" class="form-control">
+              <option value="rutina">🧴 Rutina Coreana Completa (Limpieza + Tratamiento + SPF)</option>
+              <option value="hidratacion">💎 Efecto Glass Skin (Hidratación & Regeneración)</option>
+              <option value="makeup">💄 Protección Solar + Makeup Coreano Luminoso</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">🔍 Obtener mi recomendación personalizada</button>
+        </form>
+        <div id="quizResultsContainer" style="margin-top:18px;"></div>
+      </div>`;
+    modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
+    document.body.appendChild(modal);
+  }
+  modal.classList.add('active');
+  runSkinQuiz();
+}
+
+async function runSkinQuiz(e) {
+  if (e) e.preventDefault();
+  const skin = document.getElementById('quizSkinType')?.value || 'sensible';
+  const goal = document.getElementById('quizGoal')?.value || 'rutina';
+  const box = document.getElementById('quizResultsContainer');
+  if (!box) return;
+
+  const prods = (await fetchProductos()).filter(p => p.stock > 0);
+  const scoreProduct = (p) => {
+    const text = normalizeText(`${p.nombre} ${p.categoria} ${p.beneficios || ''} ${p.ingredientes || ''} ${p.descripcion || ''}`);
+    let s = 0;
+    if (skin === 'sensible' && (text.includes('heartleaf') || text.includes('centella') || text.includes('calma') || text.includes('sensible'))) s += 5;
+    if (skin === 'grasa' && (text.includes('pore') || text.includes('cleansing') || text.includes('sebo') || text.includes('gel') || text.includes('tea'))) s += 5;
+    if (skin === 'seca' && (text.includes('snail') || text.includes('collagen') || text.includes('hyaluronic') || text.includes('hidrat'))) s += 5;
+    if (skin === 'manchas' && (text.includes('niacinamide') || text.includes('vitamin') || text.includes('spf') || text.includes('ilumina'))) s += 5;
+
+    if (goal === 'rutina' && (text.includes('limpia') || text.includes('serum') || text.includes('sun'))) s += 3;
+    if (goal === 'hidratacion' && (text.includes('snail') || text.includes('collagen') || text.includes('mask') || text.includes('toner'))) s += 4;
+    if (goal === 'makeup' && (normalizeText(p.linea) === 'makeup' || text.includes('tint') || text.includes('cushion') || text.includes('sun'))) s += 6;
+    return s;
+  };
+
+  lastQuizRecommendations = [...prods].sort((a, b) => scoreProduct(b) - scoreProduct(a)).slice(0, 3);
+  const totalPack = lastQuizRecommendations.reduce((sum, p) => sum + Number(p.precio_final || 0), 0);
+
+  box.innerHTML = `
+    <div style="background:var(--color-surface-2);border:1px solid var(--color-surface-3);border-radius:var(--radius-md);padding:14px;">
+      <div class="flex-between" style="margin-bottom:10px;">
+        <strong style="color:var(--color-primary-darker);font-size:0.9rem;">🎯 Tu Rutina Recomendada (${lastQuizRecommendations.length} pasos)</strong>
+        <span class="badge badge-primary">Total: ${formatCurrency(totalPack)}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        ${lastQuizRecommendations.map((p, idx) => `
+          <div style="display:flex;align-items:center;gap:10px;background:#fff;padding:10px;border-radius:10px;border:1px solid var(--color-surface-3);">
+            <img src="${resolveImageUrl(p.imagen_url)}" onerror="handleImgError(this)" style="width:48px;height:48px;border-radius:8px;object-fit:cover;" alt="${p.nombre}" />
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:0.7rem;font-weight:700;color:var(--color-primary);">PASO ${idx + 1} · ${p.marca || 'K-Beauty'}</div>
+              <div style="font-size:0.84rem;font-weight:700;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.nombre}</div>
+              <div style="font-size:0.78rem;font-weight:700;color:var(--color-primary-darker);">${formatCurrency(p.precio_final)}</div>
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" onclick="addQuizProdToCart(${p.id})">+ Agregar</button>
+          </div>`).join('')}
+      </div>
+      <button type="button" class="btn btn-primary" style="width:100%;margin-top:12px;justify-content:center;" onclick="addAllQuizToCart()">
+        🛒 Agregar los ${lastQuizRecommendations.length} productos al carrito (${formatCurrency(totalPack)})
+      </button>
+    </div>`;
+}
+
+function addQuizProdToCart(id) {
+  const p = lastQuizRecommendations.find(x => Number(x.id) === Number(id));
+  if (!p) return;
+  const cart = getCart();
+  const ex = cart.find(i => Number(i.id) === Number(p.id));
+  if (ex) {
+    if (ex.cantidad < p.stock) ex.cantidad += 1;
+  } else {
+    cart.push({ id: p.id, nombre: p.nombre, marca: p.marca, precio: p.precio_final, imagen: resolveImageUrl(p.imagen_url), cantidad: 1, stock_max: p.stock });
+  }
+  saveCart(cart);
+  showToast(`${p.nombre} añadido a tu carrito ✨`, 'success');
+}
+
+function addAllQuizToCart() {
+  lastQuizRecommendations.forEach(p => addQuizProdToCart(p.id));
+  document.getElementById('skinQuizModal')?.classList.remove('active');
+  showToast('¡Rutina K-Beauty completa añadida al carrito!', 'success');
+}
+
 function initPublicNavbar() {
   updateCartBadge();
+  const nav = document.querySelector('.navbar-nav');
+  if (nav && !nav.querySelector('[data-skin-quiz]')) {
+    const li = document.createElement('li');
+    li.innerHTML = `<a href="#" data-skin-quiz class="nav-link" onclick="openSkinQuizModal();return false;" style="color:var(--color-primary-dark);font-weight:700;">✨ Test de Piel</a>`;
+    nav.appendChild(li);
+  }
+
   const actions = document.querySelector('.navbar-actions');
   if (!actions) return;
 

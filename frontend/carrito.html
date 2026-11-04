@@ -95,6 +95,9 @@ function render() {
 
   const subtotal = cart.reduce((s, i) => s + (Number(i.precio) * Number(i.cantidad)), 0);
   const totalUnidades = cart.reduce((s, i) => s + Number(i.cantidad), 0);
+  const coupon = typeof getAppliedCoupon === 'function' ? getAppliedCoupon() : null;
+  const descuentoMonto = coupon ? Math.round((subtotal * coupon.pct) / 100) : 0;
+  const totalConDescuento = Math.max(0, subtotal - descuentoMonto);
 
   container.innerHTML = `
   <div class="card" style="padding:24px;">
@@ -132,11 +135,28 @@ function render() {
   <div class="cart-summary">
     <div class="summary-card">
       <div class="summary-title">Resumen de compra</div>
+
+      <!-- Cupón Promocional -->
+      <div style="margin-bottom:14px;padding:12px;background:var(--color-surface-2);border-radius:var(--radius-md);border:1px solid var(--color-surface-3);">
+        <div style="font-size:0.76rem;font-weight:700;color:var(--color-primary-darker);margin-bottom:6px;">🎟️ ¿Tienes un cupón de descuento?</div>
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="cartCouponInput" class="form-control" style="padding:7px 10px;font-size:0.82rem;" placeholder="Ej. SHINY10" value="${coupon ? coupon.code : ''}" />
+          <button type="button" class="btn btn-primary btn-sm" onclick="if(applyPromoCoupon(document.getElementById('cartCouponInput').value)) render();">Aplicar</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;font-size:0.72rem;">
+          <span style="color:var(--color-text-muted);">Probar:</span>
+          <button type="button" class="badge badge-primary" style="cursor:pointer;border:none;" onclick="applyPromoCoupon('SHINY10');render();">SHINY10 (-10%)</button>
+          <button type="button" class="badge badge-info" style="cursor:pointer;border:none;" onclick="applyPromoCoupon('VIP15');render();">VIP15 (-15%)</button>
+          ${coupon ? `<button type="button" class="badge badge-danger" style="cursor:pointer;border:none;" onclick="clearPromoCoupon();render();">✕ Quitar</button>` : ''}
+        </div>
+      </div>
+
       <div class="summary-line"><span>Subtotal (${totalUnidades} uds.)</span><span>${formatCurrency(subtotal)}</span></div>
+      ${coupon ? `<div class="summary-line" style="color:var(--color-success);font-weight:700;"><span>Cupón ${coupon.code} (-${coupon.pct}%)</span><span>-${formatCurrency(descuentoMonto)}</span></div>` : ''}
       <div class="summary-line"><span>Impuestos (Cuota Fija)</span><span>Incluidos</span></div>
       <div class="summary-line"><span>Entrega</span><span style="color:var(--color-primary-dark);font-weight:600;">Se elige en el siguiente paso</span></div>
       <div class="summary-line summary-total" style="border-bottom:none;padding-top:14px;margin-top:6px;border-top:2px solid var(--color-surface-3);">
-        <span>Total productos</span><span class="summary-total-value">${formatCurrency(subtotal)}</span>
+        <span>Total productos</span><span class="summary-total-value">${formatCurrency(totalConDescuento)}</span>
       </div>
       <a href="checkout.html" class="btn btn-primary btn-lg" style="width:100%;margin-top:20px;justify-content:center;">Continuar al Checkout →</a>
       <a href="tienda.html" class="btn btn-ghost btn-sm" style="width:100%;margin-top:10px;justify-content:center;">← Agregar más productos</a>
