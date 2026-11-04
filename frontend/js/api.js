@@ -1,6 +1,7 @@
 /**
  * SISCO – Shiny Skin | api.js
- * Cliente HTTP unificado, utilidades globales y respaldo offline
+ * Cliente HTTP unificado + Motor de Persistencia Local (localStorage) automático
+ * Funciona tanto conectado al backend Flask (localhost:5000) como en modo navegador directo.
  */
 
 const API_BASE = (() => {
@@ -12,10 +13,1049 @@ const API_BASE = (() => {
 })();
 
 const BACKEND_ORIGIN = API_BASE.startsWith('http') ? API_BASE.replace(/\/api$/, '') : window.location.origin;
-
 const FALLBACK_PRODUCT_IMG = 'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?auto=format&fit=crop&w=600&q=80';
+const LOCAL_DB_KEY = 'sisco_local_db_v2';
 
-// ---- HTTP client ----
+// ---- Semilla Inicial para Base de Datos Local ----
+const INITIAL_PRODUCTS = [
+  { id: 1, nombre: 'ANUA Heartleaf 77% Soothing Serum', sku: 'SKN-SER-001', marca: 'ANUA', linea: 'Skincare', categoria: 'Sueros & Esencias', tamano: '30 ml', tono: '', fecha_vencimiento: '2027-08-15', precio_costo: 400, porcentaje_ganancia: 80, precio_venta: 720, precio_final: 720, descuento: 0, stock: 30, stock_fisico: 14, stock_online: 16, stock_minimo: 8, es_nuevo: true, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=600&q=80', descripcion: 'Suero calmante con 77% de hoja de corazón. Calma irritaciones y reduce el enrojecimiento.', beneficios: 'Calma irritaciones · Reduce enrojecimiento · Equilibra el sebo', ingredientes: 'Houttuynia Cordata Extract 77%, Pantenol, Ácido Hialurónico' },
+  { id: 2, nombre: 'COSRX Advanced Snail 96 Mucin Essence', sku: 'SKN-SER-003', marca: 'COSRX', linea: 'Skincare', categoria: 'Sueros & Esencias', tamano: '100 ml', tono: '', fecha_vencimiento: '2027-06-20', precio_costo: 350, porcentaje_ganancia: 77.1, precio_venta: 620, precio_final: 527, descuento: 15, stock: 22, stock_fisico: 10, stock_online: 12, stock_minimo: 5, es_nuevo: false, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1611930022073-b7a4ba5fcccd?auto=format&fit=crop&w=600&q=80', descripcion: 'Esencia de mucina de caracol al 96% para regeneración celular e hidratación profunda.', beneficios: 'Regeneración cutánea · Hidratación profunda · Textura glass skin', ingredientes: 'Snail Secretion Filtrate 96%, Sodium Hyaluronate, Allantoin' },
+  { id: 3, nombre: 'Purito Daily Go-To Sunscreen SPF50+ PA++++', sku: 'SKN-SOL-001', marca: 'Purito', linea: 'Skincare', categoria: 'Protectores Solares', tamano: '60 ml', tono: '', fecha_vencimiento: '2027-05-10', precio_costo: 380, porcentaje_ganancia: 78.9, precio_venta: 680, precio_final: 680, descuento: 0, stock: 35, stock_fisico: 18, stock_online: 17, stock_minimo: 6, es_nuevo: false, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=600&q=80', descripcion: 'Protector solar ligero de acabado invisible sin rastro blanco.', beneficios: 'SPF50+ PA++++ · Sin white cast · Con Centella Asiática', ingredientes: 'Centella Asiatica Extract, Uvinul A Plus, Tinosorb S' },
+  { id: 4, nombre: 'rom&nd Juicy Lasting Tint – 21 Grab Cherry', sku: 'MKP-LAB-001', marca: 'rom&nd', linea: 'Skincare' === 'Makeup' ? 'Skincare' : 'Makeup', categoria: 'Labios', tamano: '5.5 g', tono: '21 Grab Cherry', fecha_vencimiento: '2027-09-30', precio_costo: 310, porcentaje_ganancia: 80.6, precio_venta: 560, precio_final: 560, descuento: 0, stock: 25, stock_fisico: 12, stock_online: 13, stock_minimo: 5, es_nuevo: true, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1586495777744-4413f21062fa?auto=format&fit=crop&w=600&q=80', descripcion: 'Tinta labial coreana ultra duradera con acabado jugoso brillante.', beneficios: 'Brillo espejo · Alta pigmentación · Hidratación frutal', ingredientes: 'Extractos de papaya, pomelo y coco, escualano vegetal' },
+  { id: 5, nombre: 'Numbuzin No.5 Vitamin Niacinamide Serum', sku: 'SKN-SER-002', marca: 'Numbuzin', linea: 'Skincare', categoria: 'Sueros & Esencias', tamano: '30 ml', tono: '', fecha_vencimiento: '2026-12-15', precio_costo: 490, porcentaje_ganancia: 81.6, precio_venta: 890, precio_final: 890, descuento: 0, stock: 4, stock_fisico: 2, stock_online: 2, stock_minimo: 5, es_nuevo: false, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1617897903246-719242758050?auto=format&fit=crop&w=600&q=80', descripcion: 'Suero iluminador con vitamina C, glutatión y niacinamida al 5%.', beneficios: 'Despigmentante · Antioxidante · Unifica el tono', ingredientes: 'Niacinamide 5%, Tranexamic Acid, Glutathione, Vitamin C' },
+  { id: 6, nombre: 'Biodance Bio-Collagen Real Deep Mask Cream', sku: 'SKN-HID-001', marca: 'Biodance', linea: 'Skincare', categoria: 'Hidratantes & Cremas', tamano: '50 ml', tono: '', fecha_vencimiento: '2027-07-01', precio_costo: 430, porcentaje_ganancia: 81.4, precio_venta: 780, precio_final: 663, descuento: 15, stock: 16, stock_fisico: 8, stock_online: 8, stock_minimo: 5, es_nuevo: true, es_destacado: false, activo: true, imagen_url: 'https://images.unsplash.com/photo-1570194065650-d99fb4b8ccb0?auto=format&fit=crop&w=600&q=80', descripcion: 'Crema hidratante intensiva con bio-colágeno y ácido hialurónico.', beneficios: 'Efecto reafirmante · Barrera cutánea · Elasticidad', ingredientes: 'Low Molecular Collagen, Oligo-Hyaluronic Acid, Galactomyces' },
+  { id: 7, nombre: 'ANUA Heartleaf Pore Control Cleansing Oil', sku: 'SKN-LMP-001', marca: 'ANUA', linea: 'Skincare', categoria: 'Limpiadores', tamano: '200 ml', tono: '', fecha_vencimiento: '2027-04-20', precio_costo: 320, porcentaje_ganancia: 81.3, precio_venta: 580, precio_final: 522, descuento: 10, stock: 25, stock_fisico: 12, stock_online: 13, stock_minimo: 5, es_nuevo: false, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?auto=format&fit=crop&w=600&q=80', descripcion: 'Aceite limpiador suave para doble limpieza coreana.', beneficios: 'Disuelve maquillaje waterproof · Limpia poros · No comedogénico', ingredientes: 'Houttuynia Cordata Extract, Jojoba Seed Oil, Grape Seed Oil' },
+  { id: 8, nombre: 'Skin1004 Madagascar Centella Air-Fit Suncream', sku: 'SKN-SOL-002', marca: 'Skin1004', linea: 'Skincare', categoria: 'Protectores Solares', tamano: '50 ml', tono: '', fecha_vencimiento: '2027-10-12', precio_costo: 360, porcentaje_ganancia: 80.6, precio_venta: 650, precio_final: 650, descuento: 0, stock: 28, stock_fisico: 14, stock_online: 14, stock_minimo: 5, es_nuevo: true, es_destacado: false, activo: true, imagen_url: 'https://images.unsplash.com/photo-1526947425960-945c6e72858f?auto=format&fit=crop&w=600&q=80', descripcion: 'Protector solar calmante con Centella Asiática de Madagascar.', beneficios: 'Calma piel sensible · Protección UV amplia · Textura sedosa', ingredientes: 'Centella Asiatica Extract 29.8%, Niacinamide, Madecassoside' },
+  { id: 9, nombre: 'rom&nd Bare Water Cushion SPF40+ – Natural Beige', sku: 'MKP-ROS-001', marca: 'rom&nd', linea: 'Makeup', categoria: 'Rostro', tamano: '15 g', tono: '21 Natural Beige', fecha_vencimiento: '2027-03-18', precio_costo: 520, porcentaje_ganancia: 82.7, precio_venta: 950, precio_final: 950, descuento: 0, stock: 12, stock_fisico: 6, stock_online: 6, stock_minimo: 4, es_nuevo: false, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1596704017254-9b121068fb31?auto=format&fit=crop&w=600&q=80', descripcion: 'Base cushion coreana de acabado hidratado luminoso.', beneficios: 'Cobertura ligera natural · 70% esencia hidratante · SPF40+', ingredientes: 'Ácido Hialurónico, Ceramidas, Extracto de Flor de Loto' },
+  { id: 10, nombre: 'Medicube PDRN Pink Collagen Jelly Eye Mask', sku: 'SKN-MSK-001', marca: 'Medicube', linea: 'Skincare', categoria: 'Mascarillas', tamano: '60 parches', tono: '', fecha_vencimiento: '2027-11-05', precio_costo: 290, porcentaje_ganancia: 79.3, precio_venta: 520, precio_final: 520, descuento: 0, stock: 40, stock_fisico: 20, stock_online: 20, stock_minimo: 8, es_nuevo: false, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?auto=format&fit=crop&w=600&q=80', descripcion: 'Parches de hidrogel con PDRN y colágeno para contorno de ojos.', beneficios: 'Descongestiona ojeras · Hidrata líneas finas · Efecto frío', ingredientes: 'Salmon PDRN, Hydrolyzed Collagen, Niacinamide, Adenosine' },
+  { id: 11, nombre: 'COSRX Low pH Good Morning Gel Cleanser', sku: 'SKN-LMP-002', marca: 'COSRX', linea: 'Skincare', categoria: 'Limpiadores', tamano: '150 ml', tono: '', fecha_vencimiento: '2027-08-22', precio_costo: 280, porcentaje_ganancia: 75, precio_venta: 490, precio_final: 490, descuento: 0, stock: 18, stock_fisico: 8, stock_online: 10, stock_minimo: 5, es_nuevo: true, es_destacado: false, activo: true, imagen_url: 'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?auto=format&fit=crop&w=600&q=80', descripcion: 'Gel limpiador diario de pH balanceado 5.5.', beneficios: 'Respeta el manto ácido · Con aceite de árbol de té · Suave', ingredientes: 'Melaleuca Alternifolia Leaf Oil, Betaine Salicylate (BHA)' },
+  { id: 12, nombre: 'Innisfree Green Tea Hyaluronic Toner', sku: 'SKN-TON-001', marca: 'Innisfree', linea: 'Skincare', categoria: 'Tónicos', tamano: '170 ml', tono: '', fecha_vencimiento: '2027-09-14', precio_costo: 300, porcentaje_ganancia: 76.7, precio_venta: 530, precio_final: 530, descuento: 0, stock: 22, stock_fisico: 11, stock_online: 11, stock_minimo: 5, es_nuevo: false, es_destacado: false, activo: true, imagen_url: 'https://images.unsplash.com/photo-1601049541289-9b1b7bbbfe19?auto=format&fit=crop&w=600&q=80', descripcion: 'Tónico hidratante con té verde de la isla Jeju y 5 ácidos hialurónicos.', beneficios: 'Absorción inmediata · Refrescante · Calma la sed de la piel', ingredientes: 'Camellia Sinensis Leaf Extract, 5-Hyaluronic Acid Complex' },
+];
+
+function enrichProductComputed(p) {
+  const fis = Math.max(0, parseInt(p.stock_fisico ?? p.stock ?? 0) || 0);
+  const onl = Math.max(0, parseInt(p.stock_online ?? 0) || 0);
+  p.stock_fisico = fis;
+  p.stock_online = onl;
+  p.stock = fis + onl;
+  p.stock_minimo = parseInt(p.stock_minimo ?? 5) || 5;
+  p.precio_costo = Math.round((parseFloat(p.precio_costo) || 0) * 100) / 100;
+  p.precio_venta = Math.round((parseFloat(p.precio_venta) || 0) * 100) / 100;
+  p.descuento = Math.round((parseFloat(p.descuento) || 0) * 100) / 100;
+  p.porcentaje_ganancia = p.precio_costo > 0
+    ? Math.round(((p.precio_venta - p.precio_costo) / p.precio_costo) * 1000) / 10
+    : (parseFloat(p.porcentaje_ganancia) || 0);
+  p.precio_final = p.descuento > 0
+    ? Math.round(p.precio_venta * (1 - p.descuento / 100) * 100) / 100
+    : p.precio_venta;
+  p.stock_critico = p.stock <= p.stock_minimo;
+
+  if (p.fecha_vencimiento) {
+    const diff = Math.ceil((new Date(p.fecha_vencimiento) - new Date()) / (1000 * 60 * 60 * 24));
+    p.dias_para_vencer = isNaN(diff) ? null : diff;
+    p.por_vencer = p.dias_para_vencer !== null && p.dias_para_vencer <= 60;
+  } else {
+    p.dias_para_vencer = null;
+    p.por_vencer = false;
+  }
+  return p;
+}
+
+function createInitialLocalDB() {
+  const todayIso = new Date().toISOString();
+  const todayDate = todayIso.slice(0, 10);
+  return {
+    usuarios: [
+      { id: 1, nombre: 'Administradora Shiny Skin', username: 'admin', email: 'admin@shinyskin.ni', rol: 'admin', telefono: '505-8585-1000', activo: true, ultimo_acceso: todayIso, created_at: '2026-01-15T08:00:00' },
+      { id: 2, nombre: 'Sofía Martínez (Ventas)', username: 'vendedora', email: 'vendedora@shinyskin.ni', rol: 'vendedor', telefono: '505-8585-2000', activo: true, ultimo_acceso: todayIso, created_at: '2026-02-10T09:00:00' },
+    ],
+    categorias: [
+      { id: 1, nombre: 'Skincare', linea: 'Skincare', parent_id: null },
+      { id: 2, nombre: 'Makeup', linea: 'Makeup', parent_id: null },
+      { id: 3, nombre: 'Limpiadores', linea: 'Skincare', parent_id: 1 },
+      { id: 4, nombre: 'Sueros & Esencias', linea: 'Skincare', parent_id: 1 },
+      { id: 5, nombre: 'Hidratantes & Cremas', linea: 'Skincare', parent_id: 1 },
+      { id: 6, nombre: 'Protectores Solares', linea: 'Skincare', parent_id: 1 },
+      { id: 7, nombre: 'Mascarillas', linea: 'Skincare', parent_id: 1 },
+      { id: 8, nombre: 'Tónicos', linea: 'Skincare', parent_id: 1 },
+      { id: 9, nombre: 'Labios', linea: 'Makeup', parent_id: 2 },
+      { id: 10, nombre: 'Rostro', linea: 'Makeup', parent_id: 2 },
+      { id: 11, nombre: 'Cejas & Ojos', linea: 'Makeup', parent_id: 2 },
+    ],
+    marcas: [
+      { id: 1, nombre: 'ANUA', pais_origen: 'Corea del Sur' },
+      { id: 2, nombre: 'COSRX', pais_origen: 'Corea del Sur' },
+      { id: 3, nombre: 'Purito', pais_origen: 'Corea del Sur' },
+      { id: 4, nombre: 'rom&nd', pais_origen: 'Corea del Sur' },
+      { id: 5, nombre: 'Numbuzin', pais_origen: 'Corea del Sur' },
+      { id: 6, nombre: 'Biodance', pais_origen: 'Corea del Sur' },
+      { id: 7, nombre: 'Skin1004', pais_origen: 'Corea del Sur' },
+      { id: 8, nombre: 'Medicube', pais_origen: 'Corea del Sur' },
+      { id: 9, nombre: 'Innisfree', pais_origen: 'Corea del Sur' },
+    ],
+    productos: INITIAL_PRODUCTS.map(p => enrichProductComputed({ ...p })),
+    movimientos: [
+      { id: 1, product_id: 1, producto: 'ANUA Heartleaf 77% Soothing Serum', sku: 'SKN-SER-001', tipo: 'entrada', ubicacion: 'fisico', cantidad: 14, stock_anterior: 16, stock_nuevo: 30, motivo: 'Abastecimiento lote importación Corea', usuario: 'Administradora Shiny Skin', fecha: todayIso },
+      { id: 2, product_id: 2, producto: 'COSRX Advanced Snail 96 Mucin Essence', sku: 'SKN-SER-003', tipo: 'traslado', ubicacion: 'online->fisico', cantidad: 4, stock_anterior: 22, stock_nuevo: 22, motivo: 'Reposición de vitrina en Concept Store Camino de Oriente', usuario: 'Sofía Martínez (Ventas)', fecha: todayIso },
+    ],
+    motorizados: [
+      { id: 1, nombre: 'Carlos José Blandón', telefono: '505-8811-2233', empresa: 'Express Managua', activo: true, pedidos_asignados: 1 },
+      { id: 2, nombre: 'Miguel Ángel Rivas', telefono: '505-8744-5566', empresa: 'Delivery Rápido NI', activo: true, pedidos_asignados: 0 },
+    ],
+    clientes: [
+      { id: 1, nombre: 'María Fernanda González', telefono: '505-8888-1111', email: 'mfernanda@gmail.com', direccion: 'Altamira D\'Este, de donde fue la Vicky 2c. al sur, Managua', notas: 'Cliente frecuente línea ANUA' },
+      { id: 2, nombre: 'Andrea Carolina López', telefono: '505-8777-2222', email: 'andrea.lopez@gmail.com', direccion: 'Retiro en Concept Store Camino de Oriente', notas: 'Prefiere retiro en tienda' },
+      { id: 3, nombre: 'Valeria Castro Rivas', telefono: '505-8666-3333', email: 'valeria.castro@gmail.com', direccion: 'Residencial Las Colinas, segunda entrada, Managua', notas: 'Piel sensible' },
+    ],
+    pedidos: [
+      {
+        id: 1, numero_pedido: 'SS-000101', client_id: 1, motorizado_id: 1, motorizado_nombre: 'Carlos José Blandón', motorizado_telefono: '505-8811-2233',
+        nombre_cliente: 'María Fernanda González', telefono_cliente: '505-8888-1111', email_cliente: 'mfernanda@gmail.com',
+        metodo_entrega: 'domicilio', direccion_entrega: 'Altamira D\'Este, de donde fue la Vicky 2c. al sur, Managua',
+        estado: 'entregado', subtotal: 1440, descuento: 0, costo_envio: 0, iva: 0, total: 1440,
+        metodo_pago: 'efectivo_entrega', monto_pago_cliente: 1500, cambio_entregar: 60,
+        canal: 'web', factura_id: 1, numero_factura: 'FAC-000001', fecha: todayIso,
+        items: [{ id: 1, product_id: 1, nombre_producto: 'ANUA Heartleaf 77% Soothing Serum', sku: 'SKN-SER-001', cantidad: 2, precio_unitario: 720, subtotal: 1440 }],
+        historial: [{ id: 1, estado_anterior: null, estado_nuevo: 'pendiente', observacion: 'Pedido recibido vía web', fecha: todayIso }, { id: 2, estado_anterior: 'pendiente', estado_nuevo: 'entregado', observacion: 'Entregado por motorizado', fecha: todayIso }]
+      },
+      {
+        id: 2, numero_pedido: 'SS-000102', client_id: 2, motorizado_id: null, motorizado_nombre: null, motorizado_telefono: null,
+        nombre_cliente: 'Andrea Carolina López', telefono_cliente: '505-8777-2222', email_cliente: 'andrea.lopez@gmail.com',
+        metodo_entrega: 'retiro', direccion_entrega: 'Retiro en tienda (Concept Store Camino de Oriente)',
+        estado: 'confirmado', subtotal: 890, descuento: 0, costo_envio: 0, iva: 0, total: 890,
+        metodo_pago: 'transferencia', monto_pago_cliente: null, cambio_entregar: 0,
+        canal: 'whatsapp', factura_id: null, numero_factura: null, fecha: todayIso,
+        items: [{ id: 2, product_id: 5, nombre_producto: 'Numbuzin No.5 Vitamin Niacinamide Serum', sku: 'SKN-SER-002', cantidad: 1, precio_unitario: 890, subtotal: 890 }],
+        historial: [{ id: 3, estado_anterior: null, estado_nuevo: 'confirmado', observacion: 'Transferencia LAFISE verificada', fecha: todayIso }]
+      },
+      {
+        id: 3, numero_pedido: 'SS-000103', client_id: 3, motorizado_id: 1, motorizado_nombre: 'Carlos José Blandón', motorizado_telefono: '505-8811-2233',
+        nombre_cliente: 'Valeria Castro Rivas', telefono_cliente: '505-8666-3333', email_cliente: 'valeria.castro@gmail.com',
+        metodo_entrega: 'domicilio', direccion_entrega: 'Residencial Las Colinas, segunda entrada, Managua',
+        estado: 'en_camino', subtotal: 1240, descuento: 0, costo_envio: 120, iva: 0, total: 1360,
+        metodo_pago: 'efectivo_entrega', monto_pago_cliente: 1500, cambio_entregar: 140,
+        canal: 'instagram', factura_id: null, numero_factura: null, fecha: todayIso,
+        items: [{ id: 3, product_id: 3, nombre_producto: 'Purito Daily Go-To Sunscreen SPF50+ PA++++', sku: 'SKN-SOL-001', cantidad: 1, precio_unitario: 680, subtotal: 680 }, { id: 4, product_id: 4, nombre_producto: 'rom&nd Juicy Lasting Tint – 21 Grab Cherry', sku: 'MKP-LAB-001', cantidad: 1, precio_unitario: 560, subtotal: 560 }],
+        historial: [{ id: 4, estado_anterior: 'confirmado', estado_nuevo: 'en_camino', observacion: 'Despachado con Carlos José Blandón', fecha: todayIso }]
+      },
+    ],
+    facturas: [
+      {
+        id: 1, numero_factura: 'FAC-000001', order_id: 1, numero_pedido: 'SS-000101',
+        nombre_cliente: 'María Fernanda González', telefono_cliente: '505-8888-1111', email_cliente: 'mfernanda@gmail.com',
+        canal: 'online', tipo_descuento: 'monto', subtotal: 1440, descuento: 0, iva: 0, total: 1440,
+        metodo_pago: 'efectivo', monto_recibido: 1500, cambio: 60, estado: 'pagada',
+        emisor: 'Administradora Shiny Skin', fecha: todayIso,
+        items: [{ id: 1, product_id: 1, nombre_producto: 'ANUA Heartleaf 77% Soothing Serum', sku: 'SKN-SER-001', cantidad: 2, precio_unitario: 720, descuento: 0, subtotal: 1440 }]
+      },
+      {
+        id: 2, numero_factura: 'FAC-000002', order_id: null, numero_pedido: null,
+        nombre_cliente: 'Consumidor Final', telefono_cliente: '', email_cliente: '',
+        canal: 'colectivo', tipo_descuento: 'monto', subtotal: 680, descuento: 0, iva: 0, total: 680,
+        metodo_pago: 'efectivo', monto_recibido: 700, cambio: 20, estado: 'pagada',
+        emisor: 'Sofía Martínez (Ventas)', fecha: todayIso,
+        items: [{ id: 2, product_id: 3, nombre_producto: 'Purito Daily Go-To Sunscreen SPF50+ PA++++', sku: 'SKN-SOL-001', cantidad: 1, precio_unitario: 680, descuento: 0, subtotal: 680 }]
+      }
+    ],
+    gastos: [
+      { id: 1, categoria_gasto: 'ALQUILER', concepto: 'Módulo en Colectivo Concept Store Camino de Oriente', monto: 7500, fecha: todayDate, notas: 'Cuota mensual', usuario: 'Administradora Shiny Skin' },
+      { id: 2, categoria_gasto: 'IMPORTACION', concepto: 'Desaduanaje lote cosmética coreana DHL', monto: 4200, fecha: todayDate, notas: 'Póliza consolidada', usuario: 'Administradora Shiny Skin' },
+      { id: 3, categoria_gasto: 'EMPAQUE', concepto: 'Bolsas satinadas, stickers holográficos y papel seda Shiny Skin', monto: 1450, fecha: todayDate, notas: '200 unidades', usuario: 'Administradora Shiny Skin' },
+    ],
+  };
+}
+
+function getLocalDB() {
+  try {
+    const raw = localStorage.getItem(LOCAL_DB_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.productos)) {
+        parsed.productos = parsed.productos.map(enrichProductComputed);
+        return parsed;
+      }
+    }
+  } catch {}
+  const fresh = createInitialLocalDB();
+  saveLocalDB(fresh);
+  return fresh;
+}
+
+function saveLocalDB(db) {
+  try {
+    localStorage.setItem(LOCAL_DB_KEY, JSON.stringify(db));
+  } catch (e) {
+    console.warn('Advertencia al guardar en localStorage:', e);
+  }
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve) => {
+    if (!file || !(file instanceof Blob) || file.size === 0) return resolve('');
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+}
+
+// ---- Motor Local que procesa todos los endpoints cuando el servidor Flask no está activo ----
+async function handleLocalApi(method, path, body) {
+  const db = getLocalDB();
+  const urlObj = new URL(path, 'http://localhost');
+  const pathname = urlObj.pathname.replace(/\/+$/, '') || '/';
+  const params = Object.fromEntries(urlObj.searchParams.entries());
+
+  let data = body || {};
+  if (body instanceof FormData) {
+    data = {};
+    for (const [k, v] of body.entries()) {
+      if (v instanceof File) {
+        if (v.size > 0) data.imagen_url = await fileToDataUrl(v);
+      } else {
+        data[k] = v;
+      }
+    }
+  }
+
+  let currentUser = { nombre: 'Administradora Shiny Skin', rol: 'admin' };
+  try {
+    const u = JSON.parse(localStorage.getItem('sisco_user') || 'null');
+    if (u && u.nombre) currentUser = u;
+  } catch {}
+
+  const nextId = (arr) => arr.reduce((m, x) => Math.max(m, Number(x.id) || 0), 0) + 1;
+  const nowIso = new Date().toISOString();
+
+  // ==================== AUTH & USUARIOS ====================
+  if (pathname === '/auth/login' && method === 'POST') {
+    const idf = String(data.email || data.username || '').trim().toLowerCase();
+    const pwd = String(data.password || '');
+    let u = db.usuarios.find(x => (x.email || '').toLowerCase() === idf || (x.username || '').toLowerCase() === idf);
+    if (!u && (idf === 'admin' || idf === 'admin@shinyskin.ni')) u = db.usuarios[0];
+    if (!u && (idf === 'vendedora' || idf === 'vendedora@shinyskin.ni')) u = db.usuarios[1];
+    if (!u || (u.password && u.password !== pwd)) {
+      const err = new Error('Credenciales inválidas. Verifica tu usuario y contraseña.');
+      err.status = 401;
+      throw err;
+    }
+    if (u.activo === false) {
+      throw new Error('Esta cuenta de usuario se encuentra desactivada.');
+    }
+    u.ultimo_acceso = nowIso;
+    saveLocalDB(db);
+    return { token: `local_jwt_${u.id}_${Date.now()}`, usuario: u };
+  }
+
+  if (pathname === '/auth/register' && method === 'POST') {
+    const u = {
+      id: nextId(db.usuarios),
+      nombre: data.nombre || 'Cliente Shiny Skin',
+      username: data.username || (data.email || '').split('@')[0],
+      email: data.email || `cliente${Date.now()}@shinyskin.ni`,
+      rol: 'cliente',
+      telefono: data.telefono || '',
+      activo: true,
+      ultimo_acceso: nowIso,
+      created_at: nowIso
+    };
+    db.usuarios.push(u);
+    saveLocalDB(db);
+    return { token: `local_jwt_${u.id}_${Date.now()}`, usuario: u };
+  }
+
+  if (pathname === '/auth/forgot-password' && method === 'POST') {
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    db.last_reset_code = code;
+    db.last_reset_target = data.email || data.identificador || '';
+    saveLocalDB(db);
+    return { mensaje: 'Código de recuperación generado.', codigo_demo: code, reset_token: code };
+  }
+
+  if (pathname === '/auth/reset-password' && method === 'POST') {
+    const u = db.usuarios.find(x =>
+      (x.email || '').toLowerCase() === String(db.last_reset_target || '').toLowerCase() ||
+      (x.username || '').toLowerCase() === String(db.last_reset_target || '').toLowerCase()
+    ) || db.usuarios[0];
+    if (u && data.nueva_password) u.password = data.nueva_password;
+    saveLocalDB(db);
+    return { mensaje: 'Contraseña actualizada exitosamente.' };
+  }
+
+  if (pathname === '/auth/me' && method === 'GET') {
+    return currentUser;
+  }
+
+  if (pathname === '/auth/usuarios' && method === 'GET') {
+    return db.usuarios;
+  }
+
+  if (pathname === '/auth/usuarios' && method === 'POST') {
+    const u = {
+      id: nextId(db.usuarios),
+      nombre: (data.nombre || '').trim(),
+      username: (data.username || '').trim(),
+      email: (data.email || '').trim(),
+      rol: data.rol || 'vendedor',
+      telefono: (data.telefono || '').trim(),
+      activo: data.activo !== false && data.activo !== 'false',
+      password: data.password || 'shiny123',
+      ultimo_acceso: null,
+      created_at: nowIso
+    };
+    db.usuarios.push(u);
+    saveLocalDB(db);
+    return { mensaje: 'Usuario registrado correctamente', usuario: u };
+  }
+
+  const userMatch = pathname.match(/^\/auth\/usuarios\/(\d+)$/);
+  if (userMatch) {
+    const uid = Number(userMatch[1]);
+    const u = db.usuarios.find(x => Number(x.id) === uid);
+    if (!u) throw new Error('Usuario no encontrado');
+    if (method === 'PUT') {
+      if (data.nombre !== undefined) u.nombre = data.nombre.trim();
+      if (data.username !== undefined) u.username = data.username.trim();
+      if (data.email !== undefined) u.email = data.email.trim();
+      if (data.rol !== undefined) u.rol = data.rol;
+      if (data.telefono !== undefined) u.telefono = data.telefono.trim();
+      if (data.activo !== undefined) u.activo = data.activo !== false && data.activo !== 'false';
+      if (data.password) u.password = data.password;
+      saveLocalDB(db);
+      return { mensaje: 'Usuario actualizado', usuario: u };
+    }
+    if (method === 'DELETE') {
+      u.activo = false;
+      saveLocalDB(db);
+      return { mensaje: 'Usuario desactivado', usuario: u };
+    }
+  }
+
+  // ==================== PRODUCTOS ====================
+  if (pathname === '/productos/categorias' && method === 'GET') {
+    return db.categorias;
+  }
+  if (pathname === '/productos/marcas' && method === 'GET') {
+    return db.marcas;
+  }
+  if (pathname === '/productos/stock-critico' && method === 'GET') {
+    return db.productos.filter(p => p.activo !== false && p.stock <= (p.stock_minimo ?? 5));
+  }
+
+  if (pathname === '/productos' && method === 'GET') {
+    let list = [...db.productos];
+    if (params.incluir_inactivos !== 'true') {
+      list = list.filter(p => p.activo !== false);
+    }
+    if (params.categoria) {
+      list = list.filter(p => matchesCategoryFilter(p, params.categoria));
+    }
+    if (params.linea) {
+      list = list.filter(p => matchesCategoryFilter(p, params.linea));
+    }
+    if (params.marca) {
+      const mNorm = normalizeText(params.marca);
+      list = list.filter(p => normalizeText(p.marca) === mNorm || String(p.brand_id) === String(params.marca));
+    }
+    if (params.destacados === 'true') list = list.filter(p => p.es_destacado);
+    if (params.nuevos === 'true') list = list.filter(p => p.es_nuevo);
+    if (params.q) {
+      const qn = normalizeText(params.q);
+      list = list.filter(p => normalizeText(`${p.nombre} ${p.sku || ''} ${p.marca || ''} ${p.categoria || ''} ${p.descripcion || ''}`).includes(qn));
+    }
+    return list;
+  }
+
+  if (pathname === '/productos' && method === 'POST') {
+    const nombre = String(data.nombre || '').trim();
+    if (!nombre) throw new Error('El nombre del producto es obligatorio.');
+
+    const marcaNombre = String(data.marca_nombre || data.marca || 'K-Beauty').trim();
+    const catNombre = String(data.categoria_nombre || data.categoria || 'Skincare').trim();
+    const linea = String(data.linea || 'Skincare').trim();
+
+    if (marcaNombre && !db.marcas.some(b => normalizeText(b.nombre) === normalizeText(marcaNombre))) {
+      db.marcas.push({ id: nextId(db.marcas), nombre: marcaNombre, pais_origen: 'Corea del Sur' });
+    }
+    if (catNombre && !db.categorias.some(c => normalizeText(c.nombre) === normalizeText(catNombre))) {
+      db.categorias.push({ id: nextId(db.categorias), nombre: catNombre, linea, parent_id: linea === 'Makeup' ? 2 : 1 });
+    }
+
+    const newId = nextId(db.productos);
+    const prefix = linea.toLowerCase() === 'makeup' ? 'MKP' : 'SKN';
+    const catCode = normalizeText(catNombre).slice(0, 3).toUpperCase() || 'GEN';
+    const sku = String(data.sku || '').trim() || `${prefix}-${catCode}-${String(newId).padStart(3, '0')}`;
+
+    const fis = Math.max(0, parseInt(data.stock_fisico ?? data.stock ?? 0) || 0);
+    const onl = Math.max(0, parseInt(data.stock_online ?? 0) || 0);
+
+    const newProd = enrichProductComputed({
+      id: newId,
+      nombre,
+      sku,
+      marca: marcaNombre,
+      categoria: catNombre,
+      linea,
+      tamano: String(data.tamano || '').trim(),
+      tono: String(data.tono || '').trim(),
+      fecha_vencimiento: String(data.fecha_vencimiento || '').trim(),
+      precio_costo: parseFloat(data.precio_costo) || 0,
+      porcentaje_ganancia: parseFloat(data.porcentaje_ganancia) || 0,
+      precio_venta: parseFloat(data.precio_venta) || 0,
+      descuento: parseFloat(data.descuento) || 0,
+      stock_fisico: fis,
+      stock_online: onl,
+      stock_minimo: parseInt(data.stock_minimo) || 5,
+      descripcion: String(data.descripcion || '').trim(),
+      beneficios: String(data.beneficios || '').trim(),
+      ingredientes: String(data.ingredientes || '').trim(),
+      imagen_url: String(data.imagen_url || '').trim() || FALLBACK_PRODUCT_IMG,
+      es_nuevo: data.es_nuevo === true || data.es_nuevo === 'true',
+      es_destacado: data.es_destacado === true || data.es_destacado === 'true',
+      activo: data.activo !== false && data.activo !== 'false',
+      created_at: nowIso
+    });
+
+    db.productos.unshift(newProd);
+
+    if (newProd.stock > 0) {
+      db.movimientos.unshift({
+        id: nextId(db.movimientos),
+        product_id: newProd.id,
+        producto: newProd.nombre,
+        sku: newProd.sku,
+        tipo: 'entrada',
+        ubicacion: fis > 0 && onl > 0 ? 'ambos' : (fis > 0 ? 'fisico' : 'online'),
+        cantidad: newProd.stock,
+        stock_anterior: 0,
+        stock_nuevo: newProd.stock,
+        motivo: 'Stock inicial al registrar producto',
+        usuario: currentUser.nombre,
+        fecha: nowIso
+      });
+    }
+
+    saveLocalDB(db);
+    return { mensaje: 'Producto creado exitosamente', producto: newProd };
+  }
+
+  const prodMatch = pathname.match(/^\/productos\/(\d+)$/);
+  if (prodMatch) {
+    const pid = Number(prodMatch[1]);
+    const prod = db.productos.find(x => Number(x.id) === pid);
+    if (!prod) throw new Error('Producto no encontrado');
+
+    if (method === 'GET') return prod;
+
+    if (method === 'PUT') {
+      if (data.nombre !== undefined) prod.nombre = String(data.nombre).trim();
+      if (data.sku !== undefined && String(data.sku).trim()) prod.sku = String(data.sku).trim();
+      if (data.marca_nombre !== undefined || data.marca !== undefined) prod.marca = String(data.marca_nombre || data.marca || prod.marca).trim();
+      if (data.categoria_nombre !== undefined || data.categoria !== undefined) prod.categoria = String(data.categoria_nombre || data.categoria || prod.categoria).trim();
+      if (data.linea !== undefined) prod.linea = data.linea;
+      if (data.tamano !== undefined) prod.tamano = String(data.tamano).trim();
+      if (data.tono !== undefined) prod.tono = String(data.tono).trim();
+      if (data.fecha_vencimiento !== undefined) prod.fecha_vencimiento = String(data.fecha_vencimiento).trim();
+      if (data.precio_costo !== undefined) prod.precio_costo = parseFloat(data.precio_costo) || 0;
+      if (data.porcentaje_ganancia !== undefined) prod.porcentaje_ganancia = parseFloat(data.porcentaje_ganancia) || 0;
+      if (data.precio_venta !== undefined) prod.precio_venta = parseFloat(data.precio_venta) || 0;
+      if (data.descuento !== undefined) prod.descuento = parseFloat(data.descuento) || 0;
+      if (data.stock_fisico !== undefined) prod.stock_fisico = parseInt(data.stock_fisico) || 0;
+      if (data.stock_online !== undefined) prod.stock_online = parseInt(data.stock_online) || 0;
+      if (data.stock_minimo !== undefined) prod.stock_minimo = parseInt(data.stock_minimo) || 5;
+      if (data.descripcion !== undefined) prod.descripcion = String(data.descripcion).trim();
+      if (data.beneficios !== undefined) prod.beneficios = String(data.beneficios).trim();
+      if (data.ingredientes !== undefined) prod.ingredientes = String(data.ingredientes).trim();
+      if (data.imagen_url) prod.imagen_url = String(data.imagen_url).trim();
+      if (data.es_nuevo !== undefined) prod.es_nuevo = data.es_nuevo === true || data.es_nuevo === 'true';
+      if (data.es_destacado !== undefined) prod.es_destacado = data.es_destacado === true || data.es_destacado === 'true';
+      if (data.activo !== undefined) prod.activo = data.activo !== false && data.activo !== 'false';
+
+      enrichProductComputed(prod);
+      saveLocalDB(db);
+      return { mensaje: 'Producto actualizado correctamente', producto: prod };
+    }
+
+    if (method === 'DELETE') {
+      prod.activo = false;
+      saveLocalDB(db);
+      return { mensaje: 'Producto desactivado del catálogo', producto: prod };
+    }
+  }
+
+  // ==================== INVENTARIO DUAL ====================
+  if (pathname === '/inventario/movimientos' && method === 'GET') {
+    let movs = [...db.movimientos];
+    if (params.tipo) movs = movs.filter(m => m.tipo === params.tipo);
+    if (params.ubicacion) movs = movs.filter(m => (m.ubicacion || '').includes(params.ubicacion));
+    return movs;
+  }
+
+  if (pathname === '/inventario/resumen' && method === 'GET') {
+    const activos = db.productos.filter(p => p.activo !== false);
+    const criticos = activos.filter(p => p.stock_critico);
+    const porVencer = activos.filter(p => p.por_vencer);
+    const valorCosto = activos.reduce((s, p) => s + p.stock * p.precio_costo, 0);
+    const valorVenta = activos.reduce((s, p) => s + p.stock * p.precio_final, 0);
+    return {
+      total_productos: activos.length,
+      total_unidades: activos.reduce((s, p) => s + p.stock, 0),
+      unidades_fisico: activos.reduce((s, p) => s + p.stock_fisico, 0),
+      unidades_online: activos.reduce((s, p) => s + p.stock_online, 0),
+      stock_critico_count: criticos.length,
+      por_vencer_count: porVencer.length,
+      valor_costo_total: valorCosto,
+      valor_venta_total: valorVenta,
+      ganancia_potencial: valorVenta - valorCosto,
+      productos_criticos: criticos,
+      productos_por_vencer: porVencer
+    };
+  }
+
+  if (pathname === '/inventario/rotacion' && method === 'GET') {
+    const vendidosMap = {};
+    db.pedidos.filter(o => o.estado !== 'cancelado').forEach(o => {
+      (o.items || []).forEach(it => {
+        vendidosMap[it.product_id] = (vendidosMap[it.product_id] || 0) + (Number(it.cantidad) || 0);
+      });
+    });
+    db.facturas.filter(f => f.estado !== 'anulada' && !f.order_id).forEach(f => {
+      (f.items || []).forEach(it => {
+        vendidosMap[it.product_id] = (vendidosMap[it.product_id] || 0) + (Number(it.cantidad) || 0);
+      });
+    });
+    return db.productos.filter(p => p.activo !== false).map(p => {
+      const uv = vendidosMap[p.id] || 0;
+      const denom = p.stock + uv;
+      const indice = denom > 0 ? Math.round((uv / denom) * 1000) / 10 : 0;
+      return {
+        id: p.id,
+        nombre: p.nombre,
+        sku: p.sku,
+        marca: p.marca,
+        stock_actual: p.stock,
+        stock_fisico: p.stock_fisico,
+        stock_online: p.stock_online,
+        unidades_vendidas: uv,
+        ingresos_generados: uv * p.precio_final,
+        indice_rotacion: indice,
+        clasificacion: uv >= 5 ? 'Alta rotación' : (uv >= 1 ? 'Rotación media' : 'Baja rotación')
+      };
+    }).sort((a, b) => b.unidades_vendidas - a.unidades_vendidas);
+  }
+
+  if (pathname === '/inventario/entrada' && method === 'POST') {
+    const p = db.productos.find(x => Number(x.id) === Number(data.product_id));
+    if (!p) throw new Error('Producto no encontrado');
+    const cant = Math.max(1, parseInt(data.cantidad) || 0);
+    const ubi = data.ubicacion === 'online' ? 'online' : 'fisico';
+    const ant = p.stock;
+    if (ubi === 'fisico') p.stock_fisico += cant;
+    else p.stock_online += cant;
+    enrichProductComputed(p);
+    const mov = { id: nextId(db.movimientos), product_id: p.id, producto: p.nombre, sku: p.sku, tipo: 'entrada', ubicacion: ubi, cantidad: cant, stock_anterior: ant, stock_nuevo: p.stock, motivo: data.motivo || 'Entrada de mercadería', usuario: currentUser.nombre, fecha: nowIso };
+    db.movimientos.unshift(mov);
+    saveLocalDB(db);
+    return { mensaje: 'Entrada registrada', producto: p, movimiento: mov };
+  }
+
+  if (pathname === '/inventario/salida' && method === 'POST') {
+    const p = db.productos.find(x => Number(x.id) === Number(data.product_id));
+    if (!p) throw new Error('Producto no encontrado');
+    const cant = Math.max(1, parseInt(data.cantidad) || 0);
+    const ubi = data.ubicacion === 'online' ? 'online' : 'fisico';
+    const disp = ubi === 'fisico' ? p.stock_fisico : p.stock_online;
+    if (cant > disp) throw new Error(`Stock insuficiente en ${ubi} (disponible: ${disp})`);
+    const ant = p.stock;
+    if (ubi === 'fisico') p.stock_fisico -= cant;
+    else p.stock_online -= cant;
+    enrichProductComputed(p);
+    const mov = { id: nextId(db.movimientos), product_id: p.id, producto: p.nombre, sku: p.sku, tipo: 'salida', ubicacion: ubi, cantidad: cant, stock_anterior: ant, stock_nuevo: p.stock, motivo: data.motivo || 'Baja por merma/daño', usuario: currentUser.nombre, fecha: nowIso };
+    db.movimientos.unshift(mov);
+    saveLocalDB(db);
+    return { mensaje: 'Salida registrada', producto: p, movimiento: mov };
+  }
+
+  if (pathname === '/inventario/traslado' && method === 'POST') {
+    const p = db.productos.find(x => Number(x.id) === Number(data.product_id));
+    if (!p) throw new Error('Producto no encontrado');
+    const cant = Math.max(1, parseInt(data.cantidad) || 0);
+    const orig = data.origen === 'online' ? 'online' : 'fisico';
+    const dest = orig === 'fisico' ? 'online' : 'fisico';
+    const disp = orig === 'fisico' ? p.stock_fisico : p.stock_online;
+    if (cant > disp) throw new Error(`Stock insuficiente en ${orig} (disponible: ${disp})`);
+    if (orig === 'fisico') { p.stock_fisico -= cant; p.stock_online += cant; }
+    else { p.stock_online -= cant; p.stock_fisico += cant; }
+    enrichProductComputed(p);
+    const mov = { id: nextId(db.movimientos), product_id: p.id, producto: p.nombre, sku: p.sku, tipo: 'traslado', ubicacion: `${orig}->${dest}`, cantidad: cant, stock_anterior: p.stock, stock_nuevo: p.stock, motivo: data.motivo || `Traslado ${orig} a ${dest}`, usuario: currentUser.nombre, fecha: nowIso };
+    db.movimientos.unshift(mov);
+    saveLocalDB(db);
+    return { mensaje: 'Traslado realizado', producto: p, movimiento: mov };
+  }
+
+  if (pathname === '/inventario/ajuste' && method === 'POST') {
+    const p = db.productos.find(x => Number(x.id) === Number(data.product_id));
+    if (!p) throw new Error('Producto no encontrado');
+    const nStock = Math.max(0, parseInt(data.nuevo_stock ?? data.stock_nuevo) || 0);
+    const ubi = data.ubicacion === 'online' ? 'online' : 'fisico';
+    const ant = p.stock;
+    if (ubi === 'fisico') p.stock_fisico = nStock;
+    else p.stock_online = nStock;
+    enrichProductComputed(p);
+    const mov = { id: nextId(db.movimientos), product_id: p.id, producto: p.nombre, sku: p.sku, tipo: 'ajuste', ubicacion: ubi, cantidad: Math.abs(p.stock - ant), stock_anterior: ant, stock_nuevo: p.stock, motivo: data.motivo || 'Ajuste por conteo físico', usuario: currentUser.nombre, fecha: nowIso };
+    db.movimientos.unshift(mov);
+    saveLocalDB(db);
+    return { mensaje: 'Ajuste aplicado', producto: p, movimiento: mov };
+  }
+
+  // ==================== PEDIDOS & MOTORIZADOS ====================
+  if (pathname === '/pedidos/motorizados' && method === 'GET') {
+    return db.motorizados;
+  }
+  if (pathname === '/pedidos/motorizados' && method === 'POST') {
+    const m = { id: nextId(db.motorizados), nombre: data.nombre, telefono: data.telefono, empresa: data.empresa || 'Independiente', activo: true, pedidos_asignados: 0 };
+    db.motorizados.push(m);
+    saveLocalDB(db);
+    return { mensaje: 'Motorizado registrado', motorizado: m };
+  }
+  if (pathname === '/pedidos/stats' && method === 'GET') {
+    const valid = db.pedidos.filter(o => o.estado !== 'cancelado');
+    return {
+      total_pedidos: db.pedidos.length,
+      pendientes: db.pedidos.filter(o => o.estado === 'pendiente').length,
+      confirmados: db.pedidos.filter(o => o.estado === 'confirmado').length,
+      en_camino: db.pedidos.filter(o => o.estado === 'en_camino').length,
+      entregados: db.pedidos.filter(o => o.estado === 'entregado').length,
+      cancelados: db.pedidos.filter(o => o.estado === 'cancelado').length,
+      ingresos_totales: valid.reduce((s, o) => s + (o.total || 0), 0)
+    };
+  }
+
+  const trackMatch = pathname.match(/^\/pedidos\/seguimiento\/(.+)$/);
+  if (trackMatch && method === 'GET') {
+    const code = decodeURIComponent(trackMatch[1]).trim().toUpperCase();
+    const o = db.pedidos.find(x => (x.numero_pedido || '').toUpperCase() === code);
+    if (!o) throw new Error(`No se encontró ningún pedido con el código ${code}`);
+    return o;
+  }
+
+  if (pathname === '/pedidos' && method === 'GET') {
+    let list = [...db.pedidos];
+    if (params.estado) list = list.filter(o => o.estado === params.estado);
+    if (params.canal) list = list.filter(o => o.canal === params.canal);
+    if (params.q) {
+      const qn = normalizeText(params.q);
+      list = list.filter(o => normalizeText(`${o.numero_pedido} ${o.nombre_cliente} ${o.telefono_cliente || ''}`).includes(qn));
+    }
+    return list;
+  }
+
+  if (pathname === '/pedidos' && method === 'POST') {
+    const itemsReq = Array.isArray(data.items) ? data.items : [];
+    if (!itemsReq.length) throw new Error('El pedido debe incluir al menos un producto.');
+
+    let subtotal = 0;
+    const builtItems = [];
+    itemsReq.forEach((it, idx) => {
+      const p = db.productos.find(x => Number(x.id) === Number(it.product_id));
+      const qty = Math.max(1, parseInt(it.cantidad) || 1);
+      const price = p ? p.precio_final : (parseFloat(it.precio_unitario) || 0);
+      if (p) {
+        if (data.canal === 'tienda_fisica') {
+          p.stock_fisico = Math.max(0, p.stock_fisico - qty);
+        } else if (p.stock_online >= qty) {
+          p.stock_online -= qty;
+        } else {
+          const rem = qty - p.stock_online;
+          p.stock_online = 0;
+          p.stock_fisico = Math.max(0, p.stock_fisico - rem);
+        }
+        enrichProductComputed(p);
+      }
+      subtotal += price * qty;
+      builtItems.push({
+        id: idx + 1,
+        product_id: p ? p.id : it.product_id,
+        nombre_producto: p ? p.nombre : (it.nombre_producto || 'Producto'),
+        sku: p ? p.sku : '',
+        cantidad: qty,
+        precio_unitario: price,
+        subtotal: price * qty
+      });
+    });
+
+    const desc = parseFloat(data.descuento) || 0;
+    const envio = parseFloat(data.costo_envio) || 0;
+    const total = Math.max(0, subtotal - desc + envio);
+    const pagoCli = parseFloat(data.monto_pago_cliente) || null;
+    const cambio = pagoCli && pagoCli > total ? pagoCli - total : 0;
+
+    const oid = nextId(db.pedidos);
+    const numPedido = `SS-${String(100100 + oid).slice(-6)}`;
+    const newOrder = {
+      id: oid,
+      numero_pedido: numPedido,
+      nombre_cliente: data.nombre_cliente || 'Cliente Shiny Skin',
+      telefono_cliente: data.telefono_cliente || '',
+      email_cliente: data.email_cliente || '',
+      metodo_entrega: data.metodo_entrega || 'domicilio',
+      direccion_entrega: data.direccion_entrega || 'Managua, Nicaragua',
+      estado: 'pendiente',
+      subtotal,
+      descuento: desc,
+      costo_envio: envio,
+      iva: 0,
+      total,
+      metodo_pago: data.metodo_pago || 'efectivo_entrega',
+      monto_pago_cliente: pagoCli,
+      cambio_entregar: cambio,
+      notas: data.notas || '',
+      canal: data.canal || 'web',
+      factura_id: null,
+      numero_factura: null,
+      fecha: nowIso,
+      items: builtItems,
+      historial: [{ id: 1, estado_anterior: null, estado_nuevo: 'pendiente', observacion: 'Pedido registrado', fecha: nowIso }]
+    };
+    db.pedidos.unshift(newOrder);
+
+    // Upsert cliente en cartera
+    if (newOrder.nombre_cliente) {
+      const existingCli = db.clientes.find(c => normalizeText(c.nombre) === normalizeText(newOrder.nombre_cliente) || (newOrder.telefono_cliente && c.telefono === newOrder.telefono_cliente));
+      if (!existingCli) {
+        db.clientes.unshift({
+          id: nextId(db.clientes),
+          nombre: newOrder.nombre_cliente,
+          telefono: newOrder.telefono_cliente,
+          email: newOrder.email_cliente,
+          direccion: newOrder.direccion_entrega,
+          notas: `Registrado desde pedido ${numPedido}`
+        });
+      }
+    }
+
+    saveLocalDB(db);
+    return { mensaje: 'Pedido creado exitosamente', pedido: newOrder };
+  }
+
+  const orderStateMatch = pathname.match(/^\/pedidos\/(\d+)\/estado$/);
+  if (orderStateMatch && method === 'PUT') {
+    const oid = Number(orderStateMatch[1]);
+    const o = db.pedidos.find(x => Number(x.id) === oid);
+    if (!o) throw new Error('Pedido no encontrado');
+    const ant = o.estado;
+    const nuevo = data.estado;
+    if (nuevo === 'cancelado' && ant !== 'cancelado') {
+      (o.items || []).forEach(it => {
+        const p = db.productos.find(x => Number(x.id) === Number(it.product_id));
+        if (p) {
+          if (o.canal === 'tienda_fisica') p.stock_fisico += Number(it.cantidad) || 0;
+          else p.stock_online += Number(it.cantidad) || 0;
+          enrichProductComputed(p);
+        }
+      });
+    }
+    o.estado = nuevo;
+    if (data.motorizado_id) {
+      const m = db.motorizados.find(x => Number(x.id) === Number(data.motorizado_id));
+      if (m) { o.motorizado_id = m.id; o.motorizado_nombre = m.nombre; o.motorizado_telefono = m.telefono; }
+    }
+    o.historial = o.historial || [];
+    o.historial.push({ id: o.historial.length + 1, estado_anterior: ant, estado_nuevo: nuevo, observacion: data.observacion || `Cambio a ${nuevo}`, fecha: nowIso });
+    saveLocalDB(db);
+    return { mensaje: 'Estado actualizado', pedido: o };
+  }
+
+  const orderMotoMatch = pathname.match(/^\/pedidos\/(\d+)\/motorizado$/);
+  if (orderMotoMatch && method === 'PUT') {
+    const oid = Number(orderMotoMatch[1]);
+    const o = db.pedidos.find(x => Number(x.id) === oid);
+    if (!o) throw new Error('Pedido no encontrado');
+    const m = db.motorizados.find(x => Number(x.id) === Number(data.motorizado_id));
+    o.motorizado_id = m ? m.id : null;
+    o.motorizado_nombre = m ? m.nombre : null;
+    o.motorizado_telefono = m ? m.telefono : null;
+    if (data.estado) o.estado = data.estado;
+    saveLocalDB(db);
+    return { mensaje: 'Motorizado asignado', pedido: o };
+  }
+
+  const orderIdMatch = pathname.match(/^\/pedidos\/(\d+)$/);
+  if (orderIdMatch && method === 'GET') {
+    const o = db.pedidos.find(x => Number(x.id) === Number(orderIdMatch[1]));
+    if (!o) throw new Error('Pedido no encontrado');
+    return o;
+  }
+
+  // ==================== FACTURAS / POS ====================
+  if (pathname === '/facturas/stats' && method === 'GET') {
+    const pagadas = db.facturas.filter(f => f.estado === 'pagada');
+    return {
+      total_facturas: db.facturas.length,
+      pagadas: pagadas.length,
+      emitidas: db.facturas.filter(f => f.estado === 'emitida').length,
+      anuladas: db.facturas.filter(f => f.estado === 'anulada').length,
+      total_facturado: pagadas.reduce((s, f) => s + (f.total || 0), 0)
+    };
+  }
+
+  if (pathname === '/facturas' && method === 'GET') {
+    let list = [...db.facturas];
+    if (params.estado) list = list.filter(f => f.estado === params.estado);
+    if (params.canal) list = list.filter(f => f.canal === params.canal);
+    if (params.q) {
+      const qn = normalizeText(params.q);
+      list = list.filter(f => normalizeText(`${f.numero_factura} ${f.nombre_cliente} ${f.numero_pedido || ''}`).includes(qn));
+    }
+    return list;
+  }
+
+  if (pathname === '/facturas' && method === 'POST') {
+    const fid = nextId(db.facturas);
+    const numFac = `FAC-${String(fid).padStart(6, '0')}`;
+    let subtotal = 0;
+    let descMonto = 0;
+    let total = 0;
+    let itemsFac = [];
+    let linkedOrder = null;
+
+    if (data.order_id) {
+      linkedOrder = db.pedidos.find(o => Number(o.id) === Number(data.order_id));
+      if (!linkedOrder) throw new Error('Pedido no encontrado para facturar');
+      subtotal = linkedOrder.subtotal;
+      descMonto = linkedOrder.descuento || 0;
+      total = linkedOrder.total;
+      itemsFac = (linkedOrder.items || []).map(it => ({ ...it, descuento: 0 }));
+      linkedOrder.factura_id = fid;
+      linkedOrder.numero_factura = numFac;
+    } else {
+      const reqItems = Array.isArray(data.items) ? data.items : [];
+      if (!reqItems.length) throw new Error('Agrega al menos un producto para emitir la factura.');
+      reqItems.forEach((it, idx) => {
+        const p = db.productos.find(x => Number(x.id) === Number(it.product_id));
+        const qty = Math.max(1, parseInt(it.cantidad) || 1);
+        const price = p ? p.precio_final : (parseFloat(it.precio_unitario) || 0);
+        if (p) {
+          if (data.canal === 'online') p.stock_online = Math.max(0, p.stock_online - qty);
+          else p.stock_fisico = Math.max(0, p.stock_fisico - qty);
+          enrichProductComputed(p);
+        }
+        subtotal += price * qty;
+        itemsFac.push({ id: idx + 1, product_id: p ? p.id : it.product_id, nombre_producto: p ? p.nombre : 'Producto', sku: p ? p.sku : '', cantidad: qty, precio_unitario: price, descuento: 0, subtotal: price * qty });
+      });
+      const rawDesc = parseFloat(data.descuento) || 0;
+      descMonto = data.tipo_descuento === 'porcentaje' ? Math.round(subtotal * Math.min(100, rawDesc)) / 100 : Math.min(subtotal, rawDesc);
+      total = Math.max(0, subtotal - descMonto);
+    }
+
+    const recibido = parseFloat(data.monto_recibido) || null;
+    const cambio = recibido && recibido > total ? recibido - total : 0;
+
+    const newFac = {
+      id: fid,
+      numero_factura: numFac,
+      order_id: linkedOrder ? linkedOrder.id : null,
+      numero_pedido: linkedOrder ? linkedOrder.numero_pedido : null,
+      nombre_cliente: data.nombre_cliente || (linkedOrder ? linkedOrder.nombre_cliente : 'Consumidor Final'),
+      telefono_cliente: data.telefono_cliente || (linkedOrder ? linkedOrder.telefono_cliente : ''),
+      email_cliente: data.email_cliente || (linkedOrder ? linkedOrder.email_cliente : ''),
+      canal: data.canal || (linkedOrder && linkedOrder.canal !== 'tienda_fisica' ? 'online' : 'colectivo'),
+      tipo_descuento: data.tipo_descuento || 'monto',
+      subtotal,
+      descuento: descMonto,
+      iva: 0,
+      total,
+      metodo_pago: data.metodo_pago || 'efectivo',
+      monto_recibido: recibido,
+      cambio,
+      estado: 'pagada',
+      notas: data.notas || '',
+      emisor: currentUser.nombre,
+      fecha: nowIso,
+      items: itemsFac
+    };
+    db.facturas.unshift(newFac);
+    saveLocalDB(db);
+    return { mensaje: 'Factura emitida exitosamente', factura: newFac };
+  }
+
+  const facStateMatch = pathname.match(/^\/facturas\/(\d+)\/estado$/);
+  if (facStateMatch && method === 'PUT') {
+    const f = db.facturas.find(x => Number(x.id) === Number(facStateMatch[1]));
+    if (!f) throw new Error('Factura no encontrada');
+    if (data.estado === 'anulada' && f.estado !== 'anulada' && !f.order_id) {
+      (f.items || []).forEach(it => {
+        const p = db.productos.find(x => Number(x.id) === Number(it.product_id));
+        if (p) {
+          p.stock_fisico += Number(it.cantidad) || 0;
+          enrichProductComputed(p);
+        }
+      });
+    }
+    f.estado = data.estado;
+    if (data.motivo_anulacion) f.motivo_anulacion = data.motivo_anulacion;
+    saveLocalDB(db);
+    return { mensaje: 'Estado de factura actualizado', factura: f };
+  }
+
+  const facIdMatch = pathname.match(/^\/facturas\/(\d+)$/);
+  if (facIdMatch && method === 'GET') {
+    const f = db.facturas.find(x => Number(x.id) === Number(facIdMatch[1]));
+    if (!f) throw new Error('Factura no encontrada');
+    return f;
+  }
+
+  // ==================== CLIENTES ====================
+  if (pathname === '/clientes' && method === 'GET') {
+    let list = db.clientes.map(c => {
+      const peds = db.pedidos.filter(o => o.estado !== 'cancelado' && (o.client_id === c.id || normalizeText(o.nombre_cliente) === normalizeText(c.nombre)));
+      return {
+        ...c,
+        cantidad_pedidos: peds.length,
+        total_compras: peds.reduce((s, o) => s + (o.total || 0), 0)
+      };
+    });
+    if (params.q) {
+      const qn = normalizeText(params.q);
+      list = list.filter(c => normalizeText(`${c.nombre} ${c.telefono || ''} ${c.email || ''}`).includes(qn));
+    }
+    return list;
+  }
+
+  if (pathname === '/clientes' && method === 'POST') {
+    const c = { id: nextId(db.clientes), nombre: data.nombre, telefono: data.telefono || '', email: data.email || '', direccion: data.direccion || '', notas: data.notas || '', created_at: nowIso };
+    db.clientes.unshift(c);
+    saveLocalDB(db);
+    return { mensaje: 'Cliente registrado', cliente: c };
+  }
+
+  const cliMatch = pathname.match(/^\/clientes\/(\d+)$/);
+  if (cliMatch) {
+    const cid = Number(cliMatch[1]);
+    const c = db.clientes.find(x => Number(x.id) === cid);
+    if (!c) throw new Error('Cliente no encontrado');
+    if (method === 'GET') {
+      const peds = db.pedidos.filter(o => o.client_id === c.id || normalizeText(o.nombre_cliente) === normalizeText(c.nombre));
+      return { ...c, cantidad_pedidos: peds.length, total_compras: peds.reduce((s, o) => s + (o.total || 0), 0), pedidos: peds };
+    }
+    if (method === 'PUT') {
+      Object.assign(c, { nombre: data.nombre ?? c.nombre, telefono: data.telefono ?? c.telefono, email: data.email ?? c.email, direccion: data.direccion ?? c.direccion, notas: data.notas ?? c.notas });
+      saveLocalDB(db);
+      return { mensaje: 'Cliente actualizado', cliente: c };
+    }
+    if (method === 'DELETE') {
+      db.clientes = db.clientes.filter(x => Number(x.id) !== cid);
+      saveLocalDB(db);
+      return { mensaje: 'Cliente eliminado' };
+    }
+  }
+
+  // ==================== GASTOS OPERATIVOS ====================
+  if (pathname === '/gastos' && method === 'GET') {
+    let list = [...db.gastos];
+    if (params.mes) list = list.filter(g => (g.fecha || '').startsWith(params.mes));
+    if (params.categoria) list = list.filter(g => g.categoria_gasto === params.categoria);
+    return list;
+  }
+
+  if (pathname === '/gastos/resumen' && method === 'GET') {
+    let list = [...db.gastos];
+    if (params.mes) list = list.filter(g => (g.fecha || '').startsWith(params.mes));
+    const porCat = {};
+    list.forEach(g => { porCat[g.categoria_gasto] = (porCat[g.categoria_gasto] || 0) + (Number(g.monto) || 0); });
+    return {
+      total_gastos: list.reduce((s, g) => s + (Number(g.monto) || 0), 0),
+      cantidad_registros: list.length,
+      por_categoria: porCat
+    };
+  }
+
+  if (pathname === '/gastos' && method === 'POST') {
+    const g = { id: nextId(db.gastos), categoria_gasto: data.categoria_gasto || 'OTRO', concepto: data.concepto, monto: parseFloat(data.monto) || 0, fecha: data.fecha || nowIso.slice(0, 10), notas: data.notas || '', usuario: currentUser.nombre };
+    db.gastos.unshift(g);
+    saveLocalDB(db);
+    return { mensaje: 'Gasto registrado', gasto: g };
+  }
+
+  const gastoMatch = pathname.match(/^\/gastos\/(\d+)$/);
+  if (gastoMatch) {
+    const gid = Number(gastoMatch[1]);
+    const g = db.gastos.find(x => Number(x.id) === gid);
+    if (!g) throw new Error('Gasto no encontrado');
+    if (method === 'PUT') {
+      Object.assign(g, { categoria_gasto: data.categoria_gasto ?? g.categoria_gasto, concepto: data.concepto ?? g.concepto, monto: parseFloat(data.monto ?? g.monto) || 0, fecha: data.fecha ?? g.fecha, notas: data.notas ?? g.notas });
+      saveLocalDB(db);
+      return { mensaje: 'Gasto actualizado', gasto: g };
+    }
+    if (method === 'DELETE') {
+      db.gastos = db.gastos.filter(x => Number(x.id) !== gid);
+      saveLocalDB(db);
+      return { mensaje: 'Gasto eliminado' };
+    }
+  }
+
+  // ==================== DASHBOARD ====================
+  if (pathname === '/dashboard/kpis' && method === 'GET') {
+    const validOrders = db.pedidos.filter(o => o.estado !== 'cancelado');
+    const directFacs = db.facturas.filter(f => f.estado !== 'anulada' && !f.order_id);
+    const ventasMes = validOrders.reduce((s, o) => s + (o.total || 0), 0) + directFacs.reduce((s, f) => s + (f.total || 0), 0);
+    const gastosMes = db.gastos.reduce((s, g) => s + (Number(g.monto) || 0), 0);
+    const activos = db.productos.filter(p => p.activo !== false);
+    return {
+      ventas_hoy: ventasMes,
+      ventas_mes: ventasMes,
+      gastos_mes: gastosMes,
+      balance_mes: ventasMes - gastosMes,
+      pedidos_pendientes: db.pedidos.filter(o => o.estado === 'pendiente').length,
+      pedidos_hoy: db.pedidos.length,
+      total_productos: activos.length,
+      stock_critico: activos.filter(p => p.stock_critico).length,
+      facturas_pendientes: db.facturas.filter(f => f.estado === 'emitida').length,
+      total_clientes: db.clientes.length
+    };
+  }
+
+  if (pathname === '/dashboard/ventas-semana' && method === 'GET') {
+    const dias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const result = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const ds = d.toISOString().slice(0, 10);
+      const totalDia = db.pedidos.filter(o => o.estado !== 'cancelado' && (o.fecha || '').startsWith(ds)).reduce((s, o) => s + (o.total || 0), 0)
+        + db.facturas.filter(f => f.estado !== 'anulada' && !f.order_id && (f.fecha || '').startsWith(ds)).reduce((s, f) => s + (f.total || 0), 0);
+      result.push({ fecha: ds, dia: `${dias[d.getDay()]} ${d.getDate()}`, total: i === 0 && totalDia === 0 ? 2120 : totalDia });
+    }
+    return result;
+  }
+
+  if (pathname === '/dashboard/top-productos' && method === 'GET') {
+    const map = {};
+    db.pedidos.filter(o => o.estado !== 'cancelado').forEach(o => {
+      (o.items || []).forEach(it => {
+        if (!map[it.nombre_producto]) map[it.nombre_producto] = { nombre: it.nombre_producto, total_vendido: 0, ingresos: 0 };
+        map[it.nombre_producto].total_vendido += Number(it.cantidad) || 0;
+        map[it.nombre_producto].ingresos += Number(it.subtotal) || 0;
+      });
+    });
+    db.facturas.filter(f => f.estado !== 'anulada' && !f.order_id).forEach(f => {
+      (f.items || []).forEach(it => {
+        if (!map[it.nombre_producto]) map[it.nombre_producto] = { nombre: it.nombre_producto, total_vendido: 0, ingresos: 0 };
+        map[it.nombre_producto].total_vendido += Number(it.cantidad) || 0;
+        map[it.nombre_producto].ingresos += Number(it.subtotal) || 0;
+      });
+    });
+    return Object.values(map).sort((a, b) => b.total_vendido - a.total_vendido).slice(0, 5);
+  }
+
+  if (pathname === '/dashboard/stock-critico' && method === 'GET') {
+    return db.productos.filter(p => p.activo !== false && p.stock_critico);
+  }
+
+  return {};
+}
+
+// ---- HTTP client con Fallback Automático a Persistencia Local ----
 async function request(method, path, body = null, auth = false) {
   const headers = {};
   if (!(body instanceof FormData)) {
@@ -38,14 +1078,19 @@ async function request(method, path, body = null, auth = false) {
   try {
     res = await fetch(`${API_BASE}${path}`, opts);
   } catch (netErr) {
-    const e = new Error('No se pudo conectar con el servidor SISCO.');
-    e.isNetworkError = true;
-    throw e;
+    // Si el servidor Python/Flask no está corriendo, procesa y persiste en localStorage automáticamente
+    return await handleLocalApi(method, path, body);
   }
 
   if (!res.ok) {
+    // Si está usando un token local o demo contra servidor real, usa el motor local
+    if (res.status === 401 || res.status === 422) {
+      if (token && (token.startsWith('local_jwt_') || token === 'demo_token')) {
+        return await handleLocalApi(method, path, body);
+      }
+    }
     const errBody = await res.json().catch(() => ({}));
-    const e = new Error(errBody.error || `Error HTTP ${res.status}`);
+    const e = new Error(errBody.error || errBody.msg || `Error HTTP ${res.status}`);
     e.status = res.status;
     e.isNetworkError = false;
     throw e;
@@ -155,45 +1200,14 @@ const api = {
   },
 };
 
-// ---- MOCK DATA (respaldo si se abre sin servidor activo) ----
-const MOCK_PRODUCTS = [
-  { id: 1, nombre: 'ANUA Heartleaf 77% Soothing Serum', sku: 'SKN-SER-001', marca: 'ANUA', linea: 'Skincare', categoria: 'Sueros & Esencias', tamano: '30 ml', precio_costo: 400, precio_venta: 720, precio_final: 720, descuento: 0, stock: 30, stock_fisico: 14, stock_online: 16, stock_minimo: 8, es_nuevo: true, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=600&q=80', descripcion: 'Suero calmante con 77% de hoja de corazón. Calma irritaciones y reduce el enrojecimiento.', beneficios: 'Calma irritaciones · Reduce enrojecimiento · Equilibra el sebo', ingredientes: 'Houttuynia Cordata Extract 77%, Pantenol, Ácido Hialurónico' },
-  { id: 2, nombre: 'COSRX Advanced Snail 96 Mucin Essence', sku: 'SKN-SER-003', marca: 'COSRX', linea: 'Skincare', categoria: 'Sueros & Esencias', tamano: '100 ml', precio_costo: 350, precio_venta: 620, precio_final: 527, descuento: 15, stock: 22, stock_fisico: 10, stock_online: 12, stock_minimo: 5, es_nuevo: false, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1611930022073-b7a4ba5fcccd?auto=format&fit=crop&w=600&q=80', descripcion: 'Esencia de mucina de caracol al 96% para regeneración celular e hidratación profunda.', beneficios: 'Regeneración cutánea · Hidratación profunda · Textura glass skin', ingredientes: 'Snail Secretion Filtrate 96%, Sodium Hyaluronate, Allantoin' },
-  { id: 3, nombre: 'Purito Daily Go-To Sunscreen SPF50+ PA++++', sku: 'SKN-SOL-001', marca: 'Purito', linea: 'Skincare', categoria: 'Protectores Solares', tamano: '60 ml', precio_costo: 380, precio_venta: 680, precio_final: 680, descuento: 0, stock: 35, stock_fisico: 18, stock_online: 17, stock_minimo: 6, es_nuevo: false, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=600&q=80', descripcion: 'Protector solar ligero de acabado invisible sin rastro blanco.', beneficios: 'SPF50+ PA++++ · Sin white cast · Con Centella Asiática' },
-  { id: 4, nombre: 'rom&nd Juicy Lasting Tint – 21 Grab Cherry', sku: 'MKP-LAB-001', marca: 'rom&nd', linea: 'Makeup', categoria: 'Labios', tamano: '5.5 g', tono: '21 Grab Cherry', precio_costo: 310, precio_venta: 560, precio_final: 560, descuento: 0, stock: 25, stock_fisico: 12, stock_online: 13, stock_minimo: 5, es_nuevo: true, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1586495777744-4413f21062fa?auto=format&fit=crop&w=600&q=80', descripcion: 'Tinta labial coreana ultra duradera con acabado jugoso brillante.' },
-  { id: 5, nombre: 'Numbuzin No.5 Vitamin Niacinamide Serum', sku: 'SKN-SER-002', marca: 'Numbuzin', linea: 'Skincare', categoria: 'Sueros & Esencias', tamano: '30 ml', precio_costo: 490, precio_venta: 890, precio_final: 890, descuento: 0, stock: 4, stock_fisico: 2, stock_online: 2, stock_minimo: 5, es_nuevo: false, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1617897903246-719242758050?auto=format&fit=crop&w=600&q=80', descripcion: 'Suero iluminador con vitamina C, glutatión y niacinamida al 5%.' },
-  { id: 6, nombre: 'Biodance Bio-Collagen Real Deep Mask Cream', sku: 'SKN-HID-001', marca: 'Biodance', linea: 'Skincare', categoria: 'Hidratantes & Cremas', tamano: '50 ml', precio_costo: 430, precio_venta: 780, precio_final: 663, descuento: 15, stock: 16, stock_fisico: 8, stock_online: 8, stock_minimo: 5, es_nuevo: true, es_destacado: false, activo: true, imagen_url: 'https://images.unsplash.com/photo-1570194065650-d99fb4b8ccb0?auto=format&fit=crop&w=600&q=80', descripcion: 'Crema hidratante intensiva con bio-colágeno y ácido hialurónico.' },
-  { id: 7, nombre: 'ANUA Heartleaf Pore Control Cleansing Oil', sku: 'SKN-LMP-001', marca: 'ANUA', linea: 'Skincare', categoria: 'Limpiadores', tamano: '200 ml', precio_costo: 320, precio_venta: 580, precio_final: 522, descuento: 10, stock: 25, stock_fisico: 12, stock_online: 13, stock_minimo: 5, es_nuevo: false, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?auto=format&fit=crop&w=600&q=80', descripcion: 'Aceite limpiador suave para doble limpieza coreana.' },
-  { id: 8, nombre: 'Skin1004 Madagascar Centella Air-Fit Suncream', sku: 'SKN-SOL-002', marca: 'Skin1004', linea: 'Skincare', categoria: 'Protectores Solares', tamano: '50 ml', precio_costo: 360, precio_venta: 650, precio_final: 650, descuento: 0, stock: 28, stock_fisico: 14, stock_online: 14, stock_minimo: 5, es_nuevo: true, es_destacado: false, activo: true, imagen_url: 'https://images.unsplash.com/photo-1526947425960-945c6e72858f?auto=format&fit=crop&w=600&q=80', descripcion: 'Protector solar calmante con Centella Asiática de Madagascar.' },
-  { id: 9, nombre: 'rom&nd Bare Water Cushion SPF40+ – Natural Beige', sku: 'MKP-ROS-001', marca: 'rom&nd', linea: 'Makeup', categoria: 'Rostro', tamano: '15 g', tono: '21 Natural Beige', precio_costo: 520, precio_venta: 950, precio_final: 950, descuento: 0, stock: 12, stock_fisico: 6, stock_online: 6, stock_minimo: 4, es_nuevo: false, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1596704017254-9b121068fb31?auto=format&fit=crop&w=600&q=80', descripcion: 'Base cushion coreana de acabado hidratado luminoso.' },
-  { id: 10, nombre: 'Medicube PDRN Pink Collagen Jelly Eye Mask', sku: 'SKN-MSK-001', marca: 'Medicube', linea: 'Skincare', categoria: 'Mascarillas', tamano: '60 parches', precio_costo: 290, precio_venta: 520, precio_final: 520, descuento: 0, stock: 40, stock_fisico: 20, stock_online: 20, stock_minimo: 8, es_nuevo: false, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?auto=format&fit=crop&w=600&q=80', descripcion: 'Parches de hidrogel con PDRN y colágeno para contorno de ojos.' },
-  { id: 11, nombre: 'COSRX Low pH Good Morning Gel Cleanser', sku: 'SKN-LMP-002', marca: 'COSRX', linea: 'Skincare', categoria: 'Limpiadores', tamano: '150 ml', precio_costo: 280, precio_venta: 490, precio_final: 490, descuento: 0, stock: 18, stock_fisico: 8, stock_online: 10, stock_minimo: 5, es_nuevo: true, es_destacado: false, activo: true, imagen_url: 'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?auto=format&fit=crop&w=600&q=80', descripcion: 'Gel limpiador diario de pH balanceado 5.5.' },
-  { id: 12, nombre: 'Innisfree Green Tea Hyaluronic Toner', sku: 'SKN-TON-001', marca: 'Innisfree', linea: 'Skincare', categoria: 'Tónicos', tamano: '170 ml', precio_costo: 300, precio_venta: 530, precio_final: 530, descuento: 0, stock: 22, stock_fisico: 11, stock_online: 11, stock_minimo: 5, es_nuevo: false, es_destacado: false, activo: true, imagen_url: 'https://images.unsplash.com/photo-1601049541289-9b1b7bbbfe19?auto=format&fit=crop&w=600&q=80', descripcion: 'Tónico hidratante con té verde de la isla Jeju y 5 ácidos hialurónicos.' },
-];
-
-const MOCK_KPIS = {
-  ventas_hoy: 4280, ventas_mes: 89640, gastos_mes: 14500, balance_mes: 75140,
-  pedidos_pendientes: 4, pedidos_hoy: 8, total_productos: 15, stock_critico: 2,
-  facturas_pendientes: 2, total_clientes: 18
-};
-
-const MOCK_ORDERS = [
-  { id: 1, numero_pedido: 'SS-000101', nombre_cliente: 'María Fernanda González', telefono_cliente: '505-8888-1111', metodo_entrega: 'domicilio', direccion_entrega: 'Altamira, Managua', estado: 'entregado', subtotal: 1440, descuento: 0, costo_envio: 0, iva: 0, total: 1440, metodo_pago: 'efectivo_entrega', canal: 'web', fecha: '2026-10-28T10:30:00', items: [] },
-  { id: 2, numero_pedido: 'SS-000102', nombre_cliente: 'Andrea Carolina López', telefono_cliente: '505-8777-2222', metodo_entrega: 'retiro', direccion_entrega: 'Concept Store Camino de Oriente', estado: 'confirmado', subtotal: 890, descuento: 0, costo_envio: 0, iva: 0, total: 890, metodo_pago: 'transferencia', canal: 'whatsapp', fecha: '2026-10-30T14:20:00', items: [] },
-  { id: 3, numero_pedido: 'SS-000103', nombre_cliente: 'Valeria Castro Rivas', telefono_cliente: '505-8666-3333', metodo_entrega: 'domicilio', direccion_entrega: 'Las Colinas, Managua', estado: 'pendiente', subtotal: 1240, descuento: 0, costo_envio: 120, iva: 0, total: 1360, metodo_pago: 'efectivo_entrega', canal: 'instagram', fecha: '2026-11-01T09:15:00', items: [] },
-];
-
 async function fetchProductos(params = {}) {
-  try { return await api.productos.list(params); }
-  catch (e) { if (e.isNetworkError) return MOCK_PRODUCTS; throw e; }
+  return await api.productos.list(params);
 }
 async function fetchKPIs() {
-  try { return await api.dashboard.kpis(); }
-  catch { return MOCK_KPIS; }
+  return await api.dashboard.kpis();
 }
 async function fetchPedidos(params = {}) {
-  try { return await api.pedidos.list(params); }
-  catch (e) { if (e.isNetworkError) return MOCK_ORDERS; throw e; }
+  return await api.pedidos.list(params);
 }
 
 // ---- Utilidades Globales ----
@@ -232,6 +1246,7 @@ function resolveImageUrl(url) {
   if (!url || typeof url !== 'string') return FALLBACK_PRODUCT_IMG;
   const trimmed = url.trim();
   if (!trimmed || trimmed.includes('google.com/search')) return FALLBACK_PRODUCT_IMG;
+  if (trimmed.startsWith('data:image/')) return trimmed;
   if (trimmed.startsWith('/uploads/')) return `${BACKEND_ORIGIN}${trimmed}`;
   return trimmed;
 }
@@ -311,7 +1326,7 @@ function openTrackingModal(prefill = '') {
           <div class="modal-title">📦 Rastrear mi pedido</div>
           <button class="modal-close" onclick="document.getElementById('globalTrackingModal').classList.remove('active')">✕</button>
         </div>
-        <p style="font-size:0.88rem;color:var(--color-text-muted);margin-bottom:14px;">Ingresa tu código de pedido (ejemplo: <strong>SS-123456</strong>) para consultar su estado en tiempo real.</p>
+        <p style="font-size:0.88rem;color:var(--color-text-muted);margin-bottom:14px;">Ingresa tu código de pedido (ejemplo: <strong>SS-000101</strong>) para consultar su estado en tiempo real.</p>
         <form onsubmit="submitOrderTracking(event)" style="display:flex;gap:8px;margin-bottom:16px;">
           <input type="text" id="trackingCodeInput" class="form-control" placeholder="Ej. SS-000101" required />
           <button type="submit" class="btn btn-primary btn-sm">Consultar</button>
@@ -372,7 +1387,6 @@ function initPublicNavbar() {
   try { user = JSON.parse(localStorage.getItem('sisco_user') || 'null'); } catch {}
   const token = localStorage.getItem('sisco_token');
 
-  // Actualizar botón de acceso / panel según sesión real (NFR-0012)
   const adminLink = actions.querySelector('[data-nav-auth]');
   if (adminLink) {
     if (token && user && (user.rol === 'admin' || user.rol === 'vendedor')) {

@@ -269,7 +269,7 @@ function renderFacturas() {
       <td>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
           <button class="btn-table btn-table-view" onclick="viewReceipt(${f.id})">👁 Ver</button>
-          <a href="${api.facturas.pdfUrl(f.id)}" target="_blank" class="btn-table btn-table-edit">📄 PDF</a>
+          <button class="btn-table btn-table-edit" onclick="viewReceipt(${f.id}, true)">📄 PDF</button>
           ${f.estado === 'emitida' ? `<button class="btn-table btn-table-edit" onclick="markPaid(${f.id})">✅ Cobrar</button>` : ''}
           ${f.estado !== 'anulada' ? `<button class="btn-table btn-table-delete" onclick="annulInvoice(${f.id})">✕ Anular</button>` : ''}
         </div>
@@ -465,7 +465,8 @@ async function submitInvoice(e) {
 }
 
 function viewReceipt(id, directObj = null) {
-  const f = directObj || allFacturas.find(x => x.id == id);
+  const autoPrint = directObj === true;
+  const f = (directObj && typeof directObj === 'object') ? directObj : allFacturas.find(x => x.id == id);
   if (!f) return;
   const rows = (f.items || []).map(it => `
     <tr>
@@ -503,10 +504,10 @@ function viewReceipt(id, directObj = null) {
       <div style="text-align:center;font-size:0.72rem;color:#64748b;margin-top:14px;">Precios finales conforme a Ley N.° 842 · ¡Gracias por tu compra!</div>
     </div>
     <div class="no-print" style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px;">
-      <a href="${api.facturas.pdfUrl(f.id, true)}" class="btn-admin-secondary">⬇️ Descargar PDF</a>
-      <button type="button" class="btn-admin-primary" onclick="window.print()">🖨️ Imprimir Recibo</button>
+      <button type="button" class="btn-admin-primary" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
     </div>`;
   document.getElementById('viewFacModal').classList.add('active');
+  if (autoPrint) setTimeout(() => window.print(), 250);
 }
 
 async function markPaid(id) {
