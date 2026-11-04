@@ -2,57 +2,66 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Facturación – SISCO Admin</title>
+  <title>POS y Facturación – SISCO Shiny Skin</title>
   <link rel="stylesheet" href="../css/main.css"/><link rel="stylesheet" href="../css/admin.css"/>
 </head>
 <body class="admin-body">
-<aside class="admin-sidebar">
-  <div class="sidebar-logo"><div class="logo-text">✨ SISCO</div><div class="logo-sub">Shiny Skin · Panel Admin</div></div>
-  <nav class="sidebar-nav">
-    <div class="sidebar-section">Principal</div>
-    <a href="dashboard.html" class="sidebar-item"><span class="sidebar-icon">📊</span>Dashboard</a>
-    <div class="sidebar-section">Gestión</div>
-    <a href="productos.html" class="sidebar-item"><span class="sidebar-icon">📦</span>Productos</a>
-    <a href="inventario.html" class="sidebar-item"><span class="sidebar-icon">🗃️</span>Inventario</a>
-    <a href="pedidos.html" class="sidebar-item"><span class="sidebar-icon">🛒</span>Pedidos</a>
-    <a href="facturacion.html" class="sidebar-item active"><span class="sidebar-icon">💳</span>Facturación</a>
-    <a href="../index.html" class="sidebar-item" target="_blank"><span class="sidebar-icon">🌐</span>Ver Tienda</a>
-    <a href="../login.html" class="sidebar-item"><span class="sidebar-icon">🚪</span>Cerrar sesión</a>
-  </nav>
-  <div class="sidebar-footer"><div class="sidebar-user"><div class="sidebar-avatar">A</div><div><div class="sidebar-user-name">Administrador</div><div class="sidebar-user-role">Admin</div></div></div></div>
-</aside>
+
+<aside class="admin-sidebar" id="sidebar"></aside>
 
 <div class="admin-main">
   <header class="admin-topbar">
-    <div class="topbar-title">💳 Facturación</div>
+    <div class="topbar-title">🧾 Punto de Venta (POS) y Facturación</div>
     <div class="topbar-actions">
-      <button class="btn-admin-primary" onclick="openNuevaFactura()">🧾 Nueva Factura</button>
+      <button class="btn-admin-primary" onclick="openPosModal()">➕ Nueva Venta / Factura</button>
     </div>
   </header>
 
   <div class="admin-content">
 
     <!-- KPIs -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
-      <div class="kpi-card pink"><div class="kpi-icon">💰</div><div class="kpi-value" id="kpiTotalIngresos">–</div><div class="kpi-label">Ingresos totales</div></div>
-      <div class="kpi-card gold"><div class="kpi-icon">🧾</div><div class="kpi-value" id="kpiTotalFacturas">–</div><div class="kpi-label">Total facturas</div></div>
-      <div class="kpi-card blue"><div class="kpi-icon">⏳</div><div class="kpi-value" id="kpiPendientesPago">–</div><div class="kpi-label">Pendientes de pago</div></div>
-      <div class="kpi-card green"><div class="kpi-icon">✅</div><div class="kpi-value" id="kpiPagadas">–</div><div class="kpi-label">Pagadas</div></div>
+    <div class="kpi-grid">
+      <div class="kpi-card green">
+        <div class="kpi-icon">💵</div>
+        <div class="kpi-value" id="facIngresosHoy">—</div>
+        <div class="kpi-label">Facturado Hoy</div>
+        <div class="kpi-change up">Caja Concept Store + Online</div>
+      </div>
+      <div class="kpi-card blue">
+        <div class="kpi-icon">🧾</div>
+        <div class="kpi-value" id="facTotalIngresos">—</div>
+        <div class="kpi-label">Total Cobrado Histórico</div>
+        <div class="kpi-change" style="color:var(--color-brand-pastel);" id="facTotalCount">0 comprobantes</div>
+      </div>
+      <div class="kpi-card gold">
+        <div class="kpi-icon">⏳</div>
+        <div class="kpi-value" id="facPendientes">0</div>
+        <div class="kpi-label">Pendientes de Pago</div>
+        <div class="kpi-change">Estado: Emitida</div>
+      </div>
+      <div class="kpi-card pink">
+        <div class="kpi-icon">↩️</div>
+        <div class="kpi-value" id="facAnuladas">0</div>
+        <div class="kpi-label">Facturas Anuladas</div>
+        <div class="kpi-change down">Con retorno de stock</div>
+      </div>
     </div>
 
-    <!-- Filtros -->
+    <!-- Filtros (FRQ-0020) -->
     <div class="actions-bar">
       <div class="actions-bar-left">
         <div class="search-wrapper">
           <span class="search-icon">🔍</span>
-          <input class="search-input-admin" type="text" id="factSearch" placeholder="Buscar factura o cliente..." oninput="filterFacturas()" />
+          <input class="search-input-admin" type="text" id="facSearch" placeholder="N.° FAC-..., cliente o teléfono..." oninput="loadFacturas()" />
         </div>
-        <select class="admin-form-control" style="width:160px;padding:10px 14px;" id="factEstadoFilter" onchange="filterFacturas()">
+        <select class="admin-form-control" style="width:auto;padding:9px 12px;" id="facEstado" onchange="loadFacturas()">
           <option value="">Todos los estados</option>
-          <option value="emitida">⏳ Emitida</option>
-          <option value="pagada">✅ Pagada</option>
-          <option value="anulada">❌ Anulada</option>
+          <option value="pagada">✅ Pagadas</option>
+          <option value="emitida">⏳ Emitidas</option>
+          <option value="anulada">❌ Anuladas</option>
         </select>
+        <input type="date" class="admin-form-control" style="width:auto;padding:8px 12px;" id="facDesde" onchange="loadFacturas()" title="Desde fecha" />
+        <input type="date" class="admin-form-control" style="width:auto;padding:8px 12px;" id="facHasta" onchange="loadFacturas()" title="Hasta fecha" />
       </div>
     </div>
 
@@ -60,218 +69,471 @@
       <div class="admin-table-wrapper">
         <table class="admin-table">
           <thead>
-            <tr><th>Nº Factura</th><th>Cliente</th><th>Subtotal</th><th>IVA</th><th>Total</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr>
+            <tr>
+              <th>N.° Factura</th>
+              <th>Cliente</th>
+              <th>Canal / Pago</th>
+              <th>Subtotal</th>
+              <th>Desc.</th>
+              <th>Total</th>
+              <th>Estado</th>
+              <th>Fecha</th>
+              <th>Acciones</th>
+            </tr>
           </thead>
-          <tbody id="factTableBody">
-            <tr><td colspan="8" style="text-align:center;padding:32px;color:rgba(255,255,255,0.3);">Cargando...</td></tr>
+          <tbody id="facTableBody">
+            <tr><td colspan="9" style="text-align:center;padding:36px;">Cargando comprobantes...</td></tr>
           </tbody>
         </table>
       </div>
     </div>
+
   </div>
 </div>
 
-<!-- Modal Nueva Factura -->
-<div class="modal-overlay" id="nuevaFacturaModal">
-  <div class="admin-modal">
+<!-- Modal POS / Nueva Factura -->
+<div class="modal-overlay" id="posModal" onclick="if(event.target===this)this.classList.remove('active')">
+  <div class="admin-modal" style="max-width:740px;">
     <div class="modal-header">
-      <div class="modal-title">🧾 Emitir Nueva Factura</div>
-      <button class="modal-close" onclick="closeModal('nuevaFacturaModal')">✕</button>
+      <div class="modal-title">🧾 Emitir Venta en Tienda (POS) / Factura</div>
+      <button class="modal-close" onclick="document.getElementById('posModal').classList.remove('active')">✕</button>
     </div>
-    <div class="admin-form-grid">
-      <div class="admin-form-group"><label class="admin-form-label">Cliente *</label><input class="admin-form-control" id="fnCliente" placeholder="Nombre del cliente" required/></div>
-      <div class="admin-form-group"><label class="admin-form-label">Email</label><input class="admin-form-control" id="fnEmail" type="email" placeholder="cliente@email.com"/></div>
-      <div class="admin-form-group"><label class="admin-form-label">Subtotal (C$) *</label><input class="admin-form-control" id="fnSubtotal" type="number" min="0" step="0.01" placeholder="0.00" oninput="calcFactura()"/></div>
-      <div class="admin-form-group"><label class="admin-form-label">Descuento (C$)</label><input class="admin-form-control" id="fnDescuento" type="number" min="0" step="0.01" value="0" oninput="calcFactura()"/></div>
+
+    <div class="admin-tabs" style="margin-bottom:16px;">
+      <div class="admin-tab active" id="tabPosDirect" onclick="switchPosMode('direct')">🏬 Venta Directa Concept Store</div>
+      <div class="admin-tab" id="tabPosOrder" onclick="switchPosMode('order')">📦 Facturar Pedido Existente</div>
     </div>
-    <div style="background:rgba(255,255,255,0.04);border-radius:var(--radius-md);padding:16px;margin:16px 0;">
-      <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:6px;"><span style="color:rgba(255,255,255,0.4);">Subtotal</span><span id="preSubtotal" style="font-weight:600;">C$ 0.00</span></div>
-      <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:6px;"><span style="color:rgba(255,255,255,0.4);">Descuento</span><span id="preDescuento" style="color:var(--color-warning);">- C$ 0.00</span></div>
-      <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:6px;"><span style="color:rgba(255,255,255,0.4);">IVA 15%</span><span id="preIva">C$ 0.00</span></div>
-      <div style="display:flex;justify-content:space-between;font-size:1rem;font-weight:800;color:white;border-top:1px solid rgba(255,255,255,0.1);padding-top:10px;"><span>TOTAL</span><span id="preTotal" style="color:var(--color-primary-light);">C$ 0.00</span></div>
-    </div>
-    <div class="admin-form-group" style="margin-bottom:0;">
-      <label class="admin-form-label">Notas</label>
-      <textarea class="admin-form-control" id="fnNotas" rows="2" placeholder="Observaciones de la factura..."></textarea>
-    </div>
-    <div style="display:flex;gap:12px;margin-top:20px;">
-      <button class="btn-admin-primary" style="flex:1;" onclick="emitirFactura()">✅ Emitir factura</button>
-      <button class="btn-admin-secondary" onclick="closeModal('nuevaFacturaModal')">Cancelar</button>
-    </div>
+
+    <form id="posForm" onsubmit="submitInvoice(event)">
+      <!-- MODO PEDIDO EXISTENTE -->
+      <div id="posOrderSection" style="display:none;margin-bottom:18px;">
+        <div class="admin-form-group">
+          <label class="admin-form-label">Seleccionar pedido pendiente de facturación *</label>
+          <select class="admin-form-control" id="posOrderId" onchange="previewSelectedOrder()"></select>
+        </div>
+        <div id="posOrderPreview" style="margin-top:10px;font-size:0.84rem;color:var(--color-brand-pastel);"></div>
+      </div>
+
+      <!-- MODO VENTA DIRECTA POS -->
+      <div id="posDirectSection">
+        <div class="admin-form-grid" style="margin-bottom:14px;">
+          <div class="admin-form-group">
+            <label class="admin-form-label">Cliente</label>
+            <input class="admin-form-control" id="posCliente" value="Consumidor Final" placeholder="Consumidor Final o nombre..." />
+          </div>
+          <div class="admin-form-group">
+            <label class="admin-form-label">Teléfono (opcional, guarda en cartera)</label>
+            <input class="admin-form-control" id="posTel" placeholder="8888-0000" />
+          </div>
+        </div>
+
+        <div style="padding:14px;background:rgba(255,255,255,0.04);border:1px solid var(--admin-border);border-radius:var(--radius-md);margin-bottom:14px;">
+          <label class="admin-form-label" style="display:block;margin-bottom:8px;">🧴 Buscar Producto por Nombre o SKU *</label>
+          <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+            <input class="admin-form-control" id="posSkuFilter" placeholder="Filtrar rápido..." oninput="filterPosSelect()" style="width:160px;" />
+            <select class="admin-form-control" id="posProdSelect" style="flex:1;min-width:220px;"></select>
+            <input class="admin-form-control" type="number" id="posQty" min="1" value="1" style="width:76px;" />
+            <button type="button" class="btn-admin-primary" onclick="addPosItem()">+ Añadir</button>
+          </div>
+          <div id="posItemsContainer" style="font-size:0.85rem;"></div>
+        </div>
+
+        <div class="admin-form-grid" style="margin-bottom:14px;">
+          <div class="admin-form-group">
+            <label class="admin-form-label">Tipo de Descuento (FRQ-0018)</label>
+            <select class="admin-form-control" id="posTipoDesc" onchange="recalcPosTotals()">
+              <option value="monto">Monto fijo (C$)</option>
+              <option value="porcentaje">Porcentaje (%)</option>
+            </select>
+          </div>
+          <div class="admin-form-group">
+            <label class="admin-form-label">Valor de Descuento</label>
+            <input class="admin-form-control" type="number" min="0" step="0.01" id="posDescuento" value="0" oninput="recalcPosTotals()" />
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGO Y VUELTO (COMÚN) -->
+      <div class="admin-form-grid" style="margin-bottom:14px;">
+        <div class="admin-form-group">
+          <label class="admin-form-label">Método de Pago *</label>
+          <select class="admin-form-control" id="posMetodoPago" onchange="recalcPosTotals()">
+            <option value="efectivo">💵 Efectivo en caja</option>
+            <option value="transferencia">🏦 Transferencia (LAFISE / BAC / Banpro)</option>
+            <option value="tarjeta">💳 Tarjeta POS Bancario</option>
+          </select>
+        </div>
+        <div class="admin-form-group" id="posRecibidoGroup">
+          <label class="admin-form-label">Efectivo recibido (C$)</label>
+          <input class="admin-form-control" type="number" min="0" step="0.01" id="posMontoRecibido" placeholder="Ej. 1000" oninput="recalcPosTotals()" />
+        </div>
+      </div>
+
+      <div class="flex-between" style="padding:14px 16px;background:rgba(31,157,107,0.12);border:1px solid rgba(52,211,153,0.3);border-radius:var(--radius-md);margin-bottom:18px;flex-wrap:wrap;gap:10px;">
+        <div>
+          <div style="font-size:0.78rem;color:rgba(255,255,255,0.7);" id="posSubLine">Subtotal: C$ 0.00</div>
+          <div style="font-size:1.25rem;font-weight:800;color:#34d399;" id="posTotalLine">Total a cobrar: C$ 0.00</div>
+        </div>
+        <div style="font-size:1rem;font-weight:700;color:#fbbf24;" id="posCambioLine"></div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;">
+        <button type="button" class="btn-admin-secondary" onclick="document.getElementById('posModal').classList.remove('active')">Cancelar</button>
+        <button type="submit" class="btn-admin-primary" id="btnEmitirFac">🧾 Cobrar y Emitir Comprobante</button>
+      </div>
+    </form>
   </div>
 </div>
 
-<!-- Modal Ver Factura (impresión) -->
-<div class="modal-overlay" id="viewFactModal">
-  <div class="admin-modal" style="max-width:560px;">
-    <div class="modal-header">
-      <div class="modal-title" id="viewFactTitle">Factura</div>
-      <button class="modal-close" onclick="closeModal('viewFactModal')">✕</button>
+<!-- Modal Ver Comprobante -->
+<div class="modal-overlay" id="viewFacModal" onclick="if(event.target===this)this.classList.remove('active')">
+  <div class="admin-modal" style="max-width:540px;">
+    <div class="modal-header no-print">
+      <div class="modal-title">Comprobante de Venta</div>
+      <button class="modal-close" onclick="document.getElementById('viewFacModal').classList.remove('active')">✕</button>
     </div>
-    <div id="viewFactContent"></div>
-    <div style="display:flex;gap:10px;margin-top:20px;">
-      <button class="btn-admin-primary" onclick="window.print()">🖨️ Imprimir</button>
-      <button class="btn-admin-secondary" onclick="closeModal('viewFactModal')">Cerrar</button>
-    </div>
+    <div id="receiptBody"></div>
   </div>
 </div>
 
 <script src="../js/api.js"></script>
+<script src="../js/admin-common.js"></script>
 <script>
-let allFacturas = [];
+renderAdminSidebar('facturacion');
 
-const MOCK_FACTURAS = [
-  { id:1, numero_factura:'FAC-202609-0001', nombre_cliente:'María González', email_cliente:'maria@gmail.com', subtotal:1250.0, descuento:0, iva:187.5, total:1437.5, estado:'pagada', fecha:'2026-09-01T10:00:00', notas:'' },
-  { id:2, numero_factura:'FAC-202609-0002', nombre_cliente:'Andrea López', email_cliente:'andrea@gmail.com', subtotal:750.0, descuento:0, iva:112.5, total:862.5, estado:'emitida', fecha:'2026-09-03T14:00:00', notas:'' },
-  { id:3, numero_factura:'FAC-202609-0003', nombre_cliente:'Valeria Castro', email_cliente:'', subtotal:1100.0, descuento:50, iva:157.5, total:1207.5, estado:'emitida', fecha:'2026-09-05T09:00:00', notas:'Descuento por cliente frecuente' },
-  { id:4, numero_factura:'FAC-202609-0004', nombre_cliente:'Sofía Martínez', email_cliente:'', subtotal:600.0, descuento:0, iva:90.0, total:690.0, estado:'pagada', fecha:'2026-09-05T16:00:00', notas:'' },
-];
+let allFacturas = [];
+let allProducts = [];
+let unbilledOrders = [];
+let posMode = 'direct';
+let posItems = [];
+
+async function init() {
+  allProducts = await fetchProductos();
+  await loadStats();
+  await loadFacturas();
+  if (window.location.hash === '#nueva') openPosModal();
+}
+
+async function loadStats() {
+  try {
+    const s = await api.facturas.stats();
+    document.getElementById('facIngresosHoy').textContent = formatCurrency(s.ingresos_hoy || 0);
+    document.getElementById('facTotalIngresos').textContent = formatCurrency(s.total_ingresos || 0);
+    document.getElementById('facTotalCount').textContent = `${s.total_facturas || 0} comprobantes emitidos`;
+    document.getElementById('facPendientes').textContent = s.pendientes_pago || 0;
+    document.getElementById('facAnuladas').textContent = s.anuladas || 0;
+  } catch {}
+}
 
 async function loadFacturas() {
-  try { allFacturas = await api.facturas.list(); }
-  catch { allFacturas = MOCK_FACTURAS; }
-  renderKPIs();
-  filterFacturas();
+  const params = {
+    q: document.getElementById('facSearch').value.trim(),
+    estado: document.getElementById('facEstado').value,
+    fecha_desde: document.getElementById('facDesde').value,
+    fecha_hasta: document.getElementById('facHasta').value,
+  };
+  try {
+    allFacturas = await api.facturas.list(params);
+  } catch {
+    allFacturas = [];
+  }
+  renderFacturas();
 }
 
-function renderKPIs() {
-  const pagadas = allFacturas.filter(f=>f.estado==='pagada');
-  const pendientes = allFacturas.filter(f=>f.estado==='emitida');
-  const totalIngresos = pagadas.reduce((s,f)=>s+f.total,0);
-  document.getElementById('kpiTotalIngresos').textContent = 'C$'+totalIngresos.toLocaleString('es-NI',{maximumFractionDigits:0});
-  document.getElementById('kpiTotalFacturas').textContent = allFacturas.length;
-  document.getElementById('kpiPendientesPago').textContent = pendientes.length;
-  document.getElementById('kpiPagadas').textContent = pagadas.length;
-}
+function renderFacturas() {
+  const tbody = document.getElementById('facTableBody');
+  if (!allFacturas.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:36px;color:rgba(255,255,255,0.4);">No se encontraron facturas con los criterios seleccionados</td></tr>';
+    return;
+  }
 
-function filterFacturas() {
-  const q = document.getElementById('factSearch').value.toLowerCase();
-  const estado = document.getElementById('factEstadoFilter').value;
-  let filtered = allFacturas.filter(f => {
-    if (q && !f.numero_factura.toLowerCase().includes(q) && !f.nombre_cliente.toLowerCase().includes(q)) return false;
-    if (estado && f.estado !== estado) return false;
-    return true;
-  });
-  renderFactTable(filtered);
-}
-
-function renderFactTable(facturas) {
-  const body = document.getElementById('factTableBody');
-  if (!facturas.length) { body.innerHTML='<tr><td colspan="8" style="text-align:center;padding:32px;color:rgba(255,255,255,0.3);">Sin facturas</td></tr>'; return; }
-  body.innerHTML = facturas.map(f=>`
+  tbody.innerHTML = allFacturas.map(f => `
     <tr>
-      <td><div style="font-weight:700;font-family:monospace;color:var(--color-primary-light);font-size:0.82rem;">${f.numero_factura}</div></td>
-      <td><div class="table-product-name">${f.nombre_cliente}</div><div class="table-product-sku">${f.email_cliente||'–'}</div></td>
+      <td>
+        <strong style="color:var(--color-brand-pastel);">${f.numero_factura}</strong>
+        ${f.numero_pedido ? `<div class="table-product-sku">Pedido: ${f.numero_pedido}</div>` : ''}
+      </td>
+      <td>
+        <div class="table-product-name">${f.nombre_cliente}</div>
+        ${f.telefono_cliente ? `<div class="table-product-sku">${f.telefono_cliente}</div>` : ''}
+      </td>
+      <td style="font-size:0.8rem;">
+        <div>${f.canal === 'online' ? '🌐 Online' : '🏬 Concept Store'}</div>
+        <div style="color:rgba(188,210,233,0.6);">${f.metodo_pago || 'efectivo'}</div>
+      </td>
       <td>${formatCurrency(f.subtotal)}</td>
-      <td style="color:rgba(255,255,255,0.4);">${formatCurrency(f.iva)}</td>
-      <td style="font-weight:800;color:var(--color-primary-light);">${formatCurrency(f.total)}</td>
+      <td>${f.descuento > 0 ? `<span style="color:#fbbf24;">-${formatCurrency(f.descuento)}</span>` : '—'}</td>
+      <td style="font-weight:700;color:#34d399;">${formatCurrency(f.total)}</td>
       <td><span class="status-badge status-${f.estado}">${f.estado}</span></td>
-      <td style="font-size:0.78rem;color:rgba(255,255,255,0.4);">${formatDate(f.fecha)}</td>
+      <td style="font-size:0.78rem;white-space:nowrap;">${formatDateTime(f.fecha)}</td>
       <td>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
-          <button class="btn-table btn-table-view" onclick="viewFactura(${f.id})">👁 Ver</button>
-          ${f.estado==='emitida'?`<button class="btn-table btn-table-edit" onclick="marcarPagada(${f.id})">✅ Pagar</button>`:''}
-          ${f.estado==='emitida'?`<button class="btn-table btn-table-delete" onclick="anularFactura(${f.id})">❌ Anular</button>`:''}
+          <button class="btn-table btn-table-view" onclick="viewReceipt(${f.id})">👁 Ver</button>
+          <a href="${api.facturas.pdfUrl(f.id)}" target="_blank" class="btn-table btn-table-edit">📄 PDF</a>
+          ${f.estado === 'emitida' ? `<button class="btn-table btn-table-edit" onclick="markPaid(${f.id})">✅ Cobrar</button>` : ''}
+          ${f.estado !== 'anulada' ? `<button class="btn-table btn-table-delete" onclick="annulInvoice(${f.id})">✕ Anular</button>` : ''}
         </div>
       </td>
     </tr>`).join('');
 }
 
-function calcFactura() {
-  const sub = parseFloat(document.getElementById('fnSubtotal').value)||0;
-  const desc = parseFloat(document.getElementById('fnDescuento').value)||0;
-  const base = sub-desc;
-  const iva = base*0.15;
-  const total = base+iva;
-  document.getElementById('preSubtotal').textContent = formatCurrency(sub);
-  document.getElementById('preDescuento').textContent = '- '+formatCurrency(desc);
-  document.getElementById('preIva').textContent = formatCurrency(iva);
-  document.getElementById('preTotal').textContent = formatCurrency(total);
+async function openPosModal() {
+  posItems = [];
+  document.getElementById('posCliente').value = 'Consumidor Final';
+  document.getElementById('posTel').value = '';
+  document.getElementById('posDescuento').value = 0;
+  document.getElementById('posMontoRecibido').value = '';
+  document.getElementById('posSkuFilter').value = '';
+
+  allProducts = await fetchProductos();
+  filterPosSelect();
+  renderPosItems();
+
+  try {
+    const orders = await fetchPedidos();
+    unbilledOrders = orders.filter(o => o.estado !== 'cancelado' && !o.numero_factura);
+    const sel = document.getElementById('posOrderId');
+    sel.innerHTML = unbilledOrders.length
+      ? unbilledOrders.map(o => `<option value="${o.id}">${o.numero_pedido} — ${o.nombre_cliente} (${formatCurrency(o.total)})</option>`).join('')
+      : '<option value="">No hay pedidos pendientes de facturar</option>';
+    previewSelectedOrder();
+  } catch {}
+
+  switchPosMode('direct');
+  document.getElementById('posModal').classList.add('active');
 }
 
-async function emitirFactura() {
-  const cliente = document.getElementById('fnCliente').value;
-  const sub = parseFloat(document.getElementById('fnSubtotal').value)||0;
-  if (!cliente||!sub) { showToast('Completa los campos requeridos', 'error'); return; }
-  const desc = parseFloat(document.getElementById('fnDescuento').value)||0;
-  const base = sub-desc;
-  const iva = base*0.15;
-  const total = base+iva;
-  const num = 'FAC-'+new Date().toISOString().slice(0,7).replace('-','')+'-'+String(allFacturas.length+1).padStart(4,'0');
-  const newFact = {
-    id: Date.now(), numero_factura: num, nombre_cliente: cliente,
-    email_cliente: document.getElementById('fnEmail').value,
-    subtotal: sub, descuento: desc, iva: parseFloat(iva.toFixed(2)),
-    total: parseFloat(total.toFixed(2)), estado: 'emitida',
-    fecha: new Date().toISOString(), notas: document.getElementById('fnNotas').value
-  };
-  try { await api.facturas.create({ nombre_cliente: cliente, subtotal: sub, descuento: desc }); }
-  catch { allFacturas.unshift(newFact); }
-  closeModal('nuevaFacturaModal');
-  showToast(`Factura ${num} emitida ✅`, 'success');
-  renderKPIs(); filterFacturas();
+function switchPosMode(mode) {
+  posMode = mode;
+  document.getElementById('tabPosDirect').classList.toggle('active', mode === 'direct');
+  document.getElementById('tabPosOrder').classList.toggle('active', mode === 'order');
+  document.getElementById('posDirectSection').style.display = mode === 'direct' ? 'block' : 'none';
+  document.getElementById('posOrderSection').style.display = mode === 'order' ? 'block' : 'none';
+  recalcPosTotals();
 }
 
-async function marcarPagada(id) {
-  const f = allFacturas.find(x=>x.id===id);
-  if(f) f.estado='pagada';
-  try { await api.facturas.updateEstado(id,'pagada'); } catch {}
-  showToast('Factura marcada como pagada ✅', 'success');
-  renderKPIs(); filterFacturas();
+function filterPosSelect() {
+  const q = normalizeText(document.getElementById('posSkuFilter').value);
+  const avail = allProducts.filter(p => p.stock > 0 && (!q || normalizeText(`${p.nombre} ${p.sku || ''} ${p.marca || ''}`).includes(q)));
+  document.getElementById('posProdSelect').innerHTML = avail.map(p =>
+    `<option value="${p.id}">${p.sku ? `[${p.sku}] ` : ''}${p.nombre} — ${formatCurrency(p.precio_final)} (Disp: ${p.stock})</option>`
+  ).join('');
 }
 
-async function anularFactura(id) {
-  if (!confirm('¿Anular esta factura?')) return;
-  const f = allFacturas.find(x=>x.id===id);
-  if(f) f.estado='anulada';
-  try { await api.facturas.updateEstado(id,'anulada'); } catch {}
-  showToast('Factura anulada', 'info');
-  renderKPIs(); filterFacturas();
+function addPosItem() {
+  const pid = parseInt(document.getElementById('posProdSelect').value);
+  const qty = parseInt(document.getElementById('posQty').value) || 1;
+  const prod = allProducts.find(p => p.id == pid);
+  if (!prod) return;
+
+  const ex = posItems.find(i => i.product_id == pid);
+  const nextQty = (ex ? ex.cantidad : 0) + qty;
+  if (nextQty > prod.stock) {
+    showToast(`Stock máximo disponible para "${prod.nombre}": ${prod.stock}`, 'error');
+    return;
+  }
+  if (ex) ex.cantidad = nextQty;
+  else posItems.push({ product_id: prod.id, nombre: prod.nombre, precio: prod.precio_final, cantidad: qty, max: prod.stock });
+
+  document.getElementById('posQty').value = 1;
+  renderPosItems();
 }
 
-function viewFactura(id) {
-  const f = allFacturas.find(x=>x.id===id);
-  if(!f) return;
-  document.getElementById('viewFactTitle').textContent = f.numero_factura;
-  document.getElementById('viewFactContent').innerHTML = `
-    <div style="border:1px solid var(--admin-border);border-radius:var(--radius-md);padding:20px;">
-      <div style="display:flex;justify-content:space-between;margin-bottom:20px;">
-        <div><div style="font-size:1.4rem;font-weight:800;color:var(--color-primary);">Shiny Skin</div><div style="font-size:0.75rem;color:rgba(255,255,255,0.4);">Managua, Nicaragua · NIT: 001-010101-0000Z</div></div>
-        <div style="text-align:right;"><div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.3);">Factura</div><div style="font-size:1rem;font-weight:700;color:var(--color-primary-light);">${f.numero_factura}</div><div style="font-size:0.78rem;color:rgba(255,255,255,0.35);">${formatDate(f.fecha)}</div></div>
+function changePosItemQty(pid, delta) {
+  const it = posItems.find(i => i.product_id == pid);
+  if (!it) return;
+  if (it.cantidad + delta <= 0) {
+    posItems = posItems.filter(i => i.product_id != pid);
+  } else if (it.cantidad + delta <= it.max) {
+    it.cantidad += delta;
+  } else {
+    showToast(`Máximo en stock: ${it.max}`, 'error');
+  }
+  renderPosItems();
+}
+
+function renderPosItems() {
+  const box = document.getElementById('posItemsContainer');
+  if (!posItems.length) {
+    box.innerHTML = '<div style="color:rgba(255,255,255,0.4);">Añade productos con el selector superior para calcular la factura.</div>';
+  } else {
+    box.innerHTML = posItems.map(i => `
+      <div class="flex-between" style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+        <span><strong>${i.nombre}</strong> <span style="color:rgba(188,210,233,0.6);">(${formatCurrency(i.precio)} c/u)</span></span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button type="button" class="btn-table btn-table-view" onclick="changePosItemQty(${i.product_id}, -1)">–</button>
+          <span style="min-width:22px;text-align:center;font-weight:700;">${i.cantidad}</span>
+          <button type="button" class="btn-table btn-table-view" onclick="changePosItemQty(${i.product_id}, 1)">+</button>
+          <strong style="min-width:86px;text-align:right;">${formatCurrency(i.precio * i.cantidad)}</strong>
+        </div>
+      </div>`).join('');
+  }
+  recalcPosTotals();
+}
+
+function previewSelectedOrder() {
+  const oid = document.getElementById('posOrderId').value;
+  const o = unbilledOrders.find(x => x.id == oid);
+  const prev = document.getElementById('posOrderPreview');
+  if (o && prev) {
+    prev.innerHTML = `Cliente: <strong>${o.nombre_cliente}</strong> · Canal: ${o.canal} · Productos: ${(o.items || []).length} · Total: <strong>${formatCurrency(o.total)}</strong>`;
+  } else if (prev) {
+    prev.textContent = '';
+  }
+  recalcPosTotals();
+}
+
+function getPosCalculated() {
+  if (posMode === 'order') {
+    const oid = document.getElementById('posOrderId').value;
+    const o = unbilledOrders.find(x => x.id == oid);
+    return { subtotal: o ? o.subtotal : 0, descMonto: o ? o.descuento : 0, total: o ? o.total : 0 };
+  }
+  const subtotal = posItems.reduce((s, i) => s + i.precio * i.cantidad, 0);
+  const tipo = document.getElementById('posTipoDesc').value;
+  const rawD = Math.max(0, parseFloat(document.getElementById('posDescuento').value) || 0);
+  const descMonto = tipo === 'porcentaje' ? Math.round(subtotal * Math.min(100, rawD)) / 100 : Math.min(subtotal, rawD);
+  const total = Math.max(0, subtotal - descMonto);
+  return { subtotal, descMonto, total };
+}
+
+function recalcPosTotals() {
+  const { subtotal, descMonto, total } = getPosCalculated();
+  const metodo = document.getElementById('posMetodoPago').value;
+  document.getElementById('posRecibidoGroup').style.display = metodo === 'efectivo' ? 'flex' : 'none';
+
+  document.getElementById('posSubLine').textContent =
+    `Subtotal: ${formatCurrency(subtotal)}${descMonto > 0 ? ` · Descuento: -${formatCurrency(descMonto)}` : ''}`;
+  document.getElementById('posTotalLine').textContent = `Total a cobrar: ${formatCurrency(total)}`;
+
+  const recibido = parseFloat(document.getElementById('posMontoRecibido').value) || 0;
+  const cambioEl = document.getElementById('posCambioLine');
+  if (metodo === 'efectivo' && recibido > 0) {
+    cambioEl.textContent = recibido >= total
+      ? `💵 Vuelto: ${formatCurrency(recibido - total)}`
+      : `⚠️ Faltan ${formatCurrency(total - recibido)}`;
+  } else {
+    cambioEl.textContent = '';
+  }
+}
+
+async function submitInvoice(e) {
+  e.preventDefault();
+  const { total } = getPosCalculated();
+  const metodo_pago = document.getElementById('posMetodoPago').value;
+  const recibidoVal = parseFloat(document.getElementById('posMontoRecibido').value);
+
+  if (metodo_pago === 'efectivo' && !isNaN(recibidoVal) && recibidoVal > 0 && recibidoVal < total) {
+    showToast('El monto en efectivo recibido es menor al total a cobrar.', 'error');
+    return;
+  }
+
+  let payload;
+  if (posMode === 'order') {
+    const order_id = document.getElementById('posOrderId').value;
+    if (!order_id) { showToast('Selecciona un pedido válido.', 'error'); return; }
+    payload = { order_id: parseInt(order_id), metodo_pago, monto_recibido: !isNaN(recibidoVal) ? recibidoVal : null };
+  } else {
+    if (!posItems.length) { showToast('Añade al menos un producto a la venta.', 'error'); return; }
+    payload = {
+      nombre_cliente: document.getElementById('posCliente').value.trim() || 'Consumidor Final',
+      telefono_cliente: document.getElementById('posTel').value.trim(),
+      canal: 'colectivo',
+      tipo_descuento: document.getElementById('posTipoDesc').value,
+      descuento: parseFloat(document.getElementById('posDescuento').value) || 0,
+      metodo_pago,
+      monto_recibido: !isNaN(recibidoVal) ? recibidoVal : null,
+      estado: 'pagada',
+      items: posItems.map(i => ({ product_id: i.product_id, cantidad: i.cantidad }))
+    };
+  }
+
+  const btn = document.getElementById('btnEmitirFac');
+  btn.disabled = true;
+  try {
+    const created = await api.facturas.create(payload);
+    showToast(`Comprobante ${created.numero_factura} emitido con éxito`, 'success');
+    document.getElementById('posModal').classList.remove('active');
+    await loadStats();
+    await loadFacturas();
+    viewReceipt(created.id, created);
+  } catch (err) {
+    showToast(err.message || 'No se pudo emitir la factura', 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function viewReceipt(id, directObj = null) {
+  const f = directObj || allFacturas.find(x => x.id == id);
+  if (!f) return;
+  const rows = (f.items || []).map(it => `
+    <tr>
+      <td style="padding:6px 0;">${it.nombre_producto}</td>
+      <td style="text-align:center;">${it.cantidad}</td>
+      <td style="text-align:right;">${formatCurrency(it.precio_unitario)}</td>
+      <td style="text-align:right;font-weight:600;">${formatCurrency(it.subtotal)}</td>
+    </tr>`).join('');
+
+  document.getElementById('receiptBody').innerHTML = `
+    <div style="background:#ffffff;color:#1e293b;padding:24px;border-radius:16px;">
+      <div style="text-align:center;border-bottom:1.5px dashed #cbd5e1;padding-bottom:14px;margin-bottom:14px;">
+        <div style="font-family:'Poppins',sans-serif;font-size:1.35rem;font-weight:800;color:#1a4973;">SHINY SKIN</div>
+        <div style="font-size:0.78rem;color:#64748b;">Concept Store · Camino de Oriente, Managua</div>
+        <div style="font-size:0.84rem;font-weight:700;margin-top:6px;">${f.numero_factura} · <span style="text-transform:uppercase;">${f.estado}</span></div>
+        <div style="font-size:0.76rem;color:#64748b;">${formatDateTime(f.fecha)}</div>
       </div>
-      <div style="margin-bottom:16px;padding:12px;background:rgba(255,255,255,0.04);border-radius:8px;">
-        <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:rgba(255,255,255,0.3);margin-bottom:6px;">CLIENTE</div>
-        <div style="font-weight:600;font-size:0.92rem;">${f.nombre_cliente}</div>
-        <div style="font-size:0.8rem;color:rgba(255,255,255,0.4);">${f.email_cliente||'–'}</div>
+      <div style="font-size:0.84rem;margin-bottom:12px;">
+        <div><strong>Cliente:</strong> ${f.nombre_cliente}</div>
+        <div><strong>Método de pago:</strong> ${f.metodo_pago || 'efectivo'}</div>
+        ${f.motivo_anulacion ? `<div style="color:#dc2626;"><strong>Motivo anulación:</strong> ${f.motivo_anulacion}</div>` : ''}
       </div>
-      <div style="margin-top:16px;display:flex;flex-direction:column;gap:6px;">
-        <div style="display:flex;justify-content:space-between;font-size:0.85rem;"><span style="color:rgba(255,255,255,0.4);">Subtotal</span><span>${formatCurrency(f.subtotal)}</span></div>
-        ${f.descuento>0?`<div style="display:flex;justify-content:space-between;font-size:0.85rem;"><span style="color:rgba(255,255,255,0.4);">Descuento</span><span style="color:var(--color-warning);">- ${formatCurrency(f.descuento)}</span></div>`:''}
-        <div style="display:flex;justify-content:space-between;font-size:0.85rem;"><span style="color:rgba(255,255,255,0.4);">IVA 15%</span><span>${formatCurrency(f.iva)}</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:1.1rem;font-weight:800;color:white;border-top:1px solid rgba(255,255,255,0.1);padding-top:10px;margin-top:4px;"><span>TOTAL</span><span style="color:var(--color-primary-light);">${formatCurrency(f.total)}</span></div>
+      <table style="width:100%;border-collapse:collapse;font-size:0.82rem;margin-bottom:14px;">
+        <thead><tr style="border-bottom:1px solid #cbd5e1;color:#475569;">
+          <th style="text-align:left;padding-bottom:6px;">Producto</th><th>Cant.</th><th style="text-align:right;">P.Unit</th><th style="text-align:right;">Subtotal</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div style="border-top:1.5px dashed #cbd5e1;padding-top:10px;text-align:right;font-size:0.86rem;">
+        <div>Subtotal: ${formatCurrency(f.subtotal)}</div>
+        ${f.descuento > 0 ? `<div style="color:#d97706;">Descuento: -${formatCurrency(f.descuento)}</div>` : ''}
+        <div style="font-size:1.15rem;font-weight:800;color:#1a4973;margin-top:4px;">TOTAL: ${formatCurrency(f.total)}</div>
+        ${f.monto_recibido ? `<div style="font-size:0.8rem;color:#475569;">Recibido: ${formatCurrency(f.monto_recibido)} · Cambio: ${formatCurrency(f.cambio)}</div>` : ''}
       </div>
-      ${f.notas?`<div style="margin-top:14px;padding:10px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:0.8rem;color:rgba(255,255,255,0.4);">Notas: ${f.notas}</div>`:''}
-      <div style="text-align:center;margin-top:20px;font-size:0.75rem;color:rgba(255,255,255,0.25);">¡Gracias por tu compra! – Shiny Skin · SISCO v1.0</div>
+      <div style="text-align:center;font-size:0.72rem;color:#64748b;margin-top:14px;">Precios finales conforme a Ley N.° 842 · ¡Gracias por tu compra!</div>
+    </div>
+    <div class="no-print" style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px;">
+      <a href="${api.facturas.pdfUrl(f.id, true)}" class="btn-admin-secondary">⬇️ Descargar PDF</a>
+      <button type="button" class="btn-admin-primary" onclick="window.print()">🖨️ Imprimir Recibo</button>
     </div>`;
-  document.getElementById('viewFactModal').classList.add('active');
+  document.getElementById('viewFacModal').classList.add('active');
 }
 
-function openNuevaFactura() {
-  document.getElementById('fnCliente').value='';
-  document.getElementById('fnEmail').value='';
-  document.getElementById('fnSubtotal').value='';
-  document.getElementById('fnDescuento').value='0';
-  document.getElementById('fnNotas').value='';
-  calcFactura();
-  document.getElementById('nuevaFacturaModal').classList.add('active');
+async function markPaid(id) {
+  try {
+    await api.facturas.updateEstado(id, 'pagada');
+    showToast('Factura marcada como pagada', 'success');
+    await loadStats();
+    await loadFacturas();
+  } catch (err) {
+    showToast(err.message || 'Error al actualizar factura', 'error');
+  }
 }
-function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
-document.querySelectorAll('.modal-overlay').forEach(overlay => {
-  overlay.addEventListener('click', e => { if(e.target===overlay) overlay.classList.remove('active'); });
-});
+async function annulInvoice(id) {
+  const motivo = prompt('Indica el motivo de anulación de la factura (las unidades vendidas en POS retornarán automáticamente al stock físico):');
+  if (motivo === null) return;
+  try {
+    await api.facturas.updateEstado(id, 'anulada', { motivo_anulacion: motivo || 'Anulación en caja' });
+    showToast('Factura anulada y existencias devueltas al inventario', 'info');
+    await loadStats();
+    await loadFacturas();
+  } catch (err) {
+    showToast(err.message || 'No se pudo anular la factura', 'error');
+  }
+}
 
-loadFacturas();
+init();
 </script>
 </body>
 </html>

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Usuarios y Roles – SISCO Shiny Skin</title>
+  <link rel="stylesheet" href="../css/main.css"/><link rel="stylesheet" href="../css/admin.css"/>
+</head>
+<body class="admin-body">
+
+<aside class="admin-sidebar" id="sidebar"></aside>
+
+<div class="admin-main">
+  <header class="admin-topbar">
+    <div class="topbar-title">🔐 Administración de Usuarios y Permisos (HU-14)</div>
+    <div class="topbar-actions">
+      <button class="btn-admin-primary" onclick="openUserModal()">➕ Crear Usuario</button>
+    </div>
+  </header>
+
+  <div class="admin-content">
+
+    <div class="admin-card">
+      <div class="admin-card-header">
+        <div class="admin-card-title">Cuentas registradas en SISCO</div>
+        <span style="font-size:0.8rem;color:rgba(188,210,233,0.65);">Control de acceso basado en roles (RBAC)</span>
+      </div>
+      <div class="admin-table-wrapper">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Usuario</th>
+              <th>Correo Electrónico</th>
+              <th>Rol Asignado</th>
+              <th>Teléfono</th>
+              <th>Último Acceso</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="usersBody">
+            <tr><td colspan="8" style="text-align:center;padding:36px;">Cargando usuarios...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal Crear / Editar Usuario -->
+<div class="modal-overlay" id="userModal" onclick="if(event.target===this)this.classList.remove('active')">
+  <div class="admin-modal" style="max-width:520px;">
+    <div class="modal-header">
+      <div class="modal-title" id="usrModalTitle">Nuevo Usuario</div>
+      <button class="modal-close" onclick="document.getElementById('userModal').classList.remove('active')">✕</button>
+    </div>
+    <form onsubmit="saveUser(event)">
+      <input type="hidden" id="usrId" />
+      <div class="admin-form-grid">
+        <div class="admin-form-group admin-form-full">
+          <label class="admin-form-label">Nombre completo *</label>
+          <input class="admin-form-control" id="uNombre" required placeholder="Ej. Valeska Martínez" />
+        </div>
+        <div class="admin-form-group">
+          <label class="admin-form-label">Correo electrónico *</label>
+          <input class="admin-form-control" type="email" id="uEmail" required placeholder="ventas@shinyskin.ni" />
+        </div>
+        <div class="admin-form-group">
+          <label class="admin-form-label">Nombre de usuario</label>
+          <input class="admin-form-control" id="uUsername" placeholder="Ej. ventas2" />
+        </div>
+        <div class="admin-form-group">
+          <label class="admin-form-label">Rol del Sistema *</label>
+          <select class="admin-form-control" id="uRol">
+            <option value="vendedor">🛍️ Vendedora (POS, Pedidos, Inventario)</option>
+            <option value="admin">👩‍💼 Administradora (Acceso total)</option>
+            <option value="cliente">👤 Cliente Web</option>
+          </select>
+        </div>
+        <div class="admin-form-group">
+          <label class="admin-form-label">Teléfono</label>
+          <input class="admin-form-control" id="uTel" placeholder="8888-0000" />
+        </div>
+        <div class="admin-form-group admin-form-full">
+          <label class="admin-form-label" id="uPassLbl">Contraseña (mín. 6 caracteres) *</label>
+          <input class="admin-form-control" type="password" id="uPass" minlength="6" placeholder="••••••••" />
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+        <button type="button" class="btn-admin-secondary" onclick="document.getElementById('userModal').classList.remove('active')">Cancelar</button>
+        <button type="submit" class="btn-admin-primary">💾 Guardar Cuenta</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/admin-common.js"></script>
+<script>
+if (!window.IS_ADMIN) {
+  window.location.replace('dashboard.html');
+}
+renderAdminSidebar('usuarios');
+
+let allUsers = [];
+
+async function loadUsers() {
+  try {
+    allUsers = await api.auth.usuarios();
+  } catch (err) {
+    showToast(err.message || 'No se pudieron cargar los usuarios', 'error');
+    allUsers = [];
+  }
+  const tbody = document.getElementById('usersBody');
+  if (!allUsers.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;">Sin usuarios disponibles</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = allUsers.map(u => `
+    <tr style="${!u.activo ? 'opacity:0.55;' : ''}">
+      <td><div class="table-product-name">${u.nombre}</div></td>
+      <td><code>${u.username || '—'}</code></td>
+      <td>${u.email}</td>
+      <td><span class="badge ${u.rol === 'admin' ? 'badge-primary' : (u.rol === 'vendedor' ? 'badge-info' : 'badge-muted')}">${u.rol}</span></td>
+      <td>${u.telefono || '—'}</td>
+      <td style="font-size:0.78rem;">${u.ultimo_acceso ? formatDateTime(u.ultimo_acceso) : 'Nunca'}</td>
+      <td><span class="status-badge ${u.activo ? 'status-entregado' : 'status-cancelado'}">${u.activo ? 'Activo' : 'Inactivo'}</span></td>
+      <td>
+        <div style="display:flex;gap:6px;">
+          <button class="btn-table btn-table-edit" onclick="editUser(${u.id})">✏️ Editar</button>
+          ${u.id !== window.SISCO_USER?.id ? `<button class="btn-table btn-table-delete" onclick="toggleUserActive(${u.id})">${u.activo ? '🔒 Desactivar' : '🔓 Activar'}</button>` : ''}
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function openUserModal(u = null) {
+  document.getElementById('usrId').value = u ? u.id : '';
+  document.getElementById('usrModalTitle').textContent = u ? '✏️ Editar Usuario' : '➕ Crear Nuevo Usuario';
+  document.getElementById('uNombre').value = u ? u.nombre : '';
+  document.getElementById('uEmail').value = u ? u.email : '';
+  document.getElementById('uUsername').value = u ? (u.username || '') : '';
+  document.getElementById('uRol').value = u ? u.rol : 'vendedor';
+  document.getElementById('uTel').value = u ? (u.telefono || '') : '';
+  document.getElementById('uPass').value = '';
+  document.getElementById('uPass').required = !u;
+  document.getElementById('uPassLbl').textContent = u ? 'Nueva contraseña (dejar vacío para conservar actual)' : 'Contraseña (mín. 6 caracteres) *';
+  document.getElementById('userModal').classList.add('active');
+}
+
+function editUser(id) {
+  const u = allUsers.find(x => x.id == id);
+  if (u) openUserModal(u);
+}
+
+async function saveUser(e) {
+  e.preventDefault();
+  const id = document.getElementById('usrId').value;
+  const payload = {
+    nombre: document.getElementById('uNombre').value.trim(),
+    email: document.getElementById('uEmail').value.trim(),
+    username: document.getElementById('uUsername').value.trim(),
+    rol: document.getElementById('uRol').value,
+    telefono: document.getElementById('uTel').value.trim(),
+  };
+  const pass = document.getElementById('uPass').value;
+  if (pass) payload.password = pass;
+
+  try {
+    if (id) await api.auth.updateUsuario(id, payload);
+    else await api.auth.createUsuario(payload);
+    showToast('Cuenta guardada exitosamente', 'success');
+    document.getElementById('userModal').classList.remove('active');
+    await loadUsers();
+  } catch (err) {
+    showToast(err.message || 'Error al guardar usuario', 'error');
+  }
+}
+
+async function toggleUserActive(id) {
+  try {
+    const res = await api.auth.deleteUsuario(id);
+    showToast(res.message || 'Estado actualizado', 'info');
+    await loadUsers();
+  } catch (err) {
+    showToast(err.message || 'No se pudo cambiar el estado', 'error');
+  }
+}
+
+loadUsers();
+</script>
+</body>
+</html>
+

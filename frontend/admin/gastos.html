@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gastos Operativos – SISCO Shiny Skin</title>
+  <link rel="stylesheet" href="../css/main.css"/><link rel="stylesheet" href="../css/admin.css"/>
+</head>
+<body class="admin-body">
+
+<aside class="admin-sidebar" id="sidebar"></aside>
+
+<div class="admin-main">
+  <header class="admin-topbar">
+    <div class="topbar-title">💸 Control de Gastos Operativos (HU-13)</div>
+    <div class="topbar-actions">
+      <button class="btn-admin-primary" onclick="openExpenseModal()">➕ Registrar Gasto</button>
+    </div>
+  </header>
+
+  <div class="admin-content">
+
+    <div class="kpi-grid">
+      <div class="kpi-card pink">
+        <div class="kpi-icon">📅</div>
+        <div class="kpi-value" id="gastoMesVal">C$ 0.00</div>
+        <div class="kpi-label">Gastos del Mes Seleccionado</div>
+      </div>
+      <div class="kpi-card gold">
+        <div class="kpi-icon">📊</div>
+        <div class="kpi-value" id="gastoHistVal">C$ 0.00</div>
+        <div class="kpi-label">Gastos Históricos Acumulados</div>
+      </div>
+      <div class="kpi-card blue" style="grid-column: span 2;">
+        <div class="admin-form-label" style="margin-bottom:10px;">Distribución por Categoría en el Mes</div>
+        <div id="catBreakdown" style="display:flex;gap:10px;flex-wrap:wrap;"></div>
+      </div>
+    </div>
+
+    <div class="actions-bar">
+      <div class="actions-bar-left">
+        <select class="admin-form-control" style="width:auto;padding:9px 14px;" id="filterCatGasto" onchange="loadGastos()">
+          <option value="">Todas las categorías</option>
+          <option value="IMPORTACION">✈️ Importación & Aduana</option>
+          <option value="ALQUILER">🏬 Alquiler Concept Store</option>
+          <option value="ENVIO">🛵 Logística & Envíos</option>
+          <option value="EMPAQUE">🎁 Bolsas & Empaques</option>
+          <option value="PUBLICIDAD">📣 Publicidad & Redes</option>
+          <option value="OTRO">📌 Otros gastos</option>
+        </select>
+        <input type="month" class="admin-form-control" style="width:auto;padding:8px 14px;" id="filterMesGasto" onchange="loadGastos()" />
+      </div>
+    </div>
+
+    <div class="admin-card">
+      <div class="admin-table-wrapper">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Categoría</th>
+              <th>Concepto</th>
+              <th>Notas</th>
+              <th>Registrado por</th>
+              <th>Monto</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="gastosBody">
+            <tr><td colspan="7" style="text-align:center;padding:36px;">Cargando gastos...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal Crear / Editar Gasto -->
+<div class="modal-overlay" id="expenseModal" onclick="if(event.target===this)this.classList.remove('active')">
+  <div class="admin-modal" style="max-width:500px;">
+    <div class="modal-header">
+      <div class="modal-title" id="expModalTitle">Registrar Gasto Operativo</div>
+      <button class="modal-close" onclick="document.getElementById('expenseModal').classList.remove('active')">✕</button>
+    </div>
+    <form onsubmit="saveExpense(event)">
+      <input type="hidden" id="expId" />
+      <div class="admin-form-grid">
+        <div class="admin-form-group">
+          <label class="admin-form-label">Categoría *</label>
+          <select class="admin-form-control" id="eCategoria" required>
+            <option value="IMPORTACION">IMPORTACION</option>
+            <option value="ALQUILER">ALQUILER</option>
+            <option value="ENVIO">ENVIO</option>
+            <option value="EMPAQUE">EMPAQUE</option>
+            <option value="PUBLICIDAD">PUBLICIDAD</option>
+            <option value="OTRO">OTRO</option>
+          </select>
+        </div>
+        <div class="admin-form-group">
+          <label class="admin-form-label">Fecha *</label>
+          <input class="admin-form-control" type="date" id="eFecha" required />
+        </div>
+        <div class="admin-form-group admin-form-full">
+          <label class="admin-form-label">Concepto / Descripción *</label>
+          <input class="admin-form-control" id="eConcepto" required placeholder="Ej. Pago módulo Concept Store Camino de Oriente" />
+        </div>
+        <div class="admin-form-group admin-form-full">
+          <label class="admin-form-label">Monto en Córdobas (C$) *</label>
+          <input class="admin-form-control" type="number" step="0.01" min="0.01" id="eMonto" required placeholder="Ej. 3500.00" />
+        </div>
+        <div class="admin-form-group admin-form-full">
+          <label class="admin-form-label">Notas / N.° de Recibo</label>
+          <input class="admin-form-control" id="eNotas" placeholder="Opcional" />
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+        <button type="button" class="btn-admin-secondary" onclick="document.getElementById('expenseModal').classList.remove('active')">Cancelar</button>
+        <button type="submit" class="btn-admin-primary">💾 Guardar Gasto</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/admin-common.js"></script>
+<script>
+renderAdminSidebar('gastos');
+
+let allExpenses = [];
+document.getElementById('filterMesGasto').value = new Date().toISOString().slice(0, 7);
+
+async function loadGastos() {
+  const categoria = document.getElementById('filterCatGasto').value;
+  const mes = document.getElementById('filterMesGasto').value;
+  try {
+    allExpenses = await api.gastos.list({ categoria, mes });
+    const res = await api.gastos.resumen(mes ? { mes } : {});
+    document.getElementById('gastoMesVal').textContent = formatCurrency(res.total_mes || 0);
+    document.getElementById('gastoHistVal').textContent = formatCurrency(res.total_historico || 0);
+    document.getElementById('catBreakdown').innerHTML = (res.por_categoria || []).length
+      ? res.por_categoria.map(c => `<span class="badge badge-primary" style="padding:6px 12px;font-size:0.78rem;">${c.categoria}: ${formatCurrency(c.monto)}</span>`).join('')
+      : '<span style="font-size:0.82rem;color:rgba(255,255,255,0.4);">Sin egresos en este mes</span>';
+  } catch {
+    allExpenses = [];
+  }
+  renderExpenses();
+}
+
+function renderExpenses() {
+  const tbody = document.getElementById('gastosBody');
+  if (!allExpenses.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:36px;color:rgba(255,255,255,0.4);">No hay gastos registrados en este periodo</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = allExpenses.map(g => `
+    <tr>
+      <td>${g.fecha}</td>
+      <td><span class="badge badge-info">${g.categoria_gasto}</span></td>
+      <td><div class="table-product-name">${g.concepto}</div></td>
+      <td style="font-size:0.8rem;">${g.notas || '—'}</td>
+      <td style="font-size:0.8rem;">${g.usuario || 'Admin'}</td>
+      <td style="font-weight:700;color:#f87171;">-${formatCurrency(g.monto)}</td>
+      <td>
+        <div style="display:flex;gap:6px;">
+          <button class="btn-table btn-table-edit" onclick="editExpense(${g.id})">✏️</button>
+          ${window.IS_ADMIN ? `<button class="btn-table btn-table-delete" onclick="removeExpense(${g.id})">🗑</button>` : ''}
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function openExpenseModal(g = null) {
+  document.getElementById('expId').value = g ? g.id : '';
+  document.getElementById('expModalTitle').textContent = g ? '✏️ Editar Gasto' : '➕ Registrar Gasto Operativo';
+  document.getElementById('eCategoria').value = g ? g.categoria_gasto : 'IMPORTACION';
+  document.getElementById('eFecha').value = g ? g.fecha : new Date().toISOString().slice(0, 10);
+  document.getElementById('eConcepto').value = g ? g.concepto : '';
+  document.getElementById('eMonto').value = g ? g.monto : '';
+  document.getElementById('eNotas').value = g ? (g.notas || '') : '';
+  document.getElementById('expenseModal').classList.add('active');
+}
+
+function editExpense(id) {
+  const g = allExpenses.find(x => x.id == id);
+  if (g) openExpenseModal(g);
+}
+
+async function saveExpense(e) {
+  e.preventDefault();
+  const id = document.getElementById('expId').value;
+  const payload = {
+    categoria_gasto: document.getElementById('eCategoria').value,
+    fecha: document.getElementById('eFecha').value,
+    concepto: document.getElementById('eConcepto').value.trim(),
+    monto: parseFloat(document.getElementById('eMonto').value),
+    notas: document.getElementById('eNotas').value.trim()
+  };
+  try {
+    if (id) await api.gastos.update(id, payload);
+    else await api.gastos.create(payload);
+    showToast('Gasto operativo guardado', 'success');
+    document.getElementById('expenseModal').classList.remove('active');
+    await loadGastos();
+  } catch (err) {
+    showToast(err.message || 'Error al registrar gasto', 'error');
+  }
+}
+
+async function removeExpense(id) {
+  if (!confirm('¿Eliminar este registro de gasto?')) return;
+  try {
+    await api.gastos.delete(id);
+    showToast('Gasto eliminado', 'info');
+    await loadGastos();
+  } catch (err) {
+    showToast(err.message || 'Error al eliminar', 'error');
+  }
+}
+
+loadGastos();
+if (window.location.hash === '#nuevo') openExpenseModal();
+</script>
+</body>
+</html>
+

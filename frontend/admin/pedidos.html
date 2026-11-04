@@ -2,267 +2,513 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Pedidos – SISCO Admin</title>
+  <title>Pedidos & Envíos – SISCO Shiny Skin</title>
   <link rel="stylesheet" href="../css/main.css"/><link rel="stylesheet" href="../css/admin.css"/>
 </head>
 <body class="admin-body">
-<aside class="admin-sidebar">
-  <div class="sidebar-logo"><div class="logo-text">✨ SISCO</div><div class="logo-sub">Shiny Skin · Panel Admin</div></div>
-  <nav class="sidebar-nav">
-    <div class="sidebar-section">Principal</div>
-    <a href="dashboard.html" class="sidebar-item"><span class="sidebar-icon">📊</span>Dashboard</a>
-    <div class="sidebar-section">Gestión</div>
-    <a href="productos.html" class="sidebar-item"><span class="sidebar-icon">📦</span>Productos</a>
-    <a href="inventario.html" class="sidebar-item"><span class="sidebar-icon">🗃️</span>Inventario</a>
-    <a href="pedidos.html" class="sidebar-item active"><span class="sidebar-icon">🛒</span>Pedidos</a>
-    <a href="facturacion.html" class="sidebar-item"><span class="sidebar-icon">💳</span>Facturación</a>
-    <a href="../index.html" class="sidebar-item" target="_blank"><span class="sidebar-icon">🌐</span>Ver Tienda</a>
-    <a href="../login.html" class="sidebar-item"><span class="sidebar-icon">🚪</span>Cerrar sesión</a>
-  </nav>
-  <div class="sidebar-footer"><div class="sidebar-user"><div class="sidebar-avatar">A</div><div><div class="sidebar-user-name">Administrador</div><div class="sidebar-user-role">Admin</div></div></div></div>
-</aside>
+
+<aside class="admin-sidebar" id="sidebar"></aside>
 
 <div class="admin-main">
   <header class="admin-topbar">
-    <div class="topbar-title">🛒 Gestión de Pedidos</div>
+    <div class="topbar-title">🛒 Gestión Omnicanal de Pedidos y Motorizados</div>
     <div class="topbar-actions">
-      <button class="btn-admin-primary" onclick="openNuevoPedidoModal()">➕ Nuevo pedido</button>
+      <button class="btn-admin-secondary" onclick="openMotoModal()">🛵 Motorizados</button>
+      <button class="btn-admin-primary" onclick="openManualOrderModal()">➕ Pedido Manual (WhatsApp / IG)</button>
     </div>
   </header>
 
   <div class="admin-content">
 
-    <!-- Estado KPIs -->
-    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;" id="estadoKpis">
-      <div class="kpi-card" style="flex:1;min-width:120px;background:rgba(245,166,35,0.08);border-color:rgba(245,166,35,0.2);">
-        <div class="kpi-icon" style="background:rgba(245,166,35,0.15);">⏳</div>
-        <div class="kpi-value" id="cntPendiente" style="font-size:1.5rem;">–</div>
-        <div class="kpi-label">Pendientes</div>
-      </div>
-      <div class="kpi-card" style="flex:1;min-width:120px;background:rgba(52,152,219,0.08);border-color:rgba(52,152,219,0.2);">
-        <div class="kpi-icon" style="background:rgba(52,152,219,0.15);">✅</div>
-        <div class="kpi-value" id="cntConfirmado" style="font-size:1.5rem;">–</div>
-        <div class="kpi-label">Confirmados</div>
-      </div>
-      <div class="kpi-card" style="flex:1;min-width:120px;background:rgba(155,81,224,0.08);border-color:rgba(155,81,224,0.2);">
-        <div class="kpi-icon" style="background:rgba(155,81,224,0.15);">🚚</div>
-        <div class="kpi-value" id="cntEnCamino" style="font-size:1.5rem;">–</div>
-        <div class="kpi-label">En camino</div>
-      </div>
-      <div class="kpi-card" style="flex:1;min-width:120px;background:rgba(76,175,125,0.08);border-color:rgba(76,175,125,0.2);">
-        <div class="kpi-icon" style="background:rgba(76,175,125,0.15);">📦</div>
-        <div class="kpi-value" id="cntEntregado" style="font-size:1.5rem;">–</div>
-        <div class="kpi-label">Entregados</div>
-      </div>
-      <div class="kpi-card" style="flex:1;min-width:120px;background:rgba(231,76,60,0.08);border-color:rgba(231,76,60,0.2);">
-        <div class="kpi-icon" style="background:rgba(231,76,60,0.15);">❌</div>
-        <div class="kpi-value" id="cntCancelado" style="font-size:1.5rem;">–</div>
-        <div class="kpi-label">Cancelados</div>
-      </div>
+    <!-- Pestañas por estado -->
+    <div class="admin-tabs">
+      <div class="admin-tab active" onclick="setOrderState('', this)">Todos</div>
+      <div class="admin-tab" onclick="setOrderState('pendiente', this)">⏳ Pendientes</div>
+      <div class="admin-tab" onclick="setOrderState('confirmado', this)">✅ Confirmados</div>
+      <div class="admin-tab" onclick="setOrderState('en_camino', this)">🛵 En Camino</div>
+      <div class="admin-tab" onclick="setOrderState('entregado', this)">🎉 Entregados</div>
+      <div class="admin-tab" onclick="setOrderState('cancelado', this)">❌ Cancelados</div>
     </div>
 
-    <!-- Filtros + Tabla -->
     <div class="actions-bar">
       <div class="actions-bar-left">
         <div class="search-wrapper">
           <span class="search-icon">🔍</span>
-          <input class="search-input-admin" type="text" id="orderSearch" placeholder="Buscar pedido o cliente..." oninput="filterOrders()" />
+          <input class="search-input-admin" type="text" id="orderSearch" placeholder="Código SS-..., cliente o teléfono..." oninput="renderOrders()" />
         </div>
-        <select class="admin-form-control" style="width:160px;padding:10px 14px;" id="estadoFilter" onchange="filterOrders()">
-          <option value="">Todos los estados</option>
-          <option value="pendiente">⏳ Pendiente</option>
-          <option value="confirmado">✅ Confirmado</option>
-          <option value="en_camino">🚚 En camino</option>
-          <option value="entregado">📦 Entregado</option>
-          <option value="cancelado">❌ Cancelado</option>
+        <select class="admin-form-control" style="width:auto;padding:9px 14px;" id="filterCanal" onchange="renderOrders()">
+          <option value="">Todos los canales</option>
+          <option value="web">🌐 Tienda Web</option>
+          <option value="whatsapp">💬 WhatsApp</option>
+          <option value="instagram">📸 Instagram</option>
+          <option value="tienda_fisica">🏬 Tienda Física</option>
         </select>
       </div>
-      <button class="btn-admin-secondary" onclick="loadOrders()">🔄 Actualizar</button>
+      <div class="actions-bar-right">
+        <span style="font-size:0.82rem;color:rgba(188,210,233,0.65);" id="ordersCountLbl">0 pedidos</span>
+      </div>
     </div>
 
     <div class="admin-card">
       <div class="admin-table-wrapper">
         <table class="admin-table">
           <thead>
-            <tr><th>Pedido</th><th>Cliente</th><th>Teléfono</th><th>Total</th><th>Estado</th><th>Canal</th><th>Fecha</th><th>Acciones</th></tr>
+            <tr>
+              <th>Pedido</th>
+              <th>Cliente / Contacto</th>
+              <th>Canal</th>
+              <th>Entrega / Motorizado</th>
+              <th>Total</th>
+              <th>Estado</th>
+              <th>Factura</th>
+              <th>Fecha</th>
+              <th>Acciones</th>
+            </tr>
           </thead>
-          <tbody id="ordersTableBody">
-            <tr><td colspan="8" style="text-align:center;padding:32px;color:rgba(255,255,255,0.3);">Cargando...</td></tr>
+          <tbody id="ordersBody">
+            <tr><td colspan="9" style="text-align:center;padding:36px;">Cargando pedidos...</td></tr>
           </tbody>
         </table>
       </div>
     </div>
+
   </div>
 </div>
 
-<!-- Modal Ver Pedido -->
-<div class="modal-overlay" id="orderDetailModal">
+<!-- Modal Detalle y Gestión de Pedido -->
+<div class="modal-overlay" id="detailModal" onclick="if(event.target===this)this.classList.remove('active')">
   <div class="admin-modal" style="max-width:680px;">
     <div class="modal-header">
-      <div class="modal-title" id="orderDetailTitle">Pedido #</div>
-      <button class="modal-close" onclick="closeModal('orderDetailModal')">✕</button>
+      <div class="modal-title" id="detTitle">Detalle del Pedido</div>
+      <button class="modal-close" onclick="document.getElementById('detailModal').classList.remove('active')">✕</button>
     </div>
-    <div id="orderDetailContent"></div>
+    <div id="detContent"></div>
   </div>
 </div>
 
-<!-- Modal Nuevo Pedido Manual -->
-<div class="modal-overlay" id="nuevoPedidoModal">
-  <div class="admin-modal">
+<!-- Modal Nuevo Pedido Manual con Selector Real de Productos -->
+<div class="modal-overlay" id="manualModal" onclick="if(event.target===this)this.classList.remove('active')">
+  <div class="admin-modal" style="max-width:700px;">
     <div class="modal-header">
-      <div class="modal-title">➕ Nuevo Pedido Manual</div>
-      <button class="modal-close" onclick="closeModal('nuevoPedidoModal')">✕</button>
+      <div class="modal-title">💬 Registrar Pedido Omnicanal (WhatsApp / Instagram / Tienda)</div>
+      <button class="modal-close" onclick="document.getElementById('manualModal').classList.remove('active')">✕</button>
     </div>
-    <div style="padding:8px 0;color:rgba(255,255,255,0.5);font-size:0.85rem;margin-bottom:20px;">Para pedidos recibidos por WhatsApp o en tienda física.</div>
-    <div class="admin-form-grid">
-      <div class="admin-form-group"><label class="admin-form-label">Cliente *</label><input class="admin-form-control" id="npCliente" placeholder="Nombre completo" required/></div>
-      <div class="admin-form-group"><label class="admin-form-label">Teléfono</label><input class="admin-form-control" id="npTel" placeholder="505-8888-0000"/></div>
-      <div class="admin-form-group admin-form-full"><label class="admin-form-label">Dirección</label><input class="admin-form-control" id="npDir" placeholder="Dirección de entrega"/></div>
-      <div class="admin-form-group"><label class="admin-form-label">Canal</label>
-        <select class="admin-form-control" id="npCanal">
-          <option value="whatsapp">💬 WhatsApp</option>
-          <option value="tienda_fisica">🏪 Tienda física</option>
-          <option value="web">🌐 Web</option>
-        </select>
+    <form onsubmit="submitManualOrder(event)">
+      <div class="admin-form-grid">
+        <div class="admin-form-group">
+          <label class="admin-form-label">Nombre del Cliente *</label>
+          <input class="admin-form-control" id="moNombre" required placeholder="Ej. Valeria Castro" />
+        </div>
+        <div class="admin-form-group">
+          <label class="admin-form-label">Teléfono / WhatsApp *</label>
+          <input class="admin-form-control" id="moTel" required placeholder="8888-0000" />
+        </div>
+        <div class="admin-form-group">
+          <label class="admin-form-label">Canal de Origen *</label>
+          <select class="admin-form-control" id="moCanal">
+            <option value="whatsapp">💬 WhatsApp</option>
+            <option value="instagram">📸 Instagram / Facebook</option>
+            <option value="tienda_fisica">🏬 Tienda Física</option>
+            <option value="web">🌐 Web</option>
+          </select>
+        </div>
+        <div class="admin-form-group">
+          <label class="admin-form-label">Modalidad de Entrega</label>
+          <select class="admin-form-control" id="moEntrega" onchange="recalcManualTotal()">
+            <option value="domicilio">🛵 Envío a domicilio</option>
+            <option value="retiro">🏬 Retiro en Concept Store</option>
+          </select>
+        </div>
+        <div class="admin-form-group admin-form-full" id="moDirGroup">
+          <label class="admin-form-label">Dirección de entrega</label>
+          <input class="admin-form-control" id="moDir" placeholder="Barrio/Reparto, referencias exactas..." />
+        </div>
       </div>
-      <div class="admin-form-group"><label class="admin-form-label">Pago</label>
-        <select class="admin-form-control" id="npPago">
-          <option value="efectivo_entrega">💵 Efectivo al recibir</option>
-          <option value="transferencia">🏦 Transferencia</option>
-          <option value="efectivo_tienda">🏪 Efectivo en tienda</option>
-        </select>
+
+      <!-- Selector de productos -->
+      <div style="margin-top:16px;padding:14px;background:rgba(255,255,255,0.04);border:1px solid var(--admin-border);border-radius:var(--radius-md);">
+        <label class="admin-form-label" style="margin-bottom:8px;display:block;">🧴 Agregar Productos al Pedido *</label>
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <select class="admin-form-control" id="moProdSelect" style="flex:1;"></select>
+          <input class="admin-form-control" type="number" id="moProdQty" min="1" value="1" style="width:82px;" />
+          <button type="button" class="btn-admin-primary" onclick="addManualItem()">+ Agregar</button>
+        </div>
+        <div id="moItemsList" style="font-size:0.84rem;"></div>
       </div>
-      <div class="admin-form-group admin-form-full"><label class="admin-form-label">Notas</label><textarea class="admin-form-control" id="npNotas" rows="2" placeholder="Instrucciones especiales..."></textarea></div>
+
+      <div class="admin-form-grid" style="margin-top:14px;">
+        <div class="admin-form-group">
+          <label class="admin-form-label">Costo de Envío (C$)</label>
+          <input class="admin-form-control" type="number" min="0" step="0.01" id="moEnvio" value="100" oninput="recalcManualTotal()" />
+        </div>
+        <div class="admin-form-group">
+          <label class="admin-form-label">Método de Pago</label>
+          <select class="admin-form-control" id="moPago">
+            <option value="efectivo_entrega">💵 Efectivo contra entrega</option>
+            <option value="transferencia">🏦 Transferencia bancaria</option>
+            <option value="efectivo">💵 Pagado en caja</option>
+          </select>
+        </div>
+        <div class="admin-form-group">
+          <label class="admin-form-label">Paga con (C$, para cambio)</label>
+          <input class="admin-form-control" type="number" min="0" step="0.01" id="moMontoCliente" placeholder="Opcional" oninput="recalcManualTotal()" />
+        </div>
+        <div class="admin-form-group">
+          <label class="admin-form-label">Asignar Motorizado (opcional)</label>
+          <select class="admin-form-control" id="moMotorizado"></select>
+        </div>
+      </div>
+
+      <div class="flex-between" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--admin-border);">
+        <div id="moTotalSummary" style="font-size:0.95rem;font-weight:700;color:#34d399;">Total: C$ 0.00</div>
+        <div style="display:flex;gap:10px;">
+          <button type="button" class="btn-admin-secondary" onclick="document.getElementById('manualModal').classList.remove('active')">Cancelar</button>
+          <button type="submit" class="btn-admin-primary" id="btnCreateManual">✅ Crear Pedido</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Gestión de Motorizados (FRQ-0025) -->
+<div class="modal-overlay" id="motoModal" onclick="if(event.target===this)this.classList.remove('active')">
+  <div class="admin-modal" style="max-width:520px;">
+    <div class="modal-header">
+      <div class="modal-title">🛵 Directorio de Motorizados de Entrega</div>
+      <button class="modal-close" onclick="document.getElementById('motoModal').classList.remove('active')">✕</button>
     </div>
-    <div style="display:flex;gap:12px;margin-top:24px;">
-      <button class="btn-admin-primary" style="flex:1;" onclick="createManualOrder()">✅ Crear pedido</button>
-      <button class="btn-admin-secondary" onclick="closeModal('nuevoPedidoModal')">Cancelar</button>
-    </div>
+    <form onsubmit="saveMotorizado(event)" style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:16px;">
+      <input class="admin-form-control" id="newMotoNombre" placeholder="Nombre del repartidor *" required />
+      <input class="admin-form-control" id="newMotoTel" placeholder="Teléfono *" required />
+      <button type="submit" class="btn-admin-primary">+ Añadir</button>
+    </form>
+    <div id="motoListContainer" style="font-size:0.85rem;"></div>
   </div>
 </div>
 
 <script src="../js/api.js"></script>
+<script src="../js/admin-common.js"></script>
 <script>
+renderAdminSidebar('pedidos');
+
 let allOrders = [];
-const ESTADOS = ['pendiente','confirmado','en_camino','entregado','cancelado'];
+let allProducts = [];
+let motorizadosList = [];
+let stateFilter = '';
+let manualItems = [];
+
+async function init() {
+  allProducts = await fetchProductos();
+  await loadMotorizados();
+  await loadOrders();
+  if (window.location.hash === '#manual') openManualOrderModal();
+}
+
+async function loadMotorizados() {
+  try { motorizadosList = await api.pedidos.motorizados(false); }
+  catch { motorizadosList = []; }
+}
 
 async function loadOrders() {
   allOrders = await fetchPedidos();
-  renderKPIs();
-  filterOrders();
+  renderOrders();
 }
 
-function renderKPIs() {
-  ['pendiente','confirmado','en_camino','entregado','cancelado'].forEach(e => {
-    const el = document.getElementById('cnt'+e.split('_').map(w=>w[0].toUpperCase()+w.slice(1)).join(''));
-    if(el) el.textContent = allOrders.filter(o=>o.estado===e).length;
-  });
+function setOrderState(st, el) {
+  stateFilter = st;
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderOrders();
 }
 
-function filterOrders() {
-  const q = document.getElementById('orderSearch').value.toLowerCase();
-  const estado = document.getElementById('estadoFilter').value;
-  let filtered = allOrders.filter(o => {
-    if (q && !o.numero_pedido.toLowerCase().includes(q) && !o.nombre_cliente.toLowerCase().includes(q)) return false;
-    if (estado && o.estado !== estado) return false;
+function renderOrders() {
+  const q = normalizeText(document.getElementById('orderSearch').value);
+  const canal = document.getElementById('filterCanal').value;
+
+  const list = allOrders.filter(o => {
+    if (stateFilter && o.estado !== stateFilter) return false;
+    if (canal && o.canal !== canal) return false;
+    if (q && !normalizeText(`${o.numero_pedido} ${o.nombre_cliente} ${o.telefono_cliente || ''}`).includes(q)) return false;
     return true;
   });
-  renderOrdersTable(filtered);
-}
 
-function renderOrdersTable(orders) {
-  const body = document.getElementById('ordersTableBody');
-  if (!orders.length) { body.innerHTML='<tr><td colspan="8" style="text-align:center;padding:32px;color:rgba(255,255,255,0.3);">No hay pedidos</td></tr>'; return; }
-  const canalIcons = { web:'🌐', whatsapp:'💬', tienda_fisica:'🏪' };
-  body.innerHTML = orders.map(o => `
+  document.getElementById('ordersCountLbl').textContent = `${list.length} pedido${list.length !== 1 ? 's' : ''}`;
+  const tbody = document.getElementById('ordersBody');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:36px;color:rgba(255,255,255,0.4);">No hay pedidos con estos filtros</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = list.map(o => `
     <tr>
-      <td><div style="font-weight:700;font-family:monospace;color:var(--color-primary-light);">${o.numero_pedido}</div></td>
-      <td><div class="table-product-name">${o.nombre_cliente}</div></td>
-      <td style="font-size:0.82rem;color:rgba(255,255,255,0.5);">${o.telefono_cliente||'–'}</td>
-      <td style="font-weight:700;color:var(--color-primary-light);">${formatCurrency(o.total)}</td>
-      <td><span class="status-badge status-${o.estado}">${o.estado.replace('_',' ')}</span></td>
-      <td style="font-size:0.85rem;">${canalIcons[o.canal]||''} ${o.canal||'web'}</td>
-      <td style="font-size:0.78rem;color:rgba(255,255,255,0.4);">${formatDateTime(o.fecha)}</td>
+      <td><strong style="color:var(--color-brand-pastel);">${o.numero_pedido}</strong></td>
       <td>
-        <div style="display:flex;gap:6px;">
-          <button class="btn-table btn-table-view" onclick="viewOrder(${o.id})">👁 Ver</button>
-          <select class="btn-table btn-table-edit" style="padding:5px 8px;font-size:0.75rem;" onchange="updateEstado(${o.id},this.value)" aria-label="Cambiar estado">
-            ${ESTADOS.map(e=>`<option value="${e}" ${o.estado===e?'selected':''}>${e.replace('_',' ')}</option>`).join('')}
-          </select>
-        </div>
+        <div class="table-product-name">${o.nombre_cliente}</div>
+        <div class="table-product-sku">${o.telefono_cliente || 'Sin teléfono'}</div>
+      </td>
+      <td><span class="badge badge-muted">${o.canal || 'web'}</span></td>
+      <td style="font-size:0.8rem;">
+        <div>${o.metodo_entrega === 'retiro' ? '🏬 Retiro en tienda' : '🛵 Domicilio'}</div>
+        ${o.motorizado_nombre ? `<div style="color:#38bdf8;">Repartidor: ${o.motorizado_nombre}</div>` : ''}
+      </td>
+      <td style="font-weight:700;color:#34d399;">${formatCurrency(o.total)}</td>
+      <td><span class="status-badge status-${o.estado}">${o.estado.replace('_', ' ')}</span></td>
+      <td>
+        ${o.numero_factura
+          ? `<a href="facturacion.html" class="badge badge-success">${o.numero_factura}</a>`
+          : (o.estado !== 'cancelado' ? `<button class="btn-table btn-table-edit" onclick="quickInvoice(${o.id})">🧾 Facturar</button>` : '—')}
+      </td>
+      <td style="font-size:0.78rem;white-space:nowrap;">${formatDateTime(o.fecha)}</td>
+      <td>
+        <button class="btn-table btn-table-view" onclick="openOrderDetail(${o.id})">👁 Gestionar</button>
       </td>
     </tr>`).join('');
 }
 
-async function updateEstado(orderId, nuevoEstado) {
-  try { await api.pedidos.updateEstado(orderId, nuevoEstado); }
-  catch { /* mock */ const o = allOrders.find(x=>x.id===orderId); if(o) o.estado=nuevoEstado; }
-  showToast(`Estado actualizado: ${nuevoEstado} ✅`, 'success');
-  renderKPIs();
+function openOrderDetail(id) {
+  const o = allOrders.find(x => x.id == id);
+  if (!o) return;
+  document.getElementById('detTitle').textContent = `Pedido ${o.numero_pedido} — ${o.nombre_cliente}`;
+
+  const motoOptions = `<option value="">— Sin asignar —</option>` +
+    motorizadosList.filter(m => m.activo !== false).map(m =>
+      `<option value="${m.id}" ${o.motorizado_id == m.id ? 'selected' : ''}>${m.nombre} (${m.telefono})</option>`
+    ).join('');
+
+  const itemsHtml = (o.items || []).map(it =>
+    `<div class="flex-between" style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:0.86rem;">
+      <span>${it.cantidad} × ${it.nombre_producto}</span>
+      <strong>${formatCurrency(it.subtotal)}</strong>
+    </div>`
+  ).join('') || '<div style="color:rgba(255,255,255,0.4);font-size:0.84rem;">Sin detalle de ítems</div>';
+
+  const waClean = String(o.telefono_cliente || '').replace(/\D/g, '');
+  const waHref = waClean ? `https://wa.me/${waClean.startsWith('505') ? waClean : '505' + waClean}?text=${encodeURIComponent(`Hola ${o.nombre_cliente}, te escribimos de Shiny Skin sobre tu pedido ${o.numero_pedido}.`)}` : '#';
+
+  document.getElementById('detContent').innerHTML = `
+    <div class="grid-2" style="gap:14px;margin-bottom:16px;font-size:0.85rem;">
+      <div style="background:rgba(255,255,255,0.04);padding:12px;border-radius:12px;">
+        <div><strong>Cliente:</strong> ${o.nombre_cliente}</div>
+        <div><strong>Teléfono:</strong> ${o.telefono_cliente || '—'} ${waClean ? `<a href="${waHref}" target="_blank" style="color:#34d399;margin-left:6px;">💬 WhatsApp</a>` : ''}</div>
+        <div><strong>Modalidad:</strong> ${o.metodo_entrega === 'retiro' ? 'Retiro en Concept Store' : 'Envío a domicilio'}</div>
+        <div><strong>Dirección:</strong> ${o.direccion_entrega || '—'}</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);padding:12px;border-radius:12px;">
+        <div><strong>Pago:</strong> ${o.metodo_pago || '—'}</div>
+        ${o.monto_pago_cliente ? `<div><strong>Paga con:</strong> ${formatCurrency(o.monto_pago_cliente)} · <strong>Cambio:</strong> <span style="color:#fbbf24;">${formatCurrency(o.cambio_entregar)}</span></div>` : ''}
+        <div><strong>Envío:</strong> ${formatCurrency(o.costo_envio || 0)}</div>
+        <div style="font-size:1rem;margin-top:4px;"><strong>Total:</strong> <strong style="color:#34d399;">${formatCurrency(o.total)}</strong></div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <div class="admin-form-label" style="margin-bottom:6px;">Productos solicitados</div>
+      ${itemsHtml}
+    </div>
+
+    <div class="admin-form-grid" style="margin-bottom:18px;">
+      <div class="admin-form-group">
+        <label class="admin-form-label">Cambiar Estado del Pedido</label>
+        <select class="admin-form-control" id="detEstadoSel">
+          ${['pendiente', 'confirmado', 'en_camino', 'entregado', 'cancelado'].map(st =>
+            `<option value="${st}" ${o.estado === st ? 'selected' : ''}>${st.toUpperCase().replace('_', ' ')}</option>`
+          ).join('')}
+        </select>
+      </div>
+      <div class="admin-form-group">
+        <label class="admin-form-label">Motorizado Asignado (HU-09)</label>
+        <select class="admin-form-control" id="detMotoSel">${motoOptions}</select>
+      </div>
+    </div>
+
+    <div class="flex-between" style="flex-wrap:wrap;gap:10px;">
+      <div>
+        ${!o.numero_factura && o.estado !== 'cancelado'
+          ? `<button type="button" class="btn-admin-secondary" onclick="quickInvoice(${o.id}, true)">🧾 Emitir Factura de este Pedido</button>`
+          : (o.numero_factura ? `<span class="badge badge-success">Facturado: ${o.numero_factura}</span>` : '')}
+      </div>
+      <button type="button" class="btn-admin-primary" onclick="saveOrderChanges(${o.id})">💾 Guardar Cambios</button>
+    </div>
+  `;
+  document.getElementById('detailModal').classList.add('active');
 }
 
-function viewOrder(orderId) {
-  const o = allOrders.find(x=>x.id===orderId);
-  if(!o) return;
-  document.getElementById('orderDetailTitle').textContent = `Pedido ${o.numero_pedido}`;
-  const canalIcons = { web:'🌐', whatsapp:'💬', tienda_fisica:'🏪' };
-  document.getElementById('orderDetailContent').innerHTML = `
-    <div class="admin-form-grid" style="margin-bottom:20px;">
-      <div><div class="admin-form-label">Cliente</div><div style="color:rgba(255,255,255,0.85);font-weight:600;margin-top:4px;">${o.nombre_cliente}</div></div>
-      <div><div class="admin-form-label">Teléfono</div><div style="color:rgba(255,255,255,0.85);margin-top:4px;">${o.telefono_cliente||'–'}</div></div>
-      <div><div class="admin-form-label">Email</div><div style="color:rgba(255,255,255,0.85);margin-top:4px;">${o.email_cliente||'–'}</div></div>
-      <div><div class="admin-form-label">Canal</div><div style="color:rgba(255,255,255,0.85);margin-top:4px;">${canalIcons[o.canal]||''} ${o.canal}</div></div>
-      <div style="grid-column:1/-1;"><div class="admin-form-label">Dirección</div><div style="color:rgba(255,255,255,0.85);margin-top:4px;">${o.direccion_entrega||'No especificada'}</div></div>
-      <div style="grid-column:1/-1;"><div class="admin-form-label">Notas</div><div style="color:rgba(255,255,255,0.6);margin-top:4px;">${o.notas||'–'}</div></div>
-    </div>
-    <div style="background:rgba(255,255,255,0.04);border-radius:var(--radius-md);padding:16px;margin-bottom:16px;">
-      <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:rgba(255,255,255,0.3);margin-bottom:12px;">ITEMS DEL PEDIDO</div>
-      ${(o.items&&o.items.length) ? o.items.map(i=>`
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.85rem;">
-          <span style="color:rgba(255,255,255,0.75);">${i.nombre_producto} × ${i.cantidad}</span>
-          <span style="font-weight:700;color:var(--color-primary-light);">${formatCurrency(i.subtotal)}</span>
-        </div>`).join('') : '<div style="color:rgba(255,255,255,0.3);font-size:0.85rem;">Sin detalle de items</div>'}
-    </div>
-    <div style="display:flex;flex-direction:column;gap:8px;">
-      <div style="display:flex;justify-content:space-between;font-size:0.9rem;"><span style="color:rgba(255,255,255,0.4);">Subtotal</span><span>${formatCurrency(o.subtotal)}</span></div>
-      <div style="display:flex;justify-content:space-between;font-size:0.9rem;"><span style="color:rgba(255,255,255,0.4);">IVA 15%</span><span>${formatCurrency(o.iva)}</span></div>
-      <div style="display:flex;justify-content:space-between;font-size:1rem;font-weight:800;color:white;border-top:1px solid rgba(255,255,255,0.1);padding-top:10px;"><span>TOTAL</span><span style="color:var(--color-primary-light);">${formatCurrency(o.total)}</span></div>
-    </div>
-    <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;">
-      ${ESTADOS.filter(e=>e!==o.estado).map(e=>`<button class="btn-admin-${e==='cancelado'?'secondary':'primary'}" onclick="updateEstado(${o.id},'${e}');closeModal('orderDetailModal')">→ ${e.replace('_',' ')}</button>`).join('')}
-    </div>`;
-  document.getElementById('orderDetailModal').classList.add('active');
+async function saveOrderChanges(orderId) {
+  const estado = document.getElementById('detEstadoSel').value;
+  const motorizado_id = document.getElementById('detMotoSel').value || null;
+  try {
+    await api.pedidos.updateEstado(orderId, estado, { motorizado_id });
+    showToast('Pedido actualizado correctamente', 'success');
+    document.getElementById('detailModal').classList.remove('active');
+    allProducts = await fetchProductos();
+    await loadOrders();
+    renderAdminSidebar('pedidos');
+  } catch (err) {
+    showToast(err.message || 'Error al actualizar pedido', 'error');
+  }
 }
 
-function openNuevoPedidoModal() { document.getElementById('nuevoPedidoModal').classList.add('active'); }
-function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+async function quickInvoice(orderId, closeDet = false) {
+  try {
+    const fac = await api.facturas.create({ order_id: orderId });
+    showToast(`Factura ${fac.numero_factura} generada con éxito`, 'success');
+    if (closeDet) document.getElementById('detailModal').classList.remove('active');
+    await loadOrders();
+  } catch (err) {
+    showToast(err.message || 'Error al generar factura', 'error');
+  }
+}
 
-async function createManualOrder() {
-  const cliente = document.getElementById('npCliente').value;
-  if (!cliente) { showToast('Ingresa el nombre del cliente', 'error'); return; }
-  const num = 'SS-'+Math.random().toString(36).substr(2,6).toUpperCase();
-  const newOrder = {
-    id: Date.now(), numero_pedido: num, nombre_cliente: cliente,
-    telefono_cliente: document.getElementById('npTel').value,
-    direccion_entrega: document.getElementById('npDir').value,
-    notas: document.getElementById('npNotas').value,
-    canal: document.getElementById('npCanal').value,
-    metodo_pago: document.getElementById('npPago').value,
-    estado: 'pendiente', total: 0, subtotal: 0, iva: 0,
-    fecha: new Date().toISOString(), items: []
+// ---- Pedido Manual ----
+function openManualOrderModal() {
+  manualItems = [];
+  document.getElementById('moNombre').value = '';
+  document.getElementById('moTel').value = '';
+  document.getElementById('moDir').value = '';
+  document.getElementById('moEnvio').value = 100;
+  document.getElementById('moMontoCliente').value = '';
+
+  const sel = document.getElementById('moProdSelect');
+  sel.innerHTML = allProducts.filter(p => p.stock > 0).map(p =>
+    `<option value="${p.id}">${p.nombre} — ${formatCurrency(p.precio_final)} (Stock: ${p.stock})</option>`
+  ).join('');
+
+  document.getElementById('moMotorizado').innerHTML = `<option value="">— Sin asignar aún —</option>` +
+    motorizadosList.filter(m => m.activo !== false).map(m => `<option value="${m.id}">${m.nombre} (${m.empresa || ''})</option>`).join('');
+
+  renderManualItems();
+  document.getElementById('manualModal').classList.add('active');
+}
+
+function addManualItem() {
+  const pid = parseInt(document.getElementById('moProdSelect').value);
+  const qty = parseInt(document.getElementById('moProdQty').value) || 1;
+  const prod = allProducts.find(p => p.id == pid);
+  if (!prod) return;
+
+  const existing = manualItems.find(i => i.product_id == pid);
+  const newQty = (existing ? existing.cantidad : 0) + qty;
+  if (newQty > prod.stock) {
+    showToast(`Stock insuficiente para ${prod.nombre} (máx: ${prod.stock})`, 'error');
+    return;
+  }
+  if (existing) existing.cantidad = newQty;
+  else manualItems.push({ product_id: prod.id, nombre: prod.nombre, precio: prod.precio_final, cantidad: qty });
+
+  document.getElementById('moProdQty').value = 1;
+  renderManualItems();
+}
+
+function removeManualItem(pid) {
+  manualItems = manualItems.filter(i => i.product_id != pid);
+  renderManualItems();
+}
+
+function renderManualItems() {
+  const box = document.getElementById('moItemsList');
+  if (!manualItems.length) {
+    box.innerHTML = '<div style="color:rgba(255,255,255,0.4);">Aún no has agregado productos al pedido.</div>';
+  } else {
+    box.innerHTML = manualItems.map(i => `
+      <div class="flex-between" style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+        <span>${i.cantidad} × ${i.nombre} (${formatCurrency(i.precio)})</span>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <strong>${formatCurrency(i.cantidad * i.precio)}</strong>
+          <button type="button" onclick="removeManualItem(${i.product_id})" style="color:#f87171;">✕</button>
+        </div>
+      </div>`).join('');
+  }
+  recalcManualTotal();
+}
+
+function recalcManualTotal() {
+  const entrega = document.getElementById('moEntrega').value;
+  document.getElementById('moDirGroup').style.display = entrega === 'retiro' ? 'none' : 'flex';
+  if (entrega === 'retiro') document.getElementById('moEnvio').value = 0;
+
+  const sub = manualItems.reduce((s, i) => s + i.precio * i.cantidad, 0);
+  const env = entrega === 'retiro' ? 0 : (parseFloat(document.getElementById('moEnvio').value) || 0);
+  const tot = sub + env;
+  const paga = parseFloat(document.getElementById('moMontoCliente').value) || 0;
+  const vuelto = paga > tot ? ` · Vuelto: ${formatCurrency(paga - tot)}` : '';
+  document.getElementById('moTotalSummary').textContent = `Total: ${formatCurrency(tot)}${vuelto}`;
+}
+
+async function submitManualOrder(e) {
+  e.preventDefault();
+  if (!manualItems.length) {
+    showToast('Agrega al menos un producto al pedido.', 'error');
+    return;
+  }
+  const entrega = document.getElementById('moEntrega').value;
+  const payload = {
+    nombre_cliente: document.getElementById('moNombre').value.trim(),
+    telefono_cliente: document.getElementById('moTel').value.trim(),
+    canal: document.getElementById('moCanal').value,
+    metodo_entrega: entrega,
+    direccion_entrega: entrega === 'retiro' ? 'Retiro en Concept Store' : document.getElementById('moDir').value.trim(),
+    costo_envio: entrega === 'retiro' ? 0 : (parseFloat(document.getElementById('moEnvio').value) || 0),
+    metodo_pago: document.getElementById('moPago').value,
+    monto_pago_cliente: parseFloat(document.getElementById('moMontoCliente').value) || null,
+    motorizado_id: document.getElementById('moMotorizado').value || null,
+    estado: 'confirmado',
+    items: manualItems.map(i => ({ product_id: i.product_id, cantidad: i.cantidad }))
   };
-  allOrders.unshift(newOrder);
-  closeModal('nuevoPedidoModal');
-  renderKPIs();
-  filterOrders();
-  showToast(`Pedido ${num} creado ✅`, 'success');
+
+  const btn = document.getElementById('btnCreateManual');
+  btn.disabled = true;
+  try {
+    const created = await api.pedidos.create(payload);
+    showToast(`Pedido ${created.numero_pedido} registrado y stock descontado`, 'success');
+    document.getElementById('manualModal').classList.remove('active');
+    allProducts = await fetchProductos();
+    await loadOrders();
+  } catch (err) {
+    showToast(err.message || 'No se pudo registrar el pedido', 'error');
+  } finally {
+    btn.disabled = false;
+  }
 }
 
-document.querySelectorAll('.modal-overlay').forEach(overlay => {
-  overlay.addEventListener('click', e => { if(e.target===overlay) overlay.classList.remove('active'); });
-});
+// ---- Motorizados ----
+function openMotoModal() {
+  renderMotoList();
+  document.getElementById('motoModal').classList.add('active');
+}
 
-loadOrders();
+function renderMotoList() {
+  const box = document.getElementById('motoListContainer');
+  if (!motorizadosList.length) {
+    box.innerHTML = '<div style="color:rgba(255,255,255,0.4);">No hay motorizados registrados.</div>';
+    return;
+  }
+  box.innerHTML = motorizadosList.map(m => `
+    <div class="flex-between" style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.07);">
+      <div>
+        <strong>${m.nombre}</strong> · <span style="color:var(--color-brand-pastel);">${m.telefono}</span>
+        <div style="font-size:0.75rem;color:rgba(255,255,255,0.45);">${m.empresa || 'Independiente'} · ${m.pedidos_asignados || 0} en ruta</div>
+      </div>
+      <span class="badge ${m.activo ? 'badge-success' : 'badge-danger'}">${m.activo ? 'Activo' : 'Inactivo'}</span>
+    </div>`).join('');
+}
+
+async function saveMotorizado(e) {
+  e.preventDefault();
+  const nombre = document.getElementById('newMotoNombre').value.trim();
+  const telefono = document.getElementById('newMotoTel').value.trim();
+  try {
+    await api.pedidos.createMotorizado({ nombre, telefono, empresa: 'Delivery Managua' });
+    document.getElementById('newMotoNombre').value = '';
+    document.getElementById('newMotoTel').value = '';
+    await loadMotorizados();
+    renderMotoList();
+    showToast('Motorizado registrado', 'success');
+  } catch (err) {
+    showToast(err.message || 'Error al registrar motorizado', 'error');
+  }
+}
+
+init();
 </script>
 </body>
 </html>

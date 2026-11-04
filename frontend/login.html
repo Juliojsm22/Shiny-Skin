@@ -1,134 +1,223 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Login – Shiny Skin</title>
-  <link rel="stylesheet" href="css/main.css"/><link rel="stylesheet" href="css/tienda.css"/>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Acceso – SISCO Shiny Skin</title>
+  <link rel="stylesheet" href="css/main.css"/>
+  <link rel="stylesheet" href="css/tienda.css"/>
 </head>
 <body>
 <div class="login-page">
   <div class="login-card fade-in">
     <div class="login-logo">
+      <img src="img/SHINY LOGO 1.jpg" alt="Shiny Skin Logo" />
       <div class="login-logo-text">Shiny Skin</div>
-      <div style="font-size:0.75rem;color:var(--color-text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:1.5px;">Sistema SISCO v1.0</div>
+      <div style="font-size:0.74rem;color:var(--color-primary);margin-top:2px;font-weight:700;text-transform:uppercase;letter-spacing:1.4px;">Sistema Omnicanal SISCO</div>
     </div>
 
-    <div class="login-tabs">
+    <div class="login-tabs" id="authTabs">
       <div class="login-tab active" id="tabLogin" onclick="switchTab('login')">Iniciar sesión</div>
-      <div class="login-tab" id="tabRegister" onclick="switchTab('register')">Registrarse</div>
+      <div class="login-tab" id="tabRegister" onclick="switchTab('register')">Crear cuenta</div>
+      <div class="login-tab" id="tabRecover" onclick="switchTab('recover')">Recuperar</div>
     </div>
 
     <!-- Login Form -->
     <form id="loginForm" onsubmit="doLogin(event)">
-      <p class="login-subtitle" style="margin-bottom:24px;">Bienvenida de vuelta 🌸</p>
-      <div class="form-group" style="margin-bottom:16px;">
-        <label class="form-label" for="loginEmail">Correo electrónico</label>
-        <input class="form-control" id="loginEmail" type="email" placeholder="tu@email.com" required value="admin@shinyskin.com"/>
+      <p class="login-subtitle">Ingresa con tu correo electrónico o nombre de usuario</p>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label" for="loginEmail">Correo o Usuario</label>
+        <input class="form-control" id="loginEmail" type="text" placeholder="admin@shinyskin.ni o admin" required value="admin@shinyskin.ni"/>
       </div>
-      <div class="form-group" style="margin-bottom:24px;">
+      <div class="form-group" style="margin-bottom:18px;">
         <label class="form-label" for="loginPass">Contraseña</label>
         <input class="form-control" id="loginPass" type="password" placeholder="••••••••" required value="admin123"/>
       </div>
-      <div style="background:var(--color-surface-2);border-radius:var(--radius-md);padding:12px;margin-bottom:20px;font-size:0.8rem;color:var(--color-text-muted);">
-        <div style="font-weight:700;margin-bottom:4px;">🔑 Credenciales de demo:</div>
-        <div>Admin: admin@shinyskin.com / admin123</div>
-        <div>Cliente: maria@gmail.com / cliente123</div>
+
+      <div style="background:var(--color-surface-2);border:1px solid var(--color-surface-3);border-radius:var(--radius-md);padding:12px;margin-bottom:18px;font-size:0.78rem;color:var(--color-text-muted);line-height:1.6;">
+        <div style="font-weight:700;color:var(--color-primary-darker);margin-bottom:3px;">🔑 Accesos rápidos de demostración:</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+          <button type="button" class="badge badge-primary" style="cursor:pointer;border:none;" onclick="fillDemo('admin@shinyskin.ni','admin123')">👩‍💼 Admin (admin123)</button>
+          <button type="button" class="badge badge-info" style="cursor:pointer;border:none;" onclick="fillDemo('ventas@shinyskin.ni','ventas123')">🛍️ Vendedora (ventas123)</button>
+        </div>
       </div>
-      <button type="submit" class="btn btn-primary btn-lg" style="width:100%;" id="loginBtn">Iniciar sesión</button>
-      <div style="text-align:center;margin-top:16px;font-size:0.82rem;color:var(--color-text-muted);">
-        ¿No tienes cuenta? <a onclick="switchTab('register')" style="color:var(--color-primary);cursor:pointer;font-weight:600;">Regístrate</a>
+
+      <button type="submit" class="btn btn-primary btn-lg" style="width:100%;" id="loginBtn">Ingresar al sistema</button>
+      <div style="text-align:center;margin-top:14px;font-size:0.82rem;color:var(--color-text-muted);">
+        <a onclick="switchTab('recover')" style="color:var(--color-primary-dark);cursor:pointer;font-weight:600;">¿Olvidaste tu contraseña?</a>
       </div>
     </form>
 
     <!-- Register Form -->
     <form id="registerForm" style="display:none;" onsubmit="doRegister(event)">
-      <p class="login-subtitle" style="margin-bottom:24px;">Crea tu cuenta en segundos ✨</p>
-      <div class="form-group" style="margin-bottom:14px;">
-        <label class="form-label" for="regNombre">Nombre completo</label>
-        <input class="form-control" id="regNombre" type="text" placeholder="María González" required/>
+      <p class="login-subtitle">Regístrate como clienta para agilizar tus futuras compras ✨</p>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label" for="regNombre">Nombre completo *</label>
+        <input class="form-control" id="regNombre" type="text" placeholder="María Fernanda González" required/>
       </div>
-      <div class="form-group" style="margin-bottom:14px;">
-        <label class="form-label" for="regEmail">Correo electrónico</label>
-        <input class="form-control" id="regEmail" type="email" placeholder="tu@email.com" required/>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label" for="regEmail">Correo electrónico *</label>
+        <input class="form-control" id="regEmail" type="email" placeholder="tucorreo@ejemplo.com" required/>
       </div>
-      <div class="form-group" style="margin-bottom:14px;">
-        <label class="form-label" for="regTel">Teléfono</label>
-        <input class="form-control" id="regTel" type="tel" placeholder="505-8888-0000"/>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label" for="regTel">Teléfono / WhatsApp</label>
+        <input class="form-control" id="regTel" type="tel" placeholder="8888-0000"/>
       </div>
-      <div class="form-group" style="margin-bottom:24px;">
-        <label class="form-label" for="regPass">Contraseña</label>
-        <input class="form-control" id="regPass" type="password" placeholder="Mín. 6 caracteres" required minlength="6"/>
+      <div class="form-group" style="margin-bottom:20px;">
+        <label class="form-label" for="regPass">Contraseña *</label>
+        <input class="form-control" id="regPass" type="password" placeholder="Mínimo 6 caracteres" required minlength="6"/>
       </div>
-      <button type="submit" class="btn btn-primary btn-lg" style="width:100%;" id="regBtn">Crear cuenta</button>
-      <div style="text-align:center;margin-top:16px;font-size:0.82rem;color:var(--color-text-muted);">
-        ¿Ya tienes cuenta? <a onclick="switchTab('login')" style="color:var(--color-primary);cursor:pointer;font-weight:600;">Iniciar sesión</a>
+      <button type="submit" class="btn btn-primary btn-lg" style="width:100%;" id="regBtn">Crear mi cuenta</button>
+    </form>
+
+    <!-- Password Recovery Form (FRQ-0004) -->
+    <form id="recoverForm" style="display:none;" onsubmit="doRecover(event)">
+      <p class="login-subtitle">Recupera el acceso a tu cuenta SISCO 🔐</p>
+      <div id="recoverStep1">
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label" for="recEmail">Correo electrónico registrado *</label>
+          <input class="form-control" id="recEmail" type="email" placeholder="admin@shinyskin.ni" />
+        </div>
+        <button type="button" class="btn btn-primary" style="width:100%;" onclick="requestResetCode()" id="btnReqCode">Generar código de recuperación</button>
+      </div>
+
+      <div id="recoverStep2" style="display:none;margin-top:14px;">
+        <div class="alert alert-info" style="margin-bottom:14px;font-size:0.8rem;" id="resetTokenHint"></div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label" for="recToken">Código de verificación *</label>
+          <input class="form-control" id="recToken" type="text" placeholder="Código de 6 dígitos" />
+        </div>
+        <div class="form-group" style="margin-bottom:18px;">
+          <label class="form-label" for="recNewPass">Nueva contraseña *</label>
+          <input class="form-control" id="recNewPass" type="password" placeholder="Mínimo 6 caracteres" minlength="6" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg" style="width:100%;" id="btnResetPass">Actualizar contraseña</button>
       </div>
     </form>
 
-    <div style="text-align:center;margin-top:24px;">
-      <a href="index.html" style="font-size:0.82rem;color:var(--color-text-light);">← Volver a la tienda sin iniciar sesión</a>
+    <div style="text-align:center;margin-top:22px;padding-top:16px;border-top:1px solid var(--color-surface-3);">
+      <a href="index.html" style="font-size:0.83rem;color:var(--color-primary-dark);font-weight:600;">← Volver a la tienda pública (sin iniciar sesión)</a>
     </div>
   </div>
 </div>
 
 <script src="js/api.js"></script>
 <script>
-// Check if already has tab in URL
-if (window.location.hash === '#register') switchTabInit('register');
+if (window.location.hash === '#register') setTimeout(() => switchTab('register'), 30);
+
+function fillDemo(user, pass) {
+  document.getElementById('loginEmail').value = user;
+  document.getElementById('loginPass').value = pass;
+}
 
 function switchTab(tab) {
-  document.getElementById('tabLogin').classList.toggle('active', tab==='login');
-  document.getElementById('tabRegister').classList.toggle('active', tab==='register');
-  document.getElementById('loginForm').style.display = tab==='login'?'block':'none';
-  document.getElementById('registerForm').style.display = tab==='register'?'block':'none';
+  document.getElementById('tabLogin').classList.toggle('active', tab === 'login');
+  document.getElementById('tabRegister').classList.toggle('active', tab === 'register');
+  document.getElementById('tabRecover').classList.toggle('active', tab === 'recover');
+  document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
+  document.getElementById('recoverForm').style.display = tab === 'recover' ? 'block' : 'none';
 }
-function switchTabInit(tab) { setTimeout(()=>switchTab(tab),50); }
 
 async function doLogin(e) {
   e.preventDefault();
   const btn = document.getElementById('loginBtn');
-  btn.disabled=true; btn.textContent='Entrando...';
-  const email = document.getElementById('loginEmail').value;
+  btn.disabled = true;
+  btn.textContent = 'Verificando...';
+
+  const identifier = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPass').value;
+
   try {
-    const result = await api.auth.login({ email, password });
+    const result = await api.auth.login({ email: identifier, username: identifier, password });
     localStorage.setItem('sisco_token', result.token);
     localStorage.setItem('sisco_user', JSON.stringify(result.user));
-    if (result.user.rol === 'admin' || result.user.rol === 'vendedor') window.location = 'admin/dashboard.html';
-    else window.location = 'index.html';
-  } catch (err) {
-    // Mock login para demo
-    if (email === 'admin@shinyskin.com' && password === 'admin123') {
-      localStorage.setItem('sisco_user', JSON.stringify({nombre:'Administrador', email, rol:'admin'}));
-      window.location='admin/dashboard.html';
-    } else if (email === 'maria@gmail.com' && password === 'cliente123') {
-      localStorage.setItem('sisco_user', JSON.stringify({nombre:'María González', email, rol:'cliente'}));
-      window.location='index.html';
+    const nextUrl = new URLSearchParams(window.location.search).get('next');
+    if (result.user.rol === 'admin' || result.user.rol === 'vendedor') {
+      window.location = nextUrl && nextUrl.includes('/admin/') ? nextUrl : 'admin/dashboard.html';
     } else {
-      showToast('Credenciales incorrectas. Usa las del demo.', 'error');
-      btn.disabled=false; btn.textContent='Iniciar sesión';
+      window.location = 'index.html';
     }
+  } catch (err) {
+    if (err.isNetworkError) {
+      // Respaldo offline solo cuando no hay backend activo
+      if ((identifier === 'admin@shinyskin.ni' || identifier === 'admin@shinyskin.com' || identifier === 'admin') && password === 'admin123') {
+        localStorage.setItem('sisco_token', 'offline-demo-token');
+        localStorage.setItem('sisco_user', JSON.stringify({ id: 1, nombre: 'Valeska Martínez (Admin)', email: 'admin@shinyskin.ni', rol: 'admin' }));
+        window.location = 'admin/dashboard.html';
+        return;
+      }
+      if ((identifier === 'ventas@shinyskin.ni' || identifier === 'ventas') && password === 'ventas123') {
+        localStorage.setItem('sisco_token', 'offline-demo-token');
+        localStorage.setItem('sisco_user', JSON.stringify({ id: 2, nombre: 'Asesora Concept Store', email: 'ventas@shinyskin.ni', rol: 'vendedor' }));
+        window.location = 'admin/dashboard.html';
+        return;
+      }
+    }
+    showToast(err.message || 'Credenciales incorrectas.', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Ingresar al sistema';
   }
 }
 
 async function doRegister(e) {
   e.preventDefault();
   const btn = document.getElementById('regBtn');
-  btn.disabled=true; btn.textContent='Creando cuenta...';
+  btn.disabled = true;
+  btn.textContent = 'Creando cuenta...';
   try {
     const result = await api.auth.register({
-      nombre: document.getElementById('regNombre').value,
-      email: document.getElementById('regEmail').value,
-      telefono: document.getElementById('regTel').value,
+      nombre: document.getElementById('regNombre').value.trim(),
+      email: document.getElementById('regEmail').value.trim(),
+      telefono: document.getElementById('regTel').value.trim(),
       password: document.getElementById('regPass').value,
     });
     localStorage.setItem('sisco_token', result.token);
     localStorage.setItem('sisco_user', JSON.stringify(result.user));
-    showToast('¡Cuenta creada exitosamente! 🎉', 'success');
-    setTimeout(()=>window.location='index.html', 1500);
-  } catch(err) {
-    showToast(err.message || 'Error al crear la cuenta', 'error');
-    btn.disabled=false; btn.textContent='Crear cuenta';
+    showToast('¡Cuenta creada exitosamente!', 'success');
+    setTimeout(() => window.location = 'index.html', 900);
+  } catch (err) {
+    showToast(err.message || 'No se pudo registrar la cuenta.', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Crear mi cuenta';
+  }
+}
+
+async function requestResetCode() {
+  const email = document.getElementById('recEmail').value.trim();
+  if (!email) { showToast('Ingresa tu correo electrónico registrado.', 'error'); return; }
+  const btn = document.getElementById('btnReqCode');
+  btn.disabled = true;
+  try {
+    const res = await api.auth.forgotPassword({ email });
+    const code = res.codigo_demo || res.reset_token;
+    document.getElementById('recoverStep2').style.display = 'block';
+    document.getElementById('resetTokenHint').innerHTML = code
+      ? `Código generado para entorno académico: <strong>${code}</strong> (válido por 30 min).`
+      : (res.message || 'Revisa tu correo e ingresa el código de verificación.');
+    if (code) document.getElementById('recToken').value = code;
+  } catch (err) {
+    showToast(err.message || 'Error al solicitar código.', 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function doRecover(e) {
+  e.preventDefault();
+  const email = document.getElementById('recEmail').value.trim();
+  const token = document.getElementById('recToken').value.trim();
+  const new_password = document.getElementById('recNewPass').value;
+  if (!email || !token || new_password.length < 6) {
+    showToast('Ingresa tu correo, el código de 6 dígitos y una contraseña de al menos 6 caracteres.', 'error');
+    return;
+  }
+  try {
+    await api.auth.resetPassword({ email, token, new_password });
+    showToast('Contraseña actualizada con éxito. Ahora puedes iniciar sesión.', 'success');
+    switchTab('login');
+  } catch (err) {
+    showToast(err.message || 'Código inválido o expirado.', 'error');
   }
 }
 </script>

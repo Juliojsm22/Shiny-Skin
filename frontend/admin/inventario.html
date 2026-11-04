@@ -2,68 +2,109 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Inventario – SISCO Admin</title>
+  <title>Inventario Dual – SISCO Shiny Skin</title>
   <link rel="stylesheet" href="../css/main.css"/><link rel="stylesheet" href="../css/admin.css"/>
 </head>
 <body class="admin-body">
-<aside class="admin-sidebar">
-  <div class="sidebar-logo"><div class="logo-text">✨ SISCO</div><div class="logo-sub">Shiny Skin · Panel Admin</div></div>
-  <nav class="sidebar-nav">
-    <div class="sidebar-section">Principal</div>
-    <a href="dashboard.html" class="sidebar-item"><span class="sidebar-icon">📊</span>Dashboard</a>
-    <div class="sidebar-section">Gestión</div>
-    <a href="productos.html" class="sidebar-item"><span class="sidebar-icon">📦</span>Productos</a>
-    <a href="inventario.html" class="sidebar-item active"><span class="sidebar-icon">🗃️</span>Inventario</a>
-    <a href="pedidos.html" class="sidebar-item"><span class="sidebar-icon">🛒</span>Pedidos</a>
-    <a href="facturacion.html" class="sidebar-item"><span class="sidebar-icon">💳</span>Facturación</a>
-    <div class="sidebar-section">Configuración</div>
-    <a href="../index.html" class="sidebar-item" target="_blank"><span class="sidebar-icon">🌐</span>Ver Tienda</a>
-    <a href="../login.html" class="sidebar-item"><span class="sidebar-icon">🚪</span>Cerrar sesión</a>
-  </nav>
-  <div class="sidebar-footer"><div class="sidebar-user"><div class="sidebar-avatar">A</div><div><div class="sidebar-user-name">Administrador</div><div class="sidebar-user-role">Admin</div></div></div></div>
-</aside>
+
+<aside class="admin-sidebar" id="sidebar"></aside>
 
 <div class="admin-main">
   <header class="admin-topbar">
-    <div class="topbar-title">🗃️ Gestión de Inventario</div>
+    <div class="topbar-title">📦 Control de Inventario Dual (Concept Store + Online)</div>
     <div class="topbar-actions">
-      <button class="btn-admin-primary" onclick="openEntradaModal()">📥 Entrada de Stock</button>
-      <button class="btn-admin-secondary" onclick="openAjusteModal()">⚙️ Ajuste</button>
+      <button class="btn-admin-secondary" onclick="openMovModal('traslado')">🔄 Trasladar Stock</button>
+      <button class="btn-admin-secondary" onclick="openMovModal('salida')">⚠️ Merma / Salida</button>
+      <button class="btn-admin-primary" onclick="openMovModal('entrada')">📥 Entrada de Mercadería</button>
     </div>
   </header>
 
   <div class="admin-content">
 
     <!-- Resumen KPIs -->
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;" id="invKpis">
-      <div class="kpi-card green"><div class="kpi-icon">📦</div><div class="kpi-value" id="kpiTotalProds">–</div><div class="kpi-label">Total productos</div></div>
-      <div class="kpi-card gold"><div class="kpi-icon">⚠️</div><div class="kpi-value" id="kpiCritico">–</div><div class="kpi-label">Stock crítico</div></div>
-      <div class="kpi-card pink"><div class="kpi-icon">❌</div><div class="kpi-value" id="kpiAgotado">–</div><div class="kpi-label">Agotados</div></div>
+    <div class="kpi-grid">
+      <div class="kpi-card blue">
+        <div class="kpi-icon">📊</div>
+        <div class="kpi-value" id="invTotalUnidades">0</div>
+        <div class="kpi-label">Unidades Totales</div>
+        <div class="kpi-change up" id="invValorVenta">Valor catálogo: —</div>
+      </div>
+      <div class="kpi-card pink">
+        <div class="kpi-icon">🏬</div>
+        <div class="kpi-value" id="invStockFisico">0</div>
+        <div class="kpi-label">Stock Tienda Física</div>
+        <div class="kpi-change" style="color:var(--color-brand-pastel);">Concept Store · Camino de Oriente</div>
+      </div>
+      <div class="kpi-card green">
+        <div class="kpi-icon">🌐</div>
+        <div class="kpi-value" id="invStockOnline">0</div>
+        <div class="kpi-label">Stock Canal Online</div>
+        <div class="kpi-change up">Web, WhatsApp e Instagram</div>
+      </div>
+      <div class="kpi-card gold">
+        <div class="kpi-icon">⚠️</div>
+        <div class="kpi-value" id="invCriticos">0</div>
+        <div class="kpi-label">Alertas Stock / Vencimiento</div>
+        <div class="kpi-change down" id="invPorVencerLbl">0 próximos a vencer</div>
+      </div>
     </div>
 
+    <!-- Pestañas -->
     <div class="admin-tabs">
-      <div class="admin-tab active" onclick="showTab('stock',this)">Stock Actual</div>
-      <div class="admin-tab" onclick="showTab('movimientos',this)">Historial de Movimientos</div>
+      <div class="admin-tab active" id="tabBtnStock" onclick="switchInvTab('stock')">📦 Existencias por Ubicación</div>
+      <div class="admin-tab" id="tabBtnKardex" onclick="switchInvTab('kardex')">📜 Kardex de Movimientos</div>
+      <div class="admin-tab" id="tabBtnRotacion" onclick="switchInvTab('rotacion')">📈 Rotación y Vencimientos (HU-11)</div>
     </div>
 
-    <!-- Stock Tab -->
+    <!-- TAB 1: Existencias -->
     <div id="tabStock">
       <div class="actions-bar">
         <div class="actions-bar-left">
           <div class="search-wrapper">
             <span class="search-icon">🔍</span>
-            <input class="search-input-admin" type="text" id="stockSearch" placeholder="Buscar producto..." oninput="filterStock()" />
+            <input class="search-input-admin" type="text" id="invSearch" placeholder="Buscar producto o SKU..." oninput="renderStockTable()" />
           </div>
-          <select class="admin-form-control" style="width:160px;padding:10px 14px;" id="stockCatFilter" onchange="filterStock()">
-            <option value="">Todas las categorías</option>
-            <option value="Skincare">Skincare</option>
-            <option value="Makeup">Makeup</option>
+          <select class="admin-form-control" style="width:auto;padding:9px 14px;" id="invFilterState" onchange="renderStockTable()">
+            <option value="all">Todos los niveles</option>
+            <option value="critical">⚠️ En alerta (≤ stock mínimo)</option>
+            <option value="out">❌ Agotados (0 uds.)</option>
+            <option value="expiring">⏳ Próximos a vencer (≤ 60 días)</option>
           </select>
-          <select class="admin-form-control" style="width:160px;padding:10px 14px;" id="stockEstadoFilter" onchange="filterStock()">
-            <option value="">Todos los estados</option>
-            <option value="critico">Stock crítico</option>
-            <option value="ok">Stock OK</option>
-            <option value="agotado">Agotado</option>
+        </div>
+      </div>
+
+      <div class="admin-card">
+        <div class="admin-table-wrapper">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Producto / SKU</th>
+                <th>🏬 Tienda Física</th>
+                <th>🌐 Online</th>
+                <th>Total Sincronizado</th>
+                <th>Mínimo</th>
+                <th>Vencimiento</th>
+                <th>Acciones Rápidas</th>
+              </tr>
+            </thead>
+            <tbody id="stockTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: Kardex -->
+    <div id="tabKardex" style="display:none;">
+      <div class="actions-bar">
+        <div class="actions-bar-left">
+          <select class="admin-form-control" style="width:auto;padding:9px 14px;" id="kardexTipo" onchange="loadMovimientos()">
+            <option value="">Todos los movimientos</option>
+            <option value="entrada">📥 Entradas de lote</option>
+            <option value="venta">🛒 Ventas (Web / POS)</option>
+            <option value="salida">⚠️ Salidas / Mermas</option>
+            <option value="traslado">🔄 Traslados Físico ↔ Online</option>
+            <option value="anulacion">↩️ Devoluciones por anulación</option>
+            <option value="ajuste">⚖️ Ajustes de auditoría</option>
           </select>
         </div>
       </div>
@@ -72,256 +113,325 @@
           <table class="admin-table">
             <thead>
               <tr>
+                <th>Fecha</th>
                 <th>Producto</th>
-                <th>Categoría</th>
-                <th>Marca</th>
-                <th>Stock</th>
-                <th>Mín.</th>
-                <th>Nivel</th>
-                <th>Precio venta</th>
-                <th>Acciones</th>
+                <th>Tipo</th>
+                <th>Ubicación</th>
+                <th>Variación</th>
+                <th>Saldo</th>
+                <th>Motivo / Referencia</th>
+                <th>Responsable</th>
               </tr>
             </thead>
-            <tbody id="stockTableBody">
-              <tr><td colspan="8" style="text-align:center;padding:32px;color:rgba(255,255,255,0.3);">Cargando...</td></tr>
-            </tbody>
+            <tbody id="kardexTableBody"></tbody>
           </table>
         </div>
       </div>
     </div>
 
-    <!-- Movimientos Tab -->
-    <div id="tabMovimientos" style="display:none;">
-      <div class="admin-card">
-        <div class="admin-table-wrapper">
-          <table class="admin-table">
-            <thead>
-              <tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Cantidad</th><th>Stock ant.</th><th>Stock nuevo</th><th>Motivo</th></tr>
-            </thead>
-            <tbody id="movTableBody">
-              <tr><td colspan="7" style="text-align:center;padding:32px;color:rgba(255,255,255,0.3);">Cargando...</td></tr>
-            </tbody>
-          </table>
+    <!-- TAB 3: Rotación (HU-11 / UC7) -->
+    <div id="tabRotacion" style="display:none;">
+      <div class="grid-3" style="gap:18px;">
+        <div class="admin-card">
+          <div class="admin-card-header"><div class="admin-card-title">🔥 Alta Rotación (Más vendidos)</div></div>
+          <div class="admin-card-body" id="rotAltaBox" style="padding:14px 18px;">Cargando...</div>
+        </div>
+        <div class="admin-card">
+          <div class="admin-card-header"><div class="admin-card-title">💤 Stock Estancado (Sin salidas)</div></div>
+          <div class="admin-card-body" id="rotEstancadoBox" style="padding:14px 18px;">Cargando...</div>
+        </div>
+        <div class="admin-card">
+          <div class="admin-card-header"><div class="admin-card-title">⏳ Próximos a Vencer (≤ 90 días)</div></div>
+          <div class="admin-card-body" id="rotVencerBox" style="padding:14px 18px;">Cargando...</div>
         </div>
       </div>
     </div>
+
   </div>
 </div>
 
-<!-- Modal Entrada -->
-<div class="modal-overlay" id="entradaModal">
-  <div class="admin-modal">
+<!-- Modal Unificado de Operaciones de Inventario -->
+<div class="modal-overlay" id="movModal" onclick="if(event.target===this)closeMovModal()">
+  <div class="admin-modal" style="max-width:520px;">
     <div class="modal-header">
-      <div class="modal-title">📥 Registrar Entrada de Stock</div>
-      <button class="modal-close" onclick="closeModal('entradaModal')">✕</button>
+      <div class="modal-title" id="movModalTitle">Operación de Inventario</div>
+      <button class="modal-close" onclick="closeMovModal()">✕</button>
     </div>
-    <div class="admin-form-grid">
-      <div class="admin-form-group admin-form-full">
-        <label class="admin-form-label">Producto</label>
-        <select class="admin-form-control" id="entradaProducto">
-          <option value="">Seleccionar producto...</option>
-        </select>
+    <form id="movForm" onsubmit="submitMovimiento(event)">
+      <input type="hidden" id="movMode" value="entrada" />
+      <div class="admin-form-group" style="margin-bottom:14px;">
+        <label class="admin-form-label">Producto *</label>
+        <select class="admin-form-control" id="movProdId" required onchange="updateMovProdInfo()"></select>
+        <div id="movProdHint" style="font-size:0.78rem;color:var(--color-brand-pastel);margin-top:4px;"></div>
       </div>
-      <div class="admin-form-group">
-        <label class="admin-form-label">Cantidad</label>
-        <input class="admin-form-control" type="number" id="entradaCantidad" min="1" value="1" placeholder="Cantidad a ingresar"/>
-      </div>
-      <div class="admin-form-group">
-        <label class="admin-form-label">Motivo</label>
-        <select class="admin-form-control" id="entradaMotivo">
-          <option>Importación recibida</option>
-          <option>Compra local</option>
-          <option>Devolución de cliente</option>
-          <option>Ajuste de inventario</option>
-        </select>
-      </div>
-    </div>
-    <div style="display:flex;gap:12px;margin-top:24px;">
-      <button class="btn-admin-primary" style="flex:1;" onclick="registrarEntrada()">✅ Registrar entrada</button>
-      <button class="btn-admin-secondary" onclick="closeModal('entradaModal')">Cancelar</button>
-    </div>
-  </div>
-</div>
 
-<!-- Modal Ajuste -->
-<div class="modal-overlay" id="ajusteModal">
-  <div class="admin-modal">
-    <div class="modal-header">
-      <div class="modal-title">⚙️ Ajustar Stock</div>
-      <button class="modal-close" onclick="closeModal('ajusteModal')">✕</button>
-    </div>
-    <div class="admin-form-grid">
-      <div class="admin-form-group admin-form-full">
-        <label class="admin-form-label">Producto</label>
-        <select class="admin-form-control" id="ajusteProducto">
-          <option value="">Seleccionar producto...</option>
-        </select>
+      <div class="admin-form-grid" style="margin-bottom:14px;">
+        <div class="admin-form-group" id="ubicacionGroup">
+          <label class="admin-form-label" id="ubicacionLabel">Ubicación destino *</label>
+          <select class="admin-form-control" id="movUbicacion">
+            <option value="fisico">🏬 Tienda Física (Concept Store)</option>
+            <option value="online">🌐 Canal Online</option>
+          </select>
+        </div>
+
+        <div class="admin-form-group" id="origenGroup" style="display:none;">
+          <label class="admin-form-label">Trasladar desde *</label>
+          <select class="admin-form-control" id="movOrigen">
+            <option value="fisico_a_online">🏬 Física → 🌐 Online</option>
+            <option value="online_a_fisico">🌐 Online → 🏬 Física</option>
+          </select>
+        </div>
+
+        <div class="admin-form-group">
+          <label class="admin-form-label" id="cantidadLabel">Cantidad *</label>
+          <input class="admin-form-control" type="number" min="0" id="movCantidad" required value="5" />
+        </div>
       </div>
-      <div class="admin-form-group">
-        <label class="admin-form-label">Nuevo stock exacto</label>
-        <input class="admin-form-control" type="number" id="ajusteStock" min="0" placeholder="Stock real contado"/>
+
+      <div class="admin-form-group" style="margin-bottom:18px;">
+        <label class="admin-form-label">Motivo / Observación *</label>
+        <input class="admin-form-control" id="movMotivo" required placeholder="Ej. Ingreso lote importación Corea #14" />
       </div>
-      <div class="admin-form-group">
-        <label class="admin-form-label">Motivo</label>
-        <select class="admin-form-control" id="ajusteMotivo">
-          <option>Conteo físico</option>
-          <option>Merma / daño</option>
-          <option>Error de registro</option>
-          <option>Otro</option>
-        </select>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;">
+        <button type="button" class="btn-admin-secondary" onclick="closeMovModal()">Cancelar</button>
+        <button type="submit" class="btn-admin-primary" id="btnSubmitMov">Confirmar Registro</button>
       </div>
-    </div>
-    <div style="display:flex;gap:12px;margin-top:24px;">
-      <button class="btn-admin-primary" style="flex:1;" onclick="registrarAjuste()">✅ Guardar ajuste</button>
-      <button class="btn-admin-secondary" onclick="closeModal('ajusteModal')">Cancelar</button>
-    </div>
+    </form>
   </div>
 </div>
 
 <script src="../js/api.js"></script>
+<script src="../js/admin-common.js"></script>
 <script>
+renderAdminSidebar('inventario');
+
 let allProducts = [];
 
-function showTab(tab, el) {
-  document.querySelectorAll('.admin-tab').forEach(t=>t.classList.remove('active'));
-  el.classList.add('active');
-  document.getElementById('tabStock').style.display = tab==='stock'?'block':'none';
-  document.getElementById('tabMovimientos').style.display = tab==='movimientos'?'block':'none';
-  if (tab==='movimientos') loadMovimientos();
+async function init() {
+  await refreshAll();
+  if (window.location.hash === '#entrada') openMovModal('entrada');
 }
 
-async function init() {
+async function refreshAll() {
   allProducts = await fetchProductos();
+  populateProductSelect();
   renderKPIs();
-  renderStockTable(allProducts);
-  populateProductSelect('entradaProducto');
-  populateProductSelect('ajusteProducto');
+  renderStockTable();
+  loadMovimientos();
 }
 
 function renderKPIs() {
-  document.getElementById('kpiTotalProds').textContent = allProducts.length;
-  document.getElementById('kpiCritico').textContent = allProducts.filter(p=>p.stock<=5&&p.stock>0).length;
-  document.getElementById('kpiAgotado').textContent = allProducts.filter(p=>p.stock===0).length;
+  const totalUds = allProducts.reduce((s, p) => s + Number(p.stock || 0), 0);
+  const totalFis = allProducts.reduce((s, p) => s + Number(p.stock_fisico ?? p.stock ?? 0), 0);
+  const totalOnl = allProducts.reduce((s, p) => s + Number(p.stock_online ?? 0), 0);
+  const valorCat = allProducts.reduce((s, p) => s + Number(p.stock || 0) * Number(p.precio_final || 0), 0);
+  const criticos = allProducts.filter(p => Number(p.stock || 0) <= Number(p.stock_minimo ?? 5)).length;
+  const porVencer = allProducts.filter(p => p.por_vencer).length;
+
+  document.getElementById('invTotalUnidades').textContent = totalUds;
+  document.getElementById('invStockFisico').textContent = totalFis;
+  document.getElementById('invStockOnline').textContent = totalOnl;
+  document.getElementById('invValorVenta').textContent = `Valor venta: ${formatCurrency(valorCat)}`;
+  document.getElementById('invCriticos').textContent = criticos;
+  document.getElementById('invPorVencerLbl').textContent = `${porVencer} próximos a vencer`;
 }
 
-function filterStock() {
-  const q = document.getElementById('stockSearch').value.toLowerCase();
-  const cat = document.getElementById('stockCatFilter').value;
-  const estado = document.getElementById('stockEstadoFilter').value;
-  let filtered = allProducts.filter(p => {
-    if (q && !p.nombre.toLowerCase().includes(q) && !(p.marca||'').toLowerCase().includes(q)) return false;
-    if (cat && !(p.categoria||'').includes(cat)) return false;
-    if (estado === 'critico' && !(p.stock<=5 && p.stock>0)) return false;
-    if (estado === 'ok' && !(p.stock>5)) return false;
-    if (estado === 'agotado' && p.stock!==0) return false;
+function populateProductSelect(selectedId = null) {
+  const sel = document.getElementById('movProdId');
+  sel.innerHTML = allProducts.map(p =>
+    `<option value="${p.id}" ${selectedId == p.id ? 'selected' : ''}>${p.nombre} (${p.sku || 'S/SKU'}) — Total: ${p.stock}</option>`
+  ).join('');
+  updateMovProdInfo();
+}
+
+function updateMovProdInfo() {
+  const id = document.getElementById('movProdId').value;
+  const p = allProducts.find(x => x.id == id);
+  const hint = document.getElementById('movProdHint');
+  if (p && hint) {
+    hint.textContent = `Actual -> 🏬 Tienda Física: ${p.stock_fisico ?? p.stock} uds. | 🌐 Online: ${p.stock_online ?? 0} uds. | Total: ${p.stock} uds.`;
+  }
+}
+
+function renderStockTable() {
+  const q = normalizeText(document.getElementById('invSearch').value);
+  const st = document.getElementById('invFilterState').value;
+
+  const list = allProducts.filter(p => {
+    if (q && !normalizeText(`${p.nombre} ${p.sku || ''} ${p.marca || ''}`).includes(q)) return false;
+    const minS = Number(p.stock_minimo ?? 5);
+    if (st === 'critical' && p.stock > minS) return false;
+    if (st === 'out' && p.stock > 0) return false;
+    if (st === 'expiring' && !p.por_vencer) return false;
     return true;
   });
-  renderStockTable(filtered);
-}
 
-function renderStockTable(products) {
-  const body = document.getElementById('stockTableBody');
-  if (!products.length) { body.innerHTML='<tr><td colspan="8" style="text-align:center;padding:32px;color:rgba(255,255,255,0.3);">Sin resultados</td></tr>'; return; }
-  body.innerHTML = products.map(p => {
-    const pct = p.stock_minimo ? Math.min(100, Math.round((p.stock/p.stock_minimo)*100)) : 100;
-    const cls = p.stock===0 ? 'stock-critical' : pct<=100 ? 'stock-warning' : 'stock-ok';
-    const actualCls = p.stock===0?'badge-danger':p.stock<=5?'badge-warning':'badge-success';
-    return `<tr>
-      <td><div class="table-product-name">${p.nombre.split(' ').slice(0,4).join(' ')}</div><div class="table-product-sku">${p.sku||''}</div></td>
-      <td style="font-size:0.82rem;">${p.categoria||'–'}</td>
-      <td style="font-size:0.82rem;">${p.marca||'–'}</td>
-      <td><span class="badge ${actualCls}">${p.stock} uds</span></td>
-      <td style="font-size:0.8rem;color:rgba(255,255,255,0.4);">${p.stock_minimo||5}</td>
-      <td style="width:120px;">
-        <div class="stock-indicator ${cls}">
-          <div class="stock-bar"><div class="stock-fill" style="width:${Math.min(100,pct)}%"></div></div>
-          <span style="font-size:0.68rem;color:rgba(255,255,255,0.3);">${Math.min(100,pct)}%</span>
-        </div>
-      </td>
-      <td style="color:var(--color-primary-light);font-weight:600;">${formatCurrency(p.precio_venta)}</td>
-      <td style="display:flex;gap:6px;">
-        <button class="btn-table btn-table-edit" onclick="quickEntrada(${p.id})">+Stock</button>
-      </td>
-    </tr>`;
+  const tbody = document.getElementById('stockTableBody');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:rgba(255,255,255,0.4);">Sin productos que coincidan</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = list.map(p => {
+    const minS = Number(p.stock_minimo ?? 5);
+    const cls = p.stock <= 0 || p.stock <= minS ? 'stock-critical' : (p.stock <= minS * 2 ? 'stock-warning' : 'stock-ok');
+    const pct = Math.min(100, Math.round((p.stock / Math.max(minS * 4, 20)) * 100));
+    return `
+      <tr>
+        <td>
+          <div class="table-product-name">${p.nombre}</div>
+          <div class="table-product-sku">${p.sku || ''} · ${p.marca || ''}</div>
+        </td>
+        <td style="font-weight:700;">${p.stock_fisico ?? p.stock} uds.</td>
+        <td style="font-weight:700;">${p.stock_online ?? 0} uds.</td>
+        <td style="min-width:150px;">
+          <div class="stock-indicator ${cls}">
+            <span style="font-weight:800;min-width:34px;">${p.stock}</span>
+            <div class="stock-bar"><div class="stock-fill" style="width:${pct}%;"></div></div>
+          </div>
+        </td>
+        <td>${minS}</td>
+        <td style="font-size:0.8rem;">
+          ${p.por_vencer ? `<span class="badge badge-warning">⏳ ${p.fecha_vencimiento}</span>` : (p.fecha_vencimiento || '—')}
+        </td>
+        <td>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn-table btn-table-edit" onclick="openMovModal('entrada', ${p.id})">+ Entrada</button>
+            <button class="btn-table btn-table-view" onclick="openMovModal('traslado', ${p.id})">🔄 Traslado</button>
+            <button class="btn-table btn-table-delete" style="color:#fbbf24;border-color:rgba(251,191,36,0.3);background:rgba(251,191,36,0.1);" onclick="openMovModal('ajuste', ${p.id})">⚖️ Ajuste</button>
+          </div>
+        </td>
+      </tr>`;
   }).join('');
 }
 
 async function loadMovimientos() {
-  let movs;
-  try { movs = await api.inventario.movimientos(); }
-  catch {
-    movs = allProducts.slice(0,6).map((p,i) => ({
-      id: i+1, producto: p.nombre.split(' ').slice(0,3).join(' '),
-      tipo: ['entrada','salida','ajuste'][i%3],
-      cantidad: [10,2,5,8,1,3][i],
-      stock_anterior: p.stock+[10,2,5,8,1,3][i],
-      stock_nuevo: p.stock,
-      motivo: ['Importación recibida','Venta pedido SS-000001','Conteo físico','Importación recibida','Venta pedido SS-000002','Conteo físico'][i],
-      fecha: new Date(Date.now()-i*86400000).toISOString()
-    }));
+  const tipo = document.getElementById('kardexTipo').value;
+  const tbody = document.getElementById('kardexTableBody');
+  try {
+    const movs = await api.inventario.movimientos(tipo ? { tipo } : {});
+    if (!movs.length) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:rgba(255,255,255,0.4);">No hay movimientos registrados</td></tr>';
+      return;
+    }
+    tbody.innerHTML = movs.map(m => {
+      const delta = (m.stock_nuevo ?? 0) - (m.stock_anterior ?? 0);
+      let signHtml = `<span style="color:var(--color-brand-pastel);font-weight:700;">⇄ ${m.cantidad}</span>`;
+      if (m.tipo === 'entrada' || m.tipo === 'anulacion' || (m.tipo === 'ajuste' && delta > 0)) {
+        signHtml = `<span style="color:#34d399;font-weight:700;">+${Math.abs(delta || m.cantidad)}</span>`;
+      } else if (m.tipo === 'salida' || m.tipo === 'venta' || (m.tipo === 'ajuste' && delta < 0)) {
+        signHtml = `<span style="color:#f87171;font-weight:700;">-${Math.abs(delta || m.cantidad)}</span>`;
+      }
+      return `
+        <tr>
+          <td style="font-size:0.78rem;white-space:nowrap;">${formatDateTime(m.fecha)}</td>
+          <td><div class="table-product-name">${m.producto || '—'}</div><div class="table-product-sku">${m.sku || ''}</div></td>
+          <td><span class="badge badge-primary">${m.tipo}</span></td>
+          <td>${m.ubicacion || 'general'}</td>
+          <td>${signHtml}</td>
+          <td style="font-size:0.82rem;">${m.stock_anterior ?? '—'} → <strong>${m.stock_nuevo ?? '—'}</strong></td>
+          <td style="font-size:0.82rem;">${m.motivo || '—'}</td>
+          <td style="font-size:0.8rem;">${m.usuario || 'Sistema'}</td>
+        </tr>`;
+    }).join('');
+  } catch {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;">Conecta el servidor para consultar el kardex histórico</td></tr>';
   }
-  const tipoColors = { entrada:'badge-success', salida:'badge-danger', ajuste:'badge-warning' };
-  document.getElementById('movTableBody').innerHTML = movs.map(m=>`
-    <tr>
-      <td style="font-size:0.78rem;color:rgba(255,255,255,0.4);">${formatDate(m.fecha)}</td>
-      <td><div class="table-product-name">${m.producto||m.product_id}</div></td>
-      <td><span class="badge ${tipoColors[m.tipo]||'badge-muted'}">${m.tipo}</span></td>
-      <td style="font-weight:700;color:${m.tipo==='entrada'?'var(--color-success)':'var(--color-danger)'};">${m.tipo==='entrada'?'+':'–'}${m.cantidad}</td>
-      <td style="font-size:0.82rem;">${m.stock_anterior??'–'}</td>
-      <td style="font-size:0.82rem;">${m.stock_nuevo??'–'}</td>
-      <td style="font-size:0.8rem;color:rgba(255,255,255,0.4);">${m.motivo||'–'}</td>
-    </tr>`).join('');
 }
 
-function populateProductSelect(selectId) {
-  const sel = document.getElementById(selectId);
-  sel.innerHTML = '<option value="">Seleccionar producto...</option>' +
-    allProducts.map(p=>`<option value="${p.id}">${p.nombre.split(' ').slice(0,5).join(' ')} (Stock: ${p.stock})</option>`).join('');
-}
-
-function openEntradaModal() { document.getElementById('entradaModal').classList.add('active'); }
-function openAjusteModal()  { document.getElementById('ajusteModal').classList.add('active'); }
-function closeModal(id)     { document.getElementById(id).classList.remove('active'); }
-function quickEntrada(productId) {
-  document.getElementById('entradaProducto').value = productId;
-  openEntradaModal();
-}
-
-async function registrarEntrada() {
-  const pid = document.getElementById('entradaProducto').value;
-  const cant = parseInt(document.getElementById('entradaCantidad').value);
-  const motivo = document.getElementById('entradaMotivo').value;
-  if (!pid || !cant) { showToast('Selecciona un producto y cantidad', 'error'); return; }
+async function loadRotacion() {
   try {
-    await api.inventario.entrada({ product_id: parseInt(pid), cantidad: cant, motivo });
-  } catch { /* mock */ const p = allProducts.find(x=>x.id==pid); if(p) p.stock+=cant; }
-  showToast(`Entrada de ${cant} unidades registrada ✅`, 'success');
-  closeModal('entradaModal');
-  allProducts = await fetchProductos();
-  renderKPIs();
-  renderStockTable(allProducts);
-  populateProductSelect('entradaProducto');
-  populateProductSelect('ajusteProducto');
+    const r = await api.inventario.rotacion();
+    const alta = r.alta_rotacion || [];
+    const est = r.baja_rotacion || r.stock_estancado || [];
+    const venc = r.proximos_vencer || [];
+
+    document.getElementById('rotAltaBox').innerHTML = alta.length
+      ? alta.map(x => `<div class="flex-between" style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:0.84rem;"><span>${x.nombre}</span><strong style="color:#34d399;">${x.unidades_vendidas} vendidos</strong></div>`).join('')
+      : '<p style="font-size:0.84rem;color:rgba(255,255,255,0.45);">Sin datos de rotación aún</p>';
+
+    document.getElementById('rotEstancadoBox').innerHTML = est.length
+      ? est.slice(0, 8).map(x => `<div class="flex-between" style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:0.84rem;"><span>${x.nombre}</span><span class="badge badge-warning">${x.stock} en stock</span></div>`).join('')
+      : '<p style="font-size:0.84rem;color:#34d399;">Todo el catálogo presenta rotación activa</p>';
+
+    document.getElementById('rotVencerBox').innerHTML = venc.length
+      ? venc.map(x => `<div class="flex-between" style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:0.84rem;"><span>${x.nombre}</span><span class="badge badge-danger">${x.fecha_vencimiento} (${x.dias_para_vencer}d)</span></div>`).join('')
+      : '<p style="font-size:0.84rem;color:#34d399;">✅ Ningún lote vence en los próximos 60 días</p>';
+  } catch {
+    document.getElementById('rotAltaBox').innerHTML = '<p style="font-size:0.84rem;">Disponible con servidor activo</p>';
+  }
 }
 
-async function registrarAjuste() {
-  const pid = document.getElementById('ajusteProducto').value;
-  const nuevoStock = parseInt(document.getElementById('ajusteStock').value);
-  const motivo = document.getElementById('ajusteMotivo').value;
-  if (!pid || isNaN(nuevoStock)) { showToast('Completa todos los campos', 'error'); return; }
+function switchInvTab(tab) {
+  document.getElementById('tabBtnStock').classList.toggle('active', tab === 'stock');
+  document.getElementById('tabBtnKardex').classList.toggle('active', tab === 'kardex');
+  document.getElementById('tabBtnRotacion').classList.toggle('active', tab === 'rotacion');
+  document.getElementById('tabStock').style.display = tab === 'stock' ? 'block' : 'none';
+  document.getElementById('tabKardex').style.display = tab === 'kardex' ? 'block' : 'none';
+  document.getElementById('tabRotacion').style.display = tab === 'rotacion' ? 'block' : 'none';
+  if (tab === 'rotacion') loadRotacion();
+  if (tab === 'kardex') loadMovimientos();
+}
+
+function openMovModal(mode, prodId = null) {
+  document.getElementById('movMode').value = mode;
+  populateProductSelect(prodId);
+
+  const titles = {
+    entrada: '📥 Registrar Entrada de Mercadería',
+    salida: '⚠️ Registrar Salida por Merma o Daño',
+    traslado: '🔄 Trasladar Stock entre Tienda Física y Online',
+    ajuste: '⚖️ Ajuste Auditado de Existencias'
+  };
+  document.getElementById('movModalTitle').textContent = titles[mode] || 'Operación';
+
+  document.getElementById('ubicacionGroup').style.display = mode === 'traslado' ? 'none' : 'flex';
+  document.getElementById('origenGroup').style.display = mode === 'traslado' ? 'flex' : 'none';
+  document.getElementById('ubicacionLabel').textContent = mode === 'ajuste' ? 'Ubicación a ajustar *' : 'Ubicación *';
+  document.getElementById('cantidadLabel').textContent = mode === 'ajuste' ? 'Nuevo conteo real *' : 'Cantidad de unidades *';
+  document.getElementById('movCantidad').min = mode === 'ajuste' ? 0 : 1;
+  document.getElementById('movCantidad').value = mode === 'ajuste' ? (allProducts.find(x => x.id == (prodId || allProducts[0]?.id))?.stock_fisico ?? 0) : 5;
+  document.getElementById('movMotivo').value = '';
+  document.getElementById('movModal').classList.add('active');
+}
+
+function closeMovModal() {
+  document.getElementById('movModal').classList.remove('active');
+}
+
+async function submitMovimiento(e) {
+  e.preventDefault();
+  const mode = document.getElementById('movMode').value;
+  const product_id = parseInt(document.getElementById('movProdId').value);
+  const cantidad = parseInt(document.getElementById('movCantidad').value);
+  const ubicacion = document.getElementById('movUbicacion').value;
+  const motivo = document.getElementById('movMotivo').value.trim();
+
+  const btn = document.getElementById('btnSubmitMov');
+  btn.disabled = true;
   try {
-    await api.inventario.ajuste({ product_id: parseInt(pid), nuevo_stock: nuevoStock, motivo });
-  } catch { const p = allProducts.find(x=>x.id==pid); if(p) p.stock=nuevoStock; }
-  showToast(`Stock ajustado a ${nuevoStock} unidades ✅`, 'success');
-  closeModal('ajusteModal');
-  renderKPIs();
-  renderStockTable(allProducts);
+    if (mode === 'entrada') {
+      await api.inventario.entrada({ product_id, cantidad, ubicacion, motivo });
+    } else if (mode === 'salida') {
+      await api.inventario.salida({ product_id, cantidad, ubicacion, motivo });
+    } else if (mode === 'traslado') {
+      const dir = document.getElementById('movOrigen').value;
+      const origen = dir === 'fisico_a_online' ? 'fisico' : 'online';
+      const destino = dir === 'fisico_a_online' ? 'online' : 'fisico';
+      await api.inventario.traslado({ product_id, cantidad, origen, destino, motivo });
+    } else if (mode === 'ajuste') {
+      await api.inventario.ajuste({ product_id, stock_nuevo: cantidad, ubicacion, motivo });
+    }
+    showToast('Inventario actualizado y registrado en Kardex', 'success');
+    closeMovModal();
+    await refreshAll();
+  } catch (err) {
+    showToast(err.message || 'No se pudo procesar el movimiento', 'error');
+  } finally {
+    btn.disabled = false;
+  }
 }
-
-// Click outside modal to close
-document.querySelectorAll('.modal-overlay').forEach(overlay => {
-  overlay.addEventListener('click', e => { if(e.target===overlay) overlay.classList.remove('active'); });
-});
 
 init();
 </script>

@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cartera de Clientes – SISCO Shiny Skin</title>
+  <link rel="stylesheet" href="../css/main.css"/><link rel="stylesheet" href="../css/admin.css"/>
+</head>
+<body class="admin-body">
+
+<aside class="admin-sidebar" id="sidebar"></aside>
+
+<div class="admin-main">
+  <header class="admin-topbar">
+    <div class="topbar-title">👥 Cartera de Clientes e Historial (HU-05)</div>
+    <div class="topbar-actions">
+      <button class="btn-admin-primary" onclick="openClientModal()">➕ Registrar Cliente</button>
+    </div>
+  </header>
+
+  <div class="admin-content">
+
+    <div class="kpi-grid">
+      <div class="kpi-card blue">
+        <div class="kpi-icon">👥</div>
+        <div class="kpi-value" id="cliTotal">0</div>
+        <div class="kpi-label">Clientes Registrados</div>
+      </div>
+      <div class="kpi-card green">
+        <div class="kpi-icon">🔁</div>
+        <div class="kpi-value" id="cliRecurrentes">0</div>
+        <div class="kpi-label">Clientes con Compras</div>
+      </div>
+      <div class="kpi-card gold">
+        <div class="kpi-icon">💎</div>
+        <div class="kpi-value" id="cliVolumen">C$ 0.00</div>
+        <div class="kpi-label">Compras Acumuladas</div>
+      </div>
+      <div class="kpi-card pink">
+        <div class="kpi-icon">🧾</div>
+        <div class="kpi-value" id="cliTicket">C$ 0.00</div>
+        <div class="kpi-label">Valor Promedio por Cliente</div>
+      </div>
+    </div>
+
+    <div class="actions-bar">
+      <div class="actions-bar-left">
+        <div class="search-wrapper">
+          <span class="search-icon">🔍</span>
+          <input class="search-input-admin" type="text" id="cliSearch" placeholder="Buscar por nombre, teléfono o dirección..." oninput="loadClients()" />
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-card">
+      <div class="admin-table-wrapper">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>Teléfono / WhatsApp</th>
+              <th>Correo</th>
+              <th>Dirección habitual</th>
+              <th>Pedidos</th>
+              <th>Total Comprado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="clientsBody">
+            <tr><td colspan="7" style="text-align:center;padding:36px;">Cargando cartera de clientes...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal Crear / Editar Cliente -->
+<div class="modal-overlay" id="clientModal" onclick="if(event.target===this)this.classList.remove('active')">
+  <div class="admin-modal" style="max-width:540px;">
+    <div class="modal-header">
+      <div class="modal-title" id="cliModalTitle">Registrar Cliente</div>
+      <button class="modal-close" onclick="document.getElementById('clientModal').classList.remove('active')">✕</button>
+    </div>
+    <form onsubmit="saveClient(event)">
+      <input type="hidden" id="cliId" />
+      <div class="admin-form-grid">
+        <div class="admin-form-group admin-form-full">
+          <label class="admin-form-label">Nombre completo *</label>
+          <input class="admin-form-control" id="cNombre" required placeholder="Ej. Andrea Carolina López" />
+        </div>
+        <div class="admin-form-group">
+          <label class="admin-form-label">Teléfono / WhatsApp</label>
+          <input class="admin-form-control" id="cTel" placeholder="8888-0000" />
+        </div>
+        <div class="admin-form-group">
+          <label class="admin-form-label">Correo electrónico</label>
+          <input class="admin-form-control" id="cEmail" type="email" placeholder="cliente@correo.com" />
+        </div>
+        <div class="admin-form-group admin-form-full">
+          <label class="admin-form-label">Dirección de entrega frecuente</label>
+          <textarea class="admin-form-control" id="cDir" rows="2" placeholder="Reparto, referencias..."></textarea>
+        </div>
+        <div class="admin-form-group admin-form-full">
+          <label class="admin-form-label">Preferencias / Tipo de piel / Notas</label>
+          <input class="admin-form-control" id="cNotas" placeholder="Ej. Piel mixta sensible, prefiere línea ANUA" />
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+        <button type="button" class="btn-admin-secondary" onclick="document.getElementById('clientModal').classList.remove('active')">Cancelar</button>
+        <button type="submit" class="btn-admin-primary">💾 Guardar Cliente</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Historial de Cliente -->
+<div class="modal-overlay" id="historyModal" onclick="if(event.target===this)this.classList.remove('active')">
+  <div class="admin-modal" style="max-width:600px;">
+    <div class="modal-header">
+      <div class="modal-title" id="histTitle">Historial del Cliente</div>
+      <button class="modal-close" onclick="document.getElementById('historyModal').classList.remove('active')">✕</button>
+    </div>
+    <div id="histBody"></div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/admin-common.js"></script>
+<script>
+renderAdminSidebar('clientes');
+
+let allClients = [];
+
+async function loadClients() {
+  const q = document.getElementById('cliSearch').value.trim();
+  try {
+    allClients = await api.clientes.list(q ? { q } : {});
+  } catch {
+    allClients = [];
+  }
+  renderClients();
+}
+
+function renderClients() {
+  const total = allClients.length;
+  const conCompras = allClients.filter(c => (c.cantidad_pedidos || 0) > 0).length;
+  const volumen = allClients.reduce((s, c) => s + Number(c.total_compras || 0), 0);
+  document.getElementById('cliTotal').textContent = total;
+  document.getElementById('cliRecurrentes').textContent = conCompras;
+  document.getElementById('cliVolumen').textContent = formatCurrency(volumen);
+  document.getElementById('cliTicket').textContent = formatCurrency(conCompras ? volumen / conCompras : 0);
+
+  const tbody = document.getElementById('clientsBody');
+  if (!allClients.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:36px;color:rgba(255,255,255,0.4);">No se encontraron clientes registrados</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = allClients.map(c => {
+    const wa = String(c.telefono || '').replace(/\D/g, '');
+    const waUrl = wa ? `https://wa.me/${wa.startsWith('505') ? wa : '505' + wa}` : '';
+    return `
+      <tr>
+        <td>
+          <div class="table-product-name">${c.nombre}</div>
+          ${c.notas ? `<div class="table-product-sku">✨ ${c.notas}</div>` : ''}
+        </td>
+        <td>
+          ${c.telefono ? `<a href="${waUrl}" target="_blank" style="color:#34d399;font-weight:600;">💬 ${c.telefono}</a>` : '—'}
+        </td>
+        <td style="font-size:0.82rem;">${c.email || '—'}</td>
+        <td style="font-size:0.8rem;max-width:220px;">${c.direccion || '—'}</td>
+        <td><span class="badge badge-primary">${c.cantidad_pedidos || 0}</span></td>
+        <td style="font-weight:700;color:#34d399;">${formatCurrency(c.total_compras || 0)}</td>
+        <td>
+          <div style="display:flex;gap:6px;">
+            <button class="btn-table btn-table-view" onclick="viewClientHistory(${c.id})">📜 Pedidos</button>
+            <button class="btn-table btn-table-edit" onclick="editClient(${c.id})">✏️</button>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function openClientModal(c = null) {
+  document.getElementById('cliId').value = c ? c.id : '';
+  document.getElementById('cliModalTitle').textContent = c ? '✏️ Editar Cliente' : '➕ Registrar Cliente';
+  document.getElementById('cNombre').value = c ? c.nombre : '';
+  document.getElementById('cTel').value = c ? (c.telefono || '') : '';
+  document.getElementById('cEmail').value = c ? (c.email || '') : '';
+  document.getElementById('cDir').value = c ? (c.direccion || '') : '';
+  document.getElementById('cNotas').value = c ? (c.notas || '') : '';
+  document.getElementById('clientModal').classList.add('active');
+}
+
+function editClient(id) {
+  const c = allClients.find(x => x.id == id);
+  if (c) openClientModal(c);
+}
+
+async function saveClient(e) {
+  e.preventDefault();
+  const id = document.getElementById('cliId').value;
+  const payload = {
+    nombre: document.getElementById('cNombre').value.trim(),
+    telefono: document.getElementById('cTel').value.trim(),
+    email: document.getElementById('cEmail').value.trim(),
+    direccion: document.getElementById('cDir').value.trim(),
+    notas: document.getElementById('cNotas').value.trim()
+  };
+  try {
+    if (id) await api.clientes.update(id, payload);
+    else await api.clientes.create(payload);
+    showToast('Datos del cliente guardados', 'success');
+    document.getElementById('clientModal').classList.remove('active');
+    await loadClients();
+  } catch (err) {
+    showToast(err.message || 'Error al guardar cliente', 'error');
+  }
+}
+
+async function viewClientHistory(id) {
+  try {
+    const c = await api.clientes.get(id);
+    document.getElementById('histTitle').textContent = `Historial de ${c.nombre}`;
+    const peds = c.pedidos || [];
+    document.getElementById('histBody').innerHTML = `
+      <div style="margin-bottom:14px;font-size:0.85rem;color:rgba(188,210,233,0.8);">
+        Total histórico comprado: <strong style="color:#34d399;">${formatCurrency(c.total_compras)}</strong> en <strong>${c.cantidad_pedidos}</strong> pedidos válidos.
+      </div>
+      ${peds.length ? peds.map(p => `
+        <div class="flex-between" style="padding:10px 12px;background:rgba(255,255,255,0.04);border-radius:10px;margin-bottom:8px;font-size:0.84rem;">
+          <div>
+            <strong style="color:var(--color-brand-pastel);">${p.numero_pedido}</strong> · ${formatDate(p.fecha)}
+            <div style="font-size:0.76rem;color:rgba(255,255,255,0.5);">Canal: ${p.canal} · ${(p.items || []).length} productos</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-weight:700;color:#34d399;">${formatCurrency(p.total)}</div>
+            <span class="status-badge status-${p.estado}">${p.estado}</span>
+          </div>
+        </div>`).join('') : '<p style="color:rgba(255,255,255,0.4);">Este cliente aún no registra pedidos.</p>'}`;
+    document.getElementById('historyModal').classList.add('active');
+  } catch (err) {
+    showToast(err.message || 'No se pudo cargar el historial', 'error');
+  }
+}
+
+loadClients();
+</script>
+</body>
+</html>
+

@@ -1,93 +1,145 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Checkout – Shiny Skin</title>
-  <link rel="stylesheet" href="css/main.css"/><link rel="stylesheet" href="css/tienda.css"/>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Confirmar Pedido – Shiny Skin</title>
+  <link rel="stylesheet" href="css/main.css"/>
+  <link rel="stylesheet" href="css/tienda.css"/>
 </head>
 <body>
-<nav class="navbar"><div class="navbar-inner">
-  <a href="index.html" class="navbar-logo"><img src="img/SS%20LOGO%20COPIA.png" alt="Shiny Skin Logo" /></a>
-  <div class="navbar-actions"><a href="carrito.html" class="btn btn-ghost btn-sm">← Volver al carrito</a></div>
-</div></nav>
+
+<div class="top-notice-bar">
+  🔒 Compra rápida sin registro obligatorio (NFR-0017) · Precios finales conforme a <strong>Ley N.° 842</strong>
+</div>
+
+<header class="navbar">
+  <div class="navbar-inner">
+    <a href="index.html" class="navbar-logo">
+      <img src="img/SHINY LOGO 1.jpg" alt="Shiny Skin Logo" />
+      <div class="navbar-brand-text">
+        <span class="navbar-brand-title">Shiny Skin</span>
+        <span class="navbar-brand-sub">Checkout Seguro</span>
+      </div>
+    </a>
+    <div class="navbar-actions">
+      <a href="carrito.html" class="btn btn-outline btn-sm">← Volver al carrito</a>
+    </div>
+  </div>
+</header>
 
 <div class="checkout-layout">
-  <!-- LEFT: Form -->
+  <!-- LEFT: Formulario -->
   <div>
     <div class="checkout-steps">
-      <div class="checkout-step done"><div class="step-num">✓</div><span>Carrito</span></div>
+      <div class="checkout-step done" id="st1"><div class="step-num">✓</div><span>Carrito</span></div>
       <div class="step-divider"></div>
-      <div class="checkout-step active"><div class="step-num">2</div><span>Datos de entrega</span></div>
+      <div class="checkout-step active" id="st2"><div class="step-num">2</div><span>Entrega y Pago</span></div>
       <div class="step-divider"></div>
-      <div class="checkout-step"><div class="step-num">3</div><span>Confirmación</span></div>
+      <div class="checkout-step" id="st3"><div class="step-num">3</div><span>Confirmación</span></div>
     </div>
 
     <div class="card" style="margin-bottom:20px;" id="formSection">
       <div class="card-body">
-        <h2 style="font-size:1.2rem;font-weight:700;margin-bottom:24px;">📋 Datos de entrega</h2>
+        <h2 style="font-size:1.22rem;font-weight:700;margin-bottom:20px;color:var(--color-primary-darker);">📋 Datos de contacto y entrega</h2>
         <form id="checkoutForm" onsubmit="placeOrder(event)">
           <div class="grid-2" style="gap:16px;margin-bottom:16px;">
             <div class="form-group">
               <label class="form-label" for="ckNombre">Nombre completo *</label>
-              <input class="form-control" id="ckNombre" type="text" placeholder="María González" required />
+              <input class="form-control" id="ckNombre" type="text" placeholder="Ej. María Fernanda González" required />
             </div>
             <div class="form-group">
-              <label class="form-label" for="ckTel">Teléfono *</label>
-              <input class="form-control" id="ckTel" type="tel" placeholder="505-8888-0000" required />
+              <label class="form-label" for="ckTel">Teléfono / WhatsApp *</label>
+              <input class="form-control" id="ckTel" type="tel" placeholder="Ej. 8888-0000" required />
             </div>
           </div>
-          <div class="form-group" style="margin-bottom:16px;">
-            <label class="form-label" for="ckEmail">Correo electrónico</label>
-            <input class="form-control" id="ckEmail" type="email" placeholder="maria@email.com" />
+
+          <div class="form-group" style="margin-bottom:18px;">
+            <label class="form-label" for="ckEmail">Correo electrónico (opcional)</label>
+            <input class="form-control" id="ckEmail" type="email" placeholder="tucorreo@ejemplo.com" />
           </div>
-          <div class="form-group" style="margin-bottom:16px;">
-            <label class="form-label" for="ckDir">Dirección de entrega *</label>
-            <textarea class="form-control" id="ckDir" rows="3" placeholder="Barrio, referencia, municipio..." required></textarea>
+
+          <div class="form-group" style="margin-bottom:18px;">
+            <label class="form-label">Modalidad de recepción *</label>
+            <div class="grid-2" style="gap:12px;">
+              <label id="optDomicilio" style="display:flex;align-items:flex-start;gap:10px;padding:13px;border:2px solid var(--color-primary);border-radius:var(--radius-md);cursor:pointer;background:#ffffff;">
+                <input type="radio" name="entrega" value="domicilio" checked onchange="updateDeliveryMode()" style="margin-top:4px;"/>
+                <div>
+                  <div style="font-weight:700;font-size:0.88rem;color:var(--color-primary-darker);">🛵 Envío a domicilio</div>
+                  <div style="font-size:0.76rem;color:var(--color-text-muted);">Managua C$ 100 (Gratis en compras mayores a C$ 1,500)</div>
+                </div>
+              </label>
+              <label id="optRetiro" style="display:flex;align-items:flex-start;gap:10px;padding:13px;border:1.5px solid var(--color-surface-3);border-radius:var(--radius-md);cursor:pointer;background:#ffffff;">
+                <input type="radio" name="entrega" value="retiro" onchange="updateDeliveryMode()" style="margin-top:4px;"/>
+                <div>
+                  <div style="font-weight:700;font-size:0.88rem;color:var(--color-primary-darker);">🏬 Retiro en Concept Store</div>
+                  <div style="font-size:0.76rem;color:var(--color-text-muted);">Sin costo · Camino de Oriente, Managua</div>
+                </div>
+              </label>
+            </div>
           </div>
-          <div class="form-group" style="margin-bottom:20px;">
-            <label class="form-label">Método de pago</label>
+
+          <div class="form-group" style="margin-bottom:18px;" id="dirGroup">
+            <label class="form-label" for="ckDir">Dirección exacta de entrega *</label>
+            <textarea class="form-control" id="ckDir" rows="2" placeholder="Reparto/Barrio, de donde fue..., número de casa y referencias" required></textarea>
+          </div>
+
+          <div class="form-group" style="margin-bottom:18px;">
+            <label class="form-label">Método de pago *</label>
             <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
-              <label style="display:flex;align-items:center;gap:10px;padding:14px;border:1.5px solid var(--color-surface-3);border-radius:var(--radius-md);cursor:pointer;transition:var(--transition);" id="payEfectivo">
+              <label style="display:flex;align-items:center;gap:10px;padding:13px;border:2px solid var(--color-primary);border-radius:var(--radius-md);cursor:pointer;background:#ffffff;" id="payEfectivo">
                 <input type="radio" name="pago" value="efectivo_entrega" checked onchange="selectPay('payEfectivo')"/>
-                <span>💵 Efectivo al recibir</span>
+                <span>💵 Efectivo al recibir / retirar</span>
               </label>
-              <label style="display:flex;align-items:center;gap:10px;padding:14px;border:1.5px solid var(--color-surface-3);border-radius:var(--radius-md);cursor:pointer;transition:var(--transition);" id="payTransfer">
+              <label style="display:flex;align-items:center;gap:10px;padding:13px;border:1.5px solid var(--color-surface-3);border-radius:var(--radius-md);cursor:pointer;background:#ffffff;" id="payTransfer">
                 <input type="radio" name="pago" value="transferencia" onchange="selectPay('payTransfer')"/>
-                <span>🏦 Transferencia bancaria</span>
+                <span>🏦 Transferencia bancaria (LAFISE / BAC / Banpro)</span>
               </label>
-              <label style="display:flex;align-items:center;gap:10px;padding:14px;border:1.5px solid var(--color-surface-3);border-radius:var(--radius-md);cursor:pointer;transition:var(--transition);" id="payWA">
+              <label style="display:flex;align-items:center;gap:10px;padding:13px;border:1.5px solid var(--color-surface-3);border-radius:var(--radius-md);cursor:pointer;background:#ffffff;" id="payWA">
                 <input type="radio" name="pago" value="whatsapp" onchange="selectPay('payWA')"/>
-                <span>💬 Coordinar por WhatsApp</span>
+                <span>💬 Coordinar pago por WhatsApp</span>
               </label>
             </div>
           </div>
-          <div class="form-group" style="margin-bottom:0;">
-            <label class="form-label" for="ckNotas">Notas adicionales</label>
-            <textarea class="form-control" id="ckNotas" rows="2" placeholder="Instrucciones especiales para el envío..."></textarea>
+
+          <div class="form-group" style="margin-bottom:18px;" id="efectivoChangeGroup">
+            <label class="form-label" for="ckMontoPago">¿Con qué monto en efectivo pagarás? (opcional, para enviarte vuelto exacto)</label>
+            <input class="form-control" id="ckMontoPago" type="number" min="0" step="0.01" placeholder="Ej. 1000" oninput="renderSummary()" />
+            <div id="cambioPreview" style="font-size:0.8rem;color:var(--color-success);font-weight:600;margin-top:2px;"></div>
           </div>
-          <button type="submit" class="btn btn-primary btn-lg" style="width:100%;margin-top:24px;" id="btnOrder">
-            ✅ Confirmar pedido
+
+          <div class="form-group" style="margin-bottom:16px;">
+            <label class="form-label" for="ckNotas">Notas adicionales</label>
+            <textarea class="form-control" id="ckNotas" rows="2" placeholder="Horario preferido de entrega o indicaciones para el motorizado..."></textarea>
+          </div>
+
+          <label style="display:flex;align-items:flex-start;gap:8px;font-size:0.8rem;color:var(--color-text-muted);cursor:pointer;">
+            <input type="checkbox" required checked style="margin-top:3px;accent-color:var(--color-primary);" />
+            <span>Acepto el tratamiento de mis datos de entrega conforme a la Ley N.° 787 y confirmo haber revisado el precio final según Ley N.° 842.</span>
+          </label>
+
+          <button type="submit" class="btn btn-primary btn-lg" style="width:100%;margin-top:22px;" id="btnOrder">
+            ✅ Confirmar mi pedido
           </button>
         </form>
       </div>
     </div>
 
-    <!-- Confirmación (oculta inicialmente) -->
+    <!-- Confirmación -->
     <div id="confirmSection" style="display:none;">
-      <div class="card" style="text-align:center;padding:48px 32px;">
-        <div style="font-size:4rem;margin-bottom:16px;animation:pulse 1s ease 3;">✅</div>
-        <h2 style="font-size:1.6rem;font-weight:800;color:var(--color-success);margin-bottom:10px;">¡Pedido confirmado!</h2>
-        <p style="color:var(--color-text-muted);margin-bottom:8px;" id="confirmMsg">Tu pedido ha sido registrado.</p>
-        <p id="confirmNumero" style="font-weight:700;font-size:1.1rem;color:var(--color-primary);margin-bottom:28px;"></p>
-        <div style="background:var(--color-surface-2);border-radius:var(--radius-md);padding:16px;margin-bottom:24px;text-align:left;">
-          <div style="font-size:0.85rem;color:var(--color-text-muted);line-height:2;">
-            <div>📦 <strong>Próximos pasos:</strong></div>
-            <div>1. Te contactaremos para confirmar la entrega</div>
-            <div>2. Nuestro motorizado llegará a tu dirección</div>
-            <div>3. Paga al recibir tu pedido</div>
+      <div class="card" style="text-align:center;padding:44px 30px;">
+        <div style="font-size:3.8rem;margin-bottom:12px;">🎉</div>
+        <h2 style="font-size:1.6rem;font-weight:800;color:var(--color-success);margin-bottom:8px;">¡Pedido registrado con éxito!</h2>
+        <p style="color:var(--color-text-muted);margin-bottom:8px;" id="confirmMsg"></p>
+        <div id="confirmNumero" style="display:inline-block;padding:8px 20px;border-radius:var(--radius-full);background:var(--color-primary-glow);font-weight:800;font-size:1.15rem;color:var(--color-primary-darker);margin-bottom:22px;"></div>
+        <div style="background:var(--color-surface-2);border-radius:var(--radius-md);padding:16px;margin-bottom:24px;text-align:left;border:1px solid var(--color-surface-3);">
+          <div style="font-size:0.86rem;color:var(--color-text-muted);line-height:1.9;" id="confirmSteps">
+            <div>📦 <strong>Guarda tu código de pedido</strong> para consultar el estado en cualquier momento desde "Rastrear pedido".</div>
+            <div>📱 Nuestro equipo confirmará el despacho por WhatsApp.</div>
           </div>
         </div>
         <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+          <a id="waConfirmBtn" href="#" target="_blank" rel="noopener" class="btn btn-success">💬 Enviar comprobante por WhatsApp</a>
           <a href="tienda.html" class="btn btn-primary">Seguir comprando</a>
           <a href="index.html" class="btn btn-outline">Ir al inicio</a>
         </div>
@@ -95,11 +147,11 @@
     </div>
   </div>
 
-  <!-- RIGHT: Order Summary -->
+  <!-- RIGHT: Resumen -->
   <div>
-    <div class="summary-card" style="position:sticky;top:90px;">
-      <div class="summary-title">📦 Tu pedido</div>
-      <div id="orderItems" style="margin:16px 0;max-height:300px;overflow-y:auto;"></div>
+    <div class="summary-card" style="position:sticky;top:96px;">
+      <div class="summary-title">📦 Resumen del Pedido</div>
+      <div id="orderItems" style="margin:14px 0;max-height:280px;overflow-y:auto;"></div>
       <div id="orderTotals"></div>
     </div>
   </div>
@@ -107,53 +159,121 @@
 
 <script src="js/api.js"></script>
 <script>
-function getCart() { return JSON.parse(localStorage.getItem('sisco_cart')||'[]'); }
+// Autocompletar si hay usuario logueado
+(function prefillUser() {
+  try {
+    const u = JSON.parse(localStorage.getItem('sisco_user') || 'null');
+    if (u) {
+      if (u.nombre) document.getElementById('ckNombre').value = u.nombre;
+      if (u.telefono) document.getElementById('ckTel').value = u.telefono;
+      if (u.email) document.getElementById('ckEmail').value = u.email;
+      if (u.direccion) document.getElementById('ckDir').value = u.direccion;
+    }
+  } catch {}
+})();
 
-function renderSummary() {
+function getTotals() {
   const cart = getCart();
-  if (cart.length === 0) { window.location='carrito.html'; return; }
-  const subtotal = cart.reduce((s,i)=>s+(i.precio*i.cantidad),0);
-  const iva = subtotal*0.15;
-  const total = subtotal+iva;
+  const subtotal = cart.reduce((s, i) => s + (Number(i.precio) * Number(i.cantidad)), 0);
+  const entrega = document.querySelector('input[name="entrega"]:checked')?.value || 'domicilio';
+  const costoEnvio = entrega === 'retiro' ? 0 : (subtotal >= 1500 ? 0 : 100);
+  const total = subtotal + costoEnvio;
+  return { cart, subtotal, entrega, costoEnvio, total };
+}
 
-  document.getElementById('orderItems').innerHTML = cart.map(item => `
-    <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;">
-      <img src="${item.imagen||''}" style="width:52px;height:52px;object-fit:cover;border-radius:10px;background:var(--color-surface-2);" alt="${item.nombre}"/>
-      <div style="flex:1;"><div style="font-size:0.85rem;font-weight:600;">${item.nombre.split(' ').slice(0,4).join(' ')}...</div><div style="font-size:0.78rem;color:var(--color-text-muted);">x${item.cantidad}</div></div>
-      <div style="font-weight:700;font-size:0.9rem;">${formatCurrency(item.precio*item.cantidad)}</div>
-    </div>`).join('');
+function updateDeliveryMode() {
+  const entrega = document.querySelector('input[name="entrega"]:checked').value;
+  const dirGroup = document.getElementById('dirGroup');
+  const dirInput = document.getElementById('ckDir');
+  document.getElementById('optDomicilio').style.border = entrega === 'domicilio' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-surface-3)';
+  document.getElementById('optRetiro').style.border = entrega === 'retiro' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-surface-3)';
 
-  document.getElementById('orderTotals').innerHTML = `
-    <div class="summary-line" style="border-top:1px solid var(--color-surface-3);padding-top:12px;"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
-    <div class="summary-line"><span>IVA (15%)</span><span>${formatCurrency(iva)}</span></div>
-    <div class="summary-line"><span>Envío</span><span style="color:var(--color-success);">Gratis</span></div>
-    <div class="summary-line summary-total" style="border-top:2px solid var(--color-surface-3);padding-top:12px;margin-top:6px;border-bottom:none;">
-      <span>Total</span><span class="summary-total-value">${formatCurrency(total)}</span>
-    </div>`;
+  if (entrega === 'retiro') {
+    dirGroup.style.display = 'none';
+    dirInput.required = false;
+  } else {
+    dirGroup.style.display = 'flex';
+    dirInput.required = true;
+  }
+  renderSummary();
 }
 
 function selectPay(id) {
-  document.querySelectorAll('[id^="pay"]').forEach(el => el.style.borderColor='var(--color-surface-3)');
-  document.getElementById(id).style.borderColor='var(--color-primary)';
+  ['payEfectivo', 'payTransfer', 'payWA'].forEach(k => {
+    document.getElementById(k).style.border = k === id ? '2px solid var(--color-primary)' : '1.5px solid var(--color-surface-3)';
+  });
+  const pago = document.querySelector('input[name="pago"]:checked').value;
+  document.getElementById('efectivoChangeGroup').style.display = pago === 'efectivo_entrega' ? 'flex' : 'none';
+  renderSummary();
+}
+
+function renderSummary() {
+  const { cart, subtotal, entrega, costoEnvio, total } = getTotals();
+  if (cart.length === 0 && document.getElementById('confirmSection').style.display === 'none') {
+    window.location = 'carrito.html';
+    return;
+  }
+
+  document.getElementById('orderItems').innerHTML = cart.map(item => `
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;">
+      <img src="${resolveImageUrl(item.imagen)}" onerror="handleImgError(this)" style="width:50px;height:50px;object-fit:cover;border-radius:10px;background:#f1f6fb;" alt="${item.nombre}"/>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:0.84rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.nombre}</div>
+        <div style="font-size:0.76rem;color:var(--color-text-muted);">Cant: ${item.cantidad} × ${formatCurrency(item.precio)}</div>
+      </div>
+      <div style="font-weight:700;font-size:0.88rem;color:var(--color-primary-darker);">${formatCurrency(item.precio * item.cantidad)}</div>
+    </div>`).join('');
+
+  const montoPago = parseFloat(document.getElementById('ckMontoPago')?.value || '0');
+  const cambioEl = document.getElementById('cambioPreview');
+  if (cambioEl) {
+    if (montoPago > 0 && montoPago >= total) {
+      cambioEl.textContent = `💵 Cambio a entregarte: ${formatCurrency(montoPago - total)}`;
+      cambioEl.style.color = 'var(--color-success)';
+    } else if (montoPago > 0 && montoPago < total) {
+      cambioEl.textContent = `⚠️ El monto ingresado es menor al total (${formatCurrency(total)})`;
+      cambioEl.style.color = 'var(--color-danger)';
+    } else {
+      cambioEl.textContent = '';
+    }
+  }
+
+  document.getElementById('orderTotals').innerHTML = `
+    <div class="summary-line" style="border-top:1px solid var(--color-surface-3);padding-top:12px;"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
+    <div class="summary-line">
+      <span>${entrega === 'retiro' ? 'Retiro en tienda' : 'Costo de envío'}</span>
+      <span style="color:${costoEnvio === 0 ? 'var(--color-success)' : 'var(--color-text)'};font-weight:600;">${costoEnvio === 0 ? 'Gratis' : formatCurrency(costoEnvio)}</span>
+    </div>
+    <div class="summary-line summary-total" style="border-top:2px solid var(--color-surface-3);padding-top:12px;margin-top:6px;border-bottom:none;">
+      <span>Total Final</span><span class="summary-total-value">${formatCurrency(total)}</span>
+    </div>`;
 }
 
 async function placeOrder(e) {
   e.preventDefault();
-  const btn = document.getElementById('btnOrder');
-  btn.disabled = true; btn.textContent = 'Procesando...';
+  const { cart, entrega, costoEnvio, total } = getTotals();
+  const pago = document.querySelector('input[name="pago"]:checked').value;
+  const rawMonto = parseFloat(document.getElementById('ckMontoPago').value);
 
-  const cart = getCart();
-  const subtotal = cart.reduce((s,i)=>s+(i.precio*i.cantidad),0);
-  const iva = subtotal*0.15;
-  const total = subtotal+iva;
+  if (pago === 'efectivo_entrega' && !isNaN(rawMonto) && rawMonto > 0 && rawMonto < total) {
+    showToast(`El monto con el que pagarás debe ser al menos ${formatCurrency(total)}.`, 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btnOrder');
+  btn.disabled = true;
+  btn.textContent = 'Registrando pedido...';
 
   const orderData = {
-    nombre_cliente: document.getElementById('ckNombre').value,
-    telefono_cliente: document.getElementById('ckTel').value,
-    email_cliente: document.getElementById('ckEmail').value,
-    direccion_entrega: document.getElementById('ckDir').value,
-    metodo_pago: document.querySelector('input[name="pago"]:checked').value,
-    notas: document.getElementById('ckNotas').value,
+    nombre_cliente: document.getElementById('ckNombre').value.trim(),
+    telefono_cliente: document.getElementById('ckTel').value.trim(),
+    email_cliente: document.getElementById('ckEmail').value.trim(),
+    metodo_entrega: entrega,
+    direccion_entrega: entrega === 'retiro' ? 'Retiro en Concept Store — Camino de Oriente' : document.getElementById('ckDir').value.trim(),
+    costo_envio: costoEnvio,
+    metodo_pago: pago,
+    monto_pago_cliente: (pago === 'efectivo_entrega' && !isNaN(rawMonto) && rawMonto >= total) ? rawMonto : null,
+    notas: document.getElementById('ckNotas').value.trim(),
     canal: 'web',
     items: cart.map(i => ({ product_id: i.id, cantidad: i.cantidad }))
   };
@@ -162,22 +282,36 @@ async function placeOrder(e) {
   try {
     const result = await api.pedidos.create(orderData);
     numeroPedido = result.numero_pedido;
-  } catch {
-    // Fallback mock
-    numeroPedido = 'SS-' + Math.random().toString(36).substr(2,6).toUpperCase();
-    await new Promise(r => setTimeout(r, 1200));
+  } catch (err) {
+    if (!err.isNetworkError) {
+      // Error real de validación o stock insuficiente -> mostrar al usuario y NO vaciar carrito
+      showToast(err.message || 'No se pudo procesar el pedido.', 'error');
+      btn.disabled = false;
+      btn.textContent = '✅ Confirmar mi pedido';
+      return;
+    }
+    // Solo si se abre sin backend conectado (modo demostración offline)
+    numeroPedido = 'SS-' + Math.floor(100000 + Math.random() * 900000);
   }
 
-  localStorage.removeItem('sisco_cart');
+  saveCart([]);
+  document.getElementById('st2').classList.remove('active');
+  document.getElementById('st2').classList.add('done');
+  document.getElementById('st2').querySelector('.step-num').textContent = '✓';
+  document.getElementById('st3').classList.add('active');
+
   document.getElementById('formSection').style.display = 'none';
   document.getElementById('confirmSection').style.display = 'block';
-  document.getElementById('confirmMsg').textContent = `¡Gracias, ${orderData.nombre_cliente}! Te contactaremos pronto.`;
-  document.getElementById('confirmNumero').textContent = `Número de pedido: ${numeroPedido}`;
-  showToast('¡Pedido creado exitosamente! 🎉', 'success');
+  document.getElementById('confirmMsg').textContent = `¡Gracias por tu compra, ${orderData.nombre_cliente}! Hemos reservado tus productos.`;
+  document.getElementById('confirmNumero').textContent = `Código de seguimiento: ${numeroPedido}`;
+
+  const msgWA = `Hola Shiny Skin ✨ Acabo de realizar el pedido *${numeroPedido}* a nombre de *${orderData.nombre_cliente}* por *${formatCurrency(total)}* (${entrega === 'retiro' ? 'Retiro en tienda' : 'Envío a domicilio'}).`;
+  document.getElementById('waConfirmBtn').href = `https://wa.me/50588880000?text=${encodeURIComponent(msgWA)}`;
+
+  showToast(`Pedido ${numeroPedido} creado exitosamente`, 'success');
 }
 
 renderSummary();
-selectPay('payEfectivo');
 </script>
 </body>
 </html>
