@@ -1139,8 +1139,13 @@ async function handleLocalApi(method, path, body) {
   return {};
 }
 
-// ---- HTTP client con Fallback Automático a Persistencia Local ----
+// ---- HTTP client con Fallback Automático a Persistencia Local y GitHub Pages ----
 async function request(method, path, body = null, auth = false) {
+  const host = (window.location.hostname || '').toLowerCase();
+  if (host.endsWith('github.io') || host.endsWith('netlify.app') || host.endsWith('vercel.app') || host.endsWith('pages.dev')) {
+    return await handleLocalApi(method, path, body);
+  }
+
   const headers = {};
   if (!(body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
@@ -1167,7 +1172,11 @@ async function request(method, path, body = null, auth = false) {
   }
 
   if (!res.ok) {
-    // Si está usando un token local o demo contra servidor real, usa el motor local
+    // En servidores estáticos (GitHub Pages / Live Server) o con token local, usa el motor local
+    const contentType = res.headers.get('content-type') || '';
+    if (res.status === 405 || (res.status === 404 && !contentType.includes('application/json'))) {
+      return await handleLocalApi(method, path, body);
+    }
     if (res.status === 401 || res.status === 422) {
       if (token && (token.startsWith('local_jwt_') || token === 'demo_token')) {
         return await handleLocalApi(method, path, body);
