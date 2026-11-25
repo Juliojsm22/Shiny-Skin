@@ -124,6 +124,67 @@ function getStoreWhatsApp() {
   return formatWhatsAppPhone(cfg) || '50581679324';
 }
 
+// ---- Validadores estrictos: Nombre completo (solo letras) y Teléfono Nicaragüense (+505) ----
+const FULL_NAME_REGEX = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*$/;
+const NI_LOCAL_PHONE_REGEX = /^[2578]\d{7}$/;
+
+function validateFullName(raw, required = true, label = 'El nombre completo') {
+  const cleaned = String(raw || '').trim().replace(/\s+/g, ' ');
+  if (!cleaned) {
+    return required
+      ? { valid: false, value: '', error: `${label} es obligatorio.` }
+      : { valid: true, value: '', error: null };
+  }
+  if (cleaned.length < 2 || cleaned.length > 100) {
+    return { valid: false, value: cleaned, error: `${label} debe tener entre 2 y 100 caracteres.` };
+  }
+  if (!FULL_NAME_REGEX.test(cleaned)) {
+    return { valid: false, value: cleaned, error: `${label} solo debe contener letras y espacios (sin números ni símbolos).` };
+  }
+  return { valid: true, value: cleaned, error: null };
+}
+
+function validateNicaraguaPhone(raw, required = true, label = 'El número telefónico') {
+  const str = String(raw || '').trim();
+  if (!str) {
+    return required
+      ? { valid: false, value: '', error: `${label} es obligatorio.` }
+      : { valid: true, value: '', error: null };
+  }
+  const errMsg = `${label} debe ser un número de Nicaragua válido (8 dígitos iniciando en 2, 5, 7 u 8, opcional +505).`;
+  if (!/^\+?[\d\s\-()]+$/.test(str)) {
+    return { valid: false, value: str, error: errMsg };
+  }
+  const digits = str.replace(/\D/g, '');
+  if (str.startsWith('+') && !digits.startsWith('505')) {
+    return { valid: false, value: str, error: errMsg };
+  }
+  let local = '';
+  if (digits.length === 11 && digits.startsWith('505')) local = digits.slice(3);
+  else if (digits.length === 8) local = digits;
+  else return { valid: false, value: str, error: errMsg };
+
+  if (!NI_LOCAL_PHONE_REGEX.test(local)) {
+    return { valid: false, value: str, error: errMsg };
+  }
+  return { valid: true, value: `${local.slice(0, 4)}-${local.slice(4)}`, digits: `505${local}`, error: null };
+}
+
+function sanitizeFullNameInput(el) {
+  if (!el) return;
+  const clean = el.value.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s]/g, '');
+  if (el.value !== clean) el.value = clean;
+}
+
+function sanitizeNiPhoneInput(el) {
+  if (!el) return;
+  let clean = el.value.replace(/[^\d+\-\s()]/g, '');
+  if (clean.indexOf('+', 1) !== -1) {
+    clean = (clean.startsWith('+') ? '+' : '') + clean.replace(/\+/g, '');
+  }
+  if (el.value !== clean) el.value = clean;
+}
+
 function buildWhatsAppUrl(rawPhone, message) {
   const phone = formatWhatsAppPhone(rawPhone);
   if (!phone) return '';

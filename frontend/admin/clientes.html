@@ -88,11 +88,11 @@
       <div class="admin-form-grid">
         <div class="admin-form-group admin-form-full">
           <label class="admin-form-label">Nombre completo *</label>
-          <input class="admin-form-control" id="cNombre" required placeholder="Ej. Andrea Carolina López" />
+          <input class="admin-form-control" id="cNombre" required maxlength="100" placeholder="Ej. Andrea Carolina López" oninput="sanitizeFullNameInput(this)" />
         </div>
         <div class="admin-form-group">
-          <label class="admin-form-label">Teléfono / WhatsApp</label>
-          <input class="admin-form-control" id="cTel" placeholder="8888-0000" />
+          <label class="admin-form-label">Teléfono / WhatsApp (Nicaragua +505)</label>
+          <input class="admin-form-control" id="cTel" type="tel" inputmode="tel" maxlength="16" placeholder="Ej. 8888-0000" oninput="sanitizeNiPhoneInput(this)" />
         </div>
         <div class="admin-form-group">
           <label class="admin-form-label">Correo electrónico</label>
@@ -204,10 +204,15 @@ function editClient(id) {
 
 async function saveClient(e) {
   e.preventDefault();
+  const nameCheck = validateFullName(document.getElementById('cNombre').value, true, 'El nombre completo');
+  if (!nameCheck.valid) { showToast(nameCheck.error, 'error'); return; }
+  const phoneCheck = validateNicaraguaPhone(document.getElementById('cTel').value, false, 'El teléfono / WhatsApp');
+  if (!phoneCheck.valid) { showToast(phoneCheck.error, 'error'); return; }
+
   const id = document.getElementById('cliId').value;
   const payload = {
-    nombre: document.getElementById('cNombre').value.trim(),
-    telefono: document.getElementById('cTel').value.trim(),
+    nombre: nameCheck.value,
+    telefono: phoneCheck.value,
     email: document.getElementById('cEmail').value.trim(),
     direccion: document.getElementById('cDir').value.trim(),
     notas: document.getElementById('cNotas').value.trim()

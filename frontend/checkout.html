@@ -46,11 +46,11 @@
           <div class="grid-2 checkout-contact-grid" style="gap:16px;margin-bottom:16px;">
             <div class="form-group">
               <label class="form-label" for="ckNombre">Nombre completo *</label>
-              <input class="form-control" id="ckNombre" type="text" placeholder="Ej. María Fernanda González" required />
+              <input class="form-control" id="ckNombre" type="text" placeholder="Ej. María Fernanda González" required maxlength="100" oninput="sanitizeFullNameInput(this)" />
             </div>
             <div class="form-group">
-              <label class="form-label" for="ckTel">Teléfono / WhatsApp *</label>
-              <input class="form-control" id="ckTel" type="tel" placeholder="Ej. 8888-0000" required />
+              <label class="form-label" for="ckTel">Teléfono / WhatsApp (Nicaragua +505) *</label>
+              <input class="form-control" id="ckTel" type="tel" inputmode="tel" placeholder="Ej. 8888-0000 o +505 8888-0000" required maxlength="16" oninput="sanitizeNiPhoneInput(this)" />
             </div>
           </div>
 
@@ -295,13 +295,26 @@ async function placeOrder(e) {
     return;
   }
 
+  const nameCheck = validateFullName(document.getElementById('ckNombre').value, true, 'El nombre completo');
+  if (!nameCheck.valid) {
+    showToast(nameCheck.error, 'error');
+    document.getElementById('ckNombre').focus();
+    return;
+  }
+  const phoneCheck = validateNicaraguaPhone(document.getElementById('ckTel').value, true, 'El teléfono / WhatsApp');
+  if (!phoneCheck.valid) {
+    showToast(phoneCheck.error, 'error');
+    document.getElementById('ckTel').focus();
+    return;
+  }
+
   const btn = document.getElementById('btnOrder');
   btn.disabled = true;
   btn.textContent = 'Registrando pedido...';
 
   const orderData = {
-    nombre_cliente: document.getElementById('ckNombre').value.trim(),
-    telefono_cliente: document.getElementById('ckTel').value.trim(),
+    nombre_cliente: nameCheck.value,
+    telefono_cliente: phoneCheck.value,
     email_cliente: document.getElementById('ckEmail').value.trim(),
     metodo_entrega: entrega,
     direccion_entrega: entrega === 'retiro' ? 'Retiro en Concept Store — Camino de Oriente' : document.getElementById('ckDir').value.trim(),

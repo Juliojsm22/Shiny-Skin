@@ -98,11 +98,11 @@
       <div class="admin-form-grid">
         <div class="admin-form-group">
           <label class="admin-form-label">Nombre del Cliente *</label>
-          <input class="admin-form-control" id="moNombre" required placeholder="Ej. Valeria Castro" />
+          <input class="admin-form-control" id="moNombre" required maxlength="100" placeholder="Ej. Valeria Castro" oninput="sanitizeFullNameInput(this)" />
         </div>
         <div class="admin-form-group">
-          <label class="admin-form-label">Teléfono / WhatsApp *</label>
-          <input class="admin-form-control" id="moTel" required placeholder="8888-0000" />
+          <label class="admin-form-label">Teléfono / WhatsApp (+505) *</label>
+          <input class="admin-form-control" id="moTel" type="tel" inputmode="tel" required maxlength="16" placeholder="Ej. 8888-0000" oninput="sanitizeNiPhoneInput(this)" />
         </div>
         <div class="admin-form-group">
           <label class="admin-form-label">Canal de Origen *</label>
@@ -179,8 +179,8 @@
       <button class="modal-close" onclick="document.getElementById('motoModal').classList.remove('active')">✕</button>
     </div>
     <form onsubmit="saveMotorizado(event)" class="moto-add-form">
-      <input class="admin-form-control" id="newMotoNombre" placeholder="Nombre del repartidor *" required />
-      <input class="admin-form-control" id="newMotoTel" placeholder="Teléfono *" required />
+      <input class="admin-form-control" id="newMotoNombre" placeholder="Nombre del repartidor *" required maxlength="100" oninput="sanitizeFullNameInput(this)" />
+      <input class="admin-form-control" id="newMotoTel" type="tel" inputmode="tel" placeholder="Teléfono NI (8 dígitos) *" required maxlength="16" oninput="sanitizeNiPhoneInput(this)" />
       <button type="submit" class="btn-admin-primary">+ Añadir</button>
     </form>
     <div id="motoListContainer" style="font-size:0.85rem;"></div>
@@ -525,10 +525,15 @@ async function submitManualOrder(e) {
     showToast('Agrega al menos un producto al pedido.', 'error');
     return;
   }
+  const nameCheck = validateFullName(document.getElementById('moNombre').value, true, 'El nombre del cliente');
+  if (!nameCheck.valid) { showToast(nameCheck.error, 'error'); return; }
+  const phoneCheck = validateNicaraguaPhone(document.getElementById('moTel').value, true, 'El teléfono / WhatsApp');
+  if (!phoneCheck.valid) { showToast(phoneCheck.error, 'error'); return; }
+
   const entrega = document.getElementById('moEntrega').value;
   const payload = {
-    nombre_cliente: document.getElementById('moNombre').value.trim(),
-    telefono_cliente: document.getElementById('moTel').value.trim(),
+    nombre_cliente: nameCheck.value,
+    telefono_cliente: phoneCheck.value,
     canal: document.getElementById('moCanal').value,
     metodo_entrega: entrega,
     direccion_entrega: entrega === 'retiro' ? 'Retiro en Concept Store' : document.getElementById('moDir').value.trim(),
@@ -584,8 +589,12 @@ function renderMotoList() {
 async function saveMotorizado(e) {
   e.preventDefault();
   if (!window.IS_ADMIN) return;
-  const nombre = document.getElementById('newMotoNombre').value.trim();
-  const telefono = document.getElementById('newMotoTel').value.trim();
+  const nameCheck = validateFullName(document.getElementById('newMotoNombre').value, true, 'El nombre del repartidor');
+  if (!nameCheck.valid) { showToast(nameCheck.error, 'error'); return; }
+  const phoneCheck = validateNicaraguaPhone(document.getElementById('newMotoTel').value, true, 'El teléfono del repartidor');
+  if (!phoneCheck.valid) { showToast(phoneCheck.error, 'error'); return; }
+  const nombre = nameCheck.value;
+  const telefono = phoneCheck.value;
   try {
     await api.pedidos.createMotorizado({ nombre, telefono, empresa: 'Delivery Managua' });
     document.getElementById('newMotoNombre').value = '';

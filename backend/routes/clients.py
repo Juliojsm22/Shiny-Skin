@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from sqlalchemy import or_
 from models import db, Client, Order, Invoice
-from routes.utils import staff_required, admin_required
+from routes.utils import staff_required, admin_required, validate_full_name, validate_ni_phone
 
 clients_bp = Blueprint('clients', __name__)
 
@@ -37,11 +37,13 @@ def get_client(id):
 @staff_required
 def create_client():
     data = request.get_json() or {}
-    nombre = (data.get('nombre') or '').strip()
-    if not nombre:
-        return jsonify({'error': 'El nombre del cliente es obligatorio.'}), 400
+    nombre, err_n = validate_full_name(data.get('nombre'), required=True, field_label='El nombre completo del cliente')
+    if err_n:
+        return jsonify({'error': err_n}), 400
 
-    telefono = (data.get('telefono') or '').strip() or None
+    telefono, err_t = validate_ni_phone(data.get('telefono'), required=False, field_label='El teléfono del cliente')
+    if err_t:
+        return jsonify({'error': err_t}), 400
     email = (data.get('email') or '').strip().lower() or None
 
     if telefono and Client.query.filter_by(telefono=telefono).first():
@@ -68,9 +70,15 @@ def update_client(id):
 
     data = request.get_json() or {}
     if 'nombre' in data and (data['nombre'] or '').strip():
-        client.nombre = data['nombre'].strip()
+        nombre, err_n = validate_full_name(data['nombre'], required=True, field_label='El nombre completo del cliente')
+        if err_n:
+            return jsonify({'error': err_n}), 400
+        client.nombre = nombre
     if 'telefono' in data:
-        client.telefono = (data['telefono'] or '').strip() or None
+        telefono, err_t = validate_ni_phone(data['telefono'], required=False, field_label='El teléfono del cliente')
+        if err_t:
+            return jsonify({'error': err_t}), 400
+        client.telefono = telefono
     if 'email' in data:
         client.email = (data['email'] or '').strip().lower() or None
     if 'direccion' in data:

@@ -6,7 +6,8 @@ from models import (
 )
 from routes.utils import (
     get_current_user_obj, get_staff_from_request_or_query, is_staff_request,
-    staff_required, admin_required, upsert_client, now_ni, now_ni_naive
+    staff_required, admin_required, upsert_client, now_ni, now_ni_naive,
+    validate_full_name, validate_ni_phone
 )
 from events import order_event_bus
 from datetime import datetime
@@ -227,13 +228,18 @@ def create_order():
     staff_caller = is_staff_request()
     user = get_current_user_obj()
 
-    nombre_cliente = (data.get('nombre_cliente') or '').strip()
-    if not nombre_cliente:
-        return jsonify({'error': 'El nombre del cliente es obligatorio.'}), 400
+    nombre_cliente, err_nombre = validate_full_name(data.get('nombre_cliente'), required=True, field_label='El nombre completo del cliente')
+    if err_nombre:
+        return jsonify({'error': err_nombre}), 400
 
-    telefono_cliente = (data.get('telefono_cliente') or '').strip()
-    if not staff_caller and not telefono_cliente:
-        return jsonify({'error': 'El número de teléfono / WhatsApp es obligatorio para coordinar tu pedido.'}), 400
+    telefono_cliente, err_tel = validate_ni_phone(
+        data.get('telefono_cliente'),
+        required=(not staff_caller),
+        field_label='El teléfono / WhatsApp'
+    )
+    if err_tel:
+        return jsonify({'error': err_tel}), 400
+    telefono_cliente = telefono_cliente or ''
 
     items_data = data.get('items') or []
     if not isinstance(items_data, list) or not items_data:
@@ -617,10 +623,12 @@ def list_motorizados():
 @admin_required
 def create_motorizado():
     data = request.get_json(silent=True) or {}
-    nombre = (data.get('nombre') or '').strip()
-    telefono = (data.get('telefono') or '').strip()
-    if not nombre or not telefono:
-        return jsonify({'error': 'Nombre y teléfono del motorizado son obligatorios.'}), 400
+    nombre, err_n = validate_full_name(data.get('nombre'), required=True, field_label='El nombre del motorizado')
+    if err_n:
+        return jsonify({'error': err_n}), 400
+    telefono, err_t = validate_ni_phone(data.get('telefono'), required=True, field_label='El teléfono del motorizado')
+    if err_t:
+        return jsonify({'error': err_t}), 400
     moto = Motorizado(
         nombre=nombre,
         telefono=telefono,
@@ -640,9 +648,15 @@ def update_motorizado(mid):
         return jsonify({'error': 'Motorizado no encontrado.'}), 404
     data = request.get_json(silent=True) or {}
     if 'nombre' in data and (data['nombre'] or '').strip():
-        moto.nombre = data['nombre'].strip()
+        nombre, err_n = validate_full_name(data['nombre'], required=True, field_label='El nombre del motorizado')
+        if err_n:
+            return jsonify({'error': err_n}), 400
+        moto.nombre = nombre
     if 'telefono' in data and (data['telefono'] or '').strip():
-        moto.telefono = data['telefono'].strip()
+        telefono, err_t = validate_ni_phone(data['telefono'], required=True, field_label='El teléfono del motorizado')
+        if err_t:
+            return jsonify({'error': err_t}), 400
+        moto.telefono = telefono
     if 'empresa' in data:
         moto.empresa = (data['empresa'] or '').strip()
     if 'activo' in data:

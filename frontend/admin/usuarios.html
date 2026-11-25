@@ -60,7 +60,7 @@
       <div class="admin-form-grid">
         <div class="admin-form-group admin-form-full">
           <label class="admin-form-label">Nombre completo *</label>
-          <input class="admin-form-control" id="uNombre" required placeholder="Ej. Valeska Martínez" />
+          <input class="admin-form-control" id="uNombre" required maxlength="100" placeholder="Ej. Valeska Martínez" oninput="sanitizeFullNameInput(this)" />
         </div>
         <div class="admin-form-group">
           <label class="admin-form-label">Correo electrónico *</label>
@@ -79,8 +79,8 @@
           </select>
         </div>
         <div class="admin-form-group">
-          <label class="admin-form-label">Teléfono</label>
-          <input class="admin-form-control" id="uTel" placeholder="8888-0000" />
+          <label class="admin-form-label">Teléfono (Nicaragua +505)</label>
+          <input class="admin-form-control" id="uTel" type="tel" inputmode="tel" maxlength="16" placeholder="Ej. 8888-0000" oninput="sanitizeNiPhoneInput(this)" />
         </div>
         <div class="admin-form-group admin-form-full">
           <label class="admin-form-label" id="uPassLbl">Contraseña (mín. 6 caracteres) *</label>
@@ -158,13 +158,18 @@ function editUser(id) {
 
 async function saveUser(e) {
   e.preventDefault();
+  const nameCheck = validateFullName(document.getElementById('uNombre').value, true, 'El nombre completo');
+  if (!nameCheck.valid) { showToast(nameCheck.error, 'error'); return; }
+  const phoneCheck = validateNicaraguaPhone(document.getElementById('uTel').value, false, 'El teléfono');
+  if (!phoneCheck.valid) { showToast(phoneCheck.error, 'error'); return; }
+
   const id = document.getElementById('usrId').value;
   const payload = {
-    nombre: document.getElementById('uNombre').value.trim(),
+    nombre: nameCheck.value,
     email: document.getElementById('uEmail').value.trim(),
     username: document.getElementById('uUsername').value.trim(),
     rol: document.getElementById('uRol').value,
-    telefono: document.getElementById('uTel').value.trim(),
+    telefono: phoneCheck.value,
   };
   const pass = document.getElementById('uPass').value;
   if (pass) payload.password = pass;

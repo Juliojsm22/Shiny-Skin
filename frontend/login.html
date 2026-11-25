@@ -53,15 +53,15 @@
       <p class="login-subtitle">Regístrate como clienta para agilizar tus futuras compras ✨</p>
       <div class="form-group" style="margin-bottom:12px;">
         <label class="form-label" for="regNombre">Nombre completo *</label>
-        <input class="form-control" id="regNombre" type="text" placeholder="María Fernanda González" required/>
+        <input class="form-control" id="regNombre" type="text" placeholder="María Fernanda González" required maxlength="100" oninput="sanitizeFullNameInput(this)"/>
       </div>
       <div class="form-group" style="margin-bottom:12px;">
         <label class="form-label" for="regEmail">Correo electrónico *</label>
         <input class="form-control" id="regEmail" type="email" placeholder="tucorreo@ejemplo.com" required/>
       </div>
       <div class="form-group" style="margin-bottom:12px;">
-        <label class="form-label" for="regTel">Teléfono / WhatsApp</label>
-        <input class="form-control" id="regTel" type="tel" placeholder="8888-0000"/>
+        <label class="form-label" for="regTel">Teléfono / WhatsApp (Nicaragua +505)</label>
+        <input class="form-control" id="regTel" type="tel" inputmode="tel" placeholder="Ej. 8888-0000" maxlength="16" oninput="sanitizeNiPhoneInput(this)"/>
       </div>
       <div class="form-group" style="margin-bottom:20px;">
         <label class="form-label" for="regPass">Contraseña *</label>
@@ -160,14 +160,19 @@ async function doLogin(e) {
 
 async function doRegister(e) {
   e.preventDefault();
+  const nameCheck = validateFullName(document.getElementById('regNombre').value, true, 'El nombre completo');
+  if (!nameCheck.valid) { showToast(nameCheck.error, 'error'); return; }
+  const phoneCheck = validateNicaraguaPhone(document.getElementById('regTel').value, false, 'El teléfono / WhatsApp');
+  if (!phoneCheck.valid) { showToast(phoneCheck.error, 'error'); return; }
+
   const btn = document.getElementById('regBtn');
   btn.disabled = true;
   btn.textContent = 'Creando cuenta...';
   try {
     const result = await api.auth.register({
-      nombre: document.getElementById('regNombre').value.trim(),
+      nombre: nameCheck.value,
       email: document.getElementById('regEmail').value.trim(),
-      telefono: document.getElementById('regTel').value.trim(),
+      telefono: phoneCheck.value,
       password: document.getElementById('regPass').value,
     });
     const userObj = result.user || result.usuario;

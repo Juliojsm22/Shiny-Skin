@@ -3,7 +3,8 @@ from sqlalchemy import or_, func
 from models import db, Invoice, InvoiceItem, Order, Product, InventoryMovement
 from routes.utils import (
     get_current_user_obj, get_staff_from_request_or_query,
-    staff_required, upsert_client, now_ni, now_ni_naive, today_ni
+    staff_required, upsert_client, now_ni, now_ni_naive, today_ni,
+    validate_full_name, validate_ni_phone
 )
 from datetime import datetime
 import io
@@ -168,8 +169,13 @@ def create_invoice():
 
     # Venta directa POS / Concept Store (FRQ-0015 / UC3)
     items_data = data.get('items') or []
-    nombre_cliente = (data.get('nombre_cliente') or 'Consumidor Final').strip() or 'Consumidor Final'
-    telefono_cliente = (data.get('telefono_cliente') or '').strip() or None
+    raw_nombre = (data.get('nombre_cliente') or 'Consumidor Final').strip() or 'Consumidor Final'
+    nombre_cliente, err_n = validate_full_name(raw_nombre, required=True, field_label='El nombre del cliente')
+    if err_n:
+        return jsonify({'error': err_n}), 400
+    telefono_cliente, err_t = validate_ni_phone(data.get('telefono_cliente'), required=False, field_label='El teléfono del cliente')
+    if err_t:
+        return jsonify({'error': err_t}), 400
     email_cliente = (data.get('email_cliente') or '').strip() or None
     canal = (data.get('canal') or 'colectivo').strip()
     metodo_pago = (data.get('metodo_pago') or 'efectivo').strip()

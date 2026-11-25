@@ -120,11 +120,11 @@
         <div class="admin-form-grid" style="margin-bottom:14px;">
           <div class="admin-form-group">
             <label class="admin-form-label">Cliente</label>
-            <input class="admin-form-control" id="posCliente" value="Consumidor Final" placeholder="Consumidor Final o nombre..." />
+            <input class="admin-form-control" id="posCliente" value="Consumidor Final" maxlength="100" placeholder="Consumidor Final o nombre..." oninput="sanitizeFullNameInput(this)" />
           </div>
           <div class="admin-form-group">
-            <label class="admin-form-label">Teléfono (opcional, guarda en cartera)</label>
-            <input class="admin-form-control" id="posTel" placeholder="8888-0000" />
+            <label class="admin-form-label">Teléfono NI (opcional, guarda en cartera)</label>
+            <input class="admin-form-control" id="posTel" type="tel" inputmode="tel" maxlength="16" placeholder="Ej. 8888-0000" oninput="sanitizeNiPhoneInput(this)" />
           </div>
         </div>
 
@@ -437,9 +437,13 @@ async function submitInvoice(e) {
     payload = { order_id: parseInt(order_id), metodo_pago, monto_recibido: !isNaN(recibidoVal) ? recibidoVal : null };
   } else {
     if (!posItems.length) { showToast('Añade al menos un producto a la venta.', 'error'); return; }
+    const nameCheck = validateFullName(document.getElementById('posCliente').value || 'Consumidor Final', true, 'El nombre del cliente');
+    if (!nameCheck.valid) { showToast(nameCheck.error, 'error'); return; }
+    const phoneCheck = validateNicaraguaPhone(document.getElementById('posTel').value, false, 'El teléfono del cliente');
+    if (!phoneCheck.valid) { showToast(phoneCheck.error, 'error'); return; }
     payload = {
-      nombre_cliente: document.getElementById('posCliente').value.trim() || 'Consumidor Final',
-      telefono_cliente: document.getElementById('posTel').value.trim(),
+      nombre_cliente: nameCheck.value,
+      telefono_cliente: phoneCheck.value,
       canal: 'colectivo',
       tipo_descuento: document.getElementById('posTipoDesc').value,
       descuento: parseFloat(document.getElementById('posDescuento').value) || 0,

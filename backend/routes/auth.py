@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request
 from models import db, User, PasswordResetToken
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
-from routes.utils import admin_required, now_ni_naive, _extract_uid
+from routes.utils import admin_required, now_ni_naive, _extract_uid, validate_full_name, validate_ni_phone
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -23,12 +23,17 @@ def _issue_token(user: User) -> str:
 @auth_bp.route('/register', methods=['POST'])
 def register():
     data = request.get_json(silent=True) or {}
-    nombre = (data.get('nombre') or '').strip()
+    nombre, err_n = validate_full_name(data.get('nombre'), required=True, field_label='El nombre completo')
+    if err_n:
+        return jsonify({'error': err_n}), 400
+    telefono, err_t = validate_ni_phone(data.get('telefono'), required=False, field_label='El teléfono / WhatsApp')
+    if err_t:
+        return jsonify({'error': err_t}), 400
     email = (data.get('email') or '').strip().lower()
     password = data.get('password') or ''
 
-    if not nombre or not email or not password:
-        return jsonify({'error': 'Por favor completa nombre, correo electrónico y contraseña.'}), 400
+    if not email or not password:
+        return jsonify({'error': 'Por favor completa correo electrónico y contraseña.'}), 400
     if len(password) < 6:
         return jsonify({'error': 'La contraseña debe tener al menos 6 caracteres.'}), 400
     if User.query.filter(db.func.lower(User.email) == email).first():
@@ -46,7 +51,7 @@ def register():
         username=username,
         email=email,
         password_hash=generate_password_hash(password),
-        telefono=(data.get('telefono') or '').strip() or None,
+        telefono=telefono,
         direccion=(data.get('direccion') or '').strip() or None,
         rol='cliente',
         ultimo_acceso=now_ni_naive()
@@ -157,12 +162,17 @@ def get_users():
 @admin_required
 def create_user_admin():
     data = request.get_json(silent=True) or {}
-    nombre = (data.get('nombre') or '').strip()
+    nombre, err_n = validate_full_name(data.get('nombre'), required=True, field_label='El nombre completo')
+    if err_n:
+        return jsonify({'error': err_n}), 400
+    telefono, err_t = validate_ni_phone(data.get('telefono'), required=False, field_label='El teléfono')
+    if err_t:
+        return jsonify({'error': err_t}), 400
     email = (data.get('email') or '').strip().lower()
     password = data.get('password') or ''
     rol = data.get('rol', 'vendedor')
 
-    if not nombre or not email or len(password) < 6:
+    if not email or len(password) < 6:
         return jsonify({'error': 'Nombre, correo y contraseña (mín. 6 caracteres) son obligatorios.'}), 400
     if rol not in ('admin', 'vendedor', 'cliente'):
         return jsonify({'error': 'Rol no válido.'}), 400
@@ -179,7 +189,7 @@ def create_user_admin():
         email=email,
         password_hash=generate_password_hash(password),
         rol=rol,
-        telefono=(data.get('telefono') or '').strip() or None,
+        telefono=telefono,
         direccion=(data.get('direccion') or '').strip() or None,
         activo=bool(data.get('activo', True))
     )
@@ -197,7 +207,10 @@ def update_user_admin(user_id):
     data = request.get_json(silent=True) or {}
 
     if 'nombre' in data and (data['nombre'] or '').strip():
-        user.nombre = data['nombre'].strip()
+        nombre, err_n = validate_full_name(data['nombre'], required=True, field_label='El nombre completo')
+        if err_n:
+            return jsonify({'error': err_n}), 400
+        user.nombre = nombre
     if 'username' in data and (data['username'] or '').strip():
         new_username = data['username'].strip().lower()
         existing_u = User.query.filter(db.func.lower(User.username) == new_username, User.id != user.id).first()
@@ -213,7 +226,10 @@ def update_user_admin(user_id):
     if 'rol' in data and data['rol'] in ('admin', 'vendedor', 'cliente'):
         user.rol = data['rol']
     if 'telefono' in data:
-        user.telefono = (data['telefono'] or '').strip() or None
+        telefono, err_t = validate_ni_phone(data['telefono'], required=False, field_label='El teléfono')
+        if err_t:
+            return jsonify({'error': err_t}), 400
+        user.telefono = telefono
     if 'direccion' in data:
         user.direccion = (data['direccion'] or '').strip() or None
     if 'activo' in data:

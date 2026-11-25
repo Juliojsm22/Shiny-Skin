@@ -1,3 +1,4 @@
+import re
 import unicodedata
 from datetime import datetime, date, timezone, timedelta
 from functools import wraps
@@ -6,6 +7,48 @@ from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity, get_jwt,
 from models import db, User, Client
 
 NI_TZ = timezone(timedelta(hours=-6))
+
+FULL_NAME_RE = re.compile(r'^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*$')
+PHONE_ALLOWED_CHARS_RE = re.compile(r'^\+?[\d\s\-()]+$')
+NI_LOCAL_PHONE_RE = re.compile(r'^[2578]\d{7}$')
+
+
+def validate_full_name(raw_value, required: bool = True, field_label: str = 'El nombre completo'):
+    """Valida que el nombre completo contenga únicamente letras (incluyendo tildes/ñ) y espacios."""
+    cleaned = ' '.join(str(raw_value or '').strip().split())
+    if not cleaned:
+        if required:
+            return None, f'{field_label} es obligatorio.'
+        return None, None
+    if len(cleaned) < 2 or len(cleaned) > 100:
+        return None, f'{field_label} debe tener entre 2 y 100 caracteres.'
+    if not FULL_NAME_RE.match(cleaned):
+        return None, f'{field_label} solo debe contener letras y espacios (sin números ni símbolos).'
+    return cleaned, None
+
+
+def validate_ni_phone(raw_value, required: bool = True, field_label: str = 'El número telefónico'):
+    """Valida y normaliza números telefónicos de Nicaragua (+505 opcional + 8 dígitos iniciando en 2, 5, 7 u 8)."""
+    raw = str(raw_value or '').strip()
+    if not raw:
+        if required:
+            return None, f'{field_label} es obligatorio.'
+        return None, None
+    err_msg = f'{field_label} debe ser un número de Nicaragua válido (8 dígitos iniciando en 2, 5, 7 u 8, opcional +505).'
+    if not PHONE_ALLOWED_CHARS_RE.match(raw):
+        return None, err_msg
+    digits = re.sub(r'\D', '', raw)
+    if raw.startswith('+') and not digits.startswith('505'):
+        return None, err_msg
+    if len(digits) == 11 and digits.startswith('505'):
+        local = digits[3:]
+    elif len(digits) == 8:
+        local = digits
+    else:
+        return None, err_msg
+    if not NI_LOCAL_PHONE_RE.match(local):
+        return None, err_msg
+    return f'{local[:4]}-{local[4:]}', None
 
 
 def now_ni() -> datetime:
