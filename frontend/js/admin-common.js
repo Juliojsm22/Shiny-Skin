@@ -1673,9 +1673,13 @@ async function openLoyaltyAdminModal() {
               <label class="admin-form-label" for="loyMetaInp">Puntos requeridos por canje *</label>
               <input class="admin-form-control" type="number" step="1" min="10" max="100000" id="loyMetaInp" value="${Number(cfg.puntos_por_canje || 250)}" required oninput="updateLoyaltyAdminPreview()" />
             </div>
-            <div class="admin-form-group admin-form-full">
+            <div class="admin-form-group">
               <label class="admin-form-label" for="loyValUsdInp">Valor del descuento por canje ($ USD) *</label>
               <input class="admin-form-control" type="number" step="0.5" min="1" max="1000" id="loyValUsdInp" value="${Number(cfg.valor_canje_usd || 10)}" required oninput="updateLoyaltyAdminPreview()" />
+            </div>
+            <div class="admin-form-group">
+              <label class="admin-form-label" for="loyBienvenidaInp">Regalo por registro de cuenta (pts)</label>
+              <input class="admin-form-control" type="number" step="1" min="0" max="10000" id="loyBienvenidaInp" value="${Number(cfg.puntos_bienvenida ?? 100)}" required oninput="updateLoyaltyAdminPreview()" />
             </div>
           </div>
 
@@ -1738,6 +1742,7 @@ function updateLoyaltyAdminPreview() {
   const tasa = parseFloat(document.getElementById('loyTasaInp')?.value) || 36.62;
   const meta = parseInt(document.getElementById('loyMetaInp')?.value) || 250;
   const valUsd = parseFloat(document.getElementById('loyValUsdInp')?.value) || 10;
+  const bienvenida = parseInt(document.getElementById('loyBienvenidaInp')?.value) || 0;
   const valC = Math.round(valUsd * tasa * 100) / 100;
   const cashbackPct = meta > 0 ? ((valUsd / meta) * 100).toFixed(1) : '0';
 
@@ -1746,6 +1751,7 @@ function updateLoyaltyAdminPreview() {
   } else {
     box.innerHTML = `
       <strong style="color:#fde68a;">⭐ Resumen de la regla vigente:</strong><br>
+      • Al crear cuenta nueva: <strong>+${bienvenida} puntos gratis de bienvenida</strong>.<br>
       • Cliente gana <strong>1 punto por cada $1 (${formatCurrency(tasa)})</strong> en productos.<br>
       • Al llegar a <strong>${meta} puntos</strong>, desbloquea <strong>$${valUsd} (${formatCurrency(valC)}) OFF</strong> en web o tienda física.<br>
       • Retorno real sobre ventas: <strong>${cashbackPct}%</strong> · Acreditación segura al entregar pedido / pagar en POS.
@@ -1764,6 +1770,7 @@ async function saveLoyaltyAdminConfig(e) {
       tasa_cambio: parseFloat(document.getElementById('loyTasaInp').value) || 36.62,
       puntos_por_canje: parseInt(document.getElementById('loyMetaInp').value) || 250,
       valor_canje_usd: parseFloat(document.getElementById('loyValUsdInp').value) || 10,
+      puntos_bienvenida: parseInt(document.getElementById('loyBienvenidaInp').value) || 0,
     });
     updateAdminLoyaltyIndicators(saved);
     showToast(saved.activo ? '⭐ Reglas de Club Shiny Points guardadas' : 'Programa de puntos pausado', 'success');

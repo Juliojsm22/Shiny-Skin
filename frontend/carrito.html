@@ -182,10 +182,10 @@ function render() {
         </div>
       </div>` : `
       <div style="margin-top:14px;padding:12px;background:linear-gradient(135deg,rgba(37,99,153,0.08),rgba(245,158,11,0.12));border:1px dashed rgba(37,99,153,0.35);border-radius:12px;font-size:0.78rem;line-height:1.5;">
-        <div style="font-weight:700;color:var(--color-primary-darker);">⭐ ¡Gana +${ptsEst} puntos con esta compra!</div>
+        <div style="font-weight:700;color:var(--color-primary-darker);">⭐ ¡Gana +${ptsEst} pts con esta compra${Number(loyCfg.puntos_bienvenida ?? 100) > 0 ? ` + ${Number(loyCfg.puntos_bienvenida ?? 100)} pts de regalo al registrarte` : ''}!</div>
         <div style="color:var(--color-text-muted);margin:3px 0 8px;">Acumula 1 pt por cada $1 (${formatCurrency(loyCfg.cordobas_por_punto)}) · ${loyCfg.puntos_por_canje} pts = $${loyCfg.valor_canje_usd} (${formatCurrency(loyCfg.valor_canje_cordobas)}) OFF.</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
-          <a href="login.html?next=carrito.html#register" class="btn btn-primary btn-sm" style="padding:6px 12px;font-size:0.74rem;">Crear cuenta gratis</a>
+          <a href="login.html?next=carrito.html#register" class="btn btn-primary btn-sm" style="padding:6px 12px;font-size:0.74rem;">Crear cuenta${Number(loyCfg.puntos_bienvenida ?? 100) > 0 ? ` (+${Number(loyCfg.puntos_bienvenida ?? 100)} pts)` : ''}</a>
           <a href="login.html?next=carrito.html" class="btn btn-outline btn-sm" style="padding:6px 12px;font-size:0.74rem;">Iniciar sesión</a>
         </div>
       </div>`) : ''}

@@ -51,9 +51,10 @@
     <!-- Register Form -->
     <form id="registerForm" style="display:none;" onsubmit="doRegister(event)">
       <p class="login-subtitle">Crea tu cuenta gratis y únete a <strong>Club Shiny Points</strong> ⭐</p>
-      <div style="background:linear-gradient(135deg,rgba(37,99,153,0.1),rgba(245,158,11,0.12));border:1px solid rgba(37,99,153,0.22);border-radius:12px;padding:10px 12px;margin-bottom:14px;font-size:0.76rem;color:var(--color-primary-darker);line-height:1.5;">
-        ⭐ Gana <strong>1 punto por cada $1 (C$ 36.62)</strong> en compras web y en tienda física.<br>
-        🎁 Al acumular <strong>250 puntos</strong> recibes <strong>$10 (C$ 366) de descuento</strong>.
+      <div style="background:linear-gradient(135deg,rgba(37,99,153,0.1),rgba(245,158,11,0.14));border:1px solid rgba(37,99,153,0.22);border-radius:12px;padding:10px 12px;margin-bottom:14px;font-size:0.76rem;color:var(--color-primary-darker);line-height:1.55;">
+        🎉 <strong>¡Regalo de bienvenida: +100 puntos gratis</strong> al crear tu cuenta!<br>
+        ⭐ Además ganas <strong>1 punto por cada $1 (C$ 36.62)</strong> en compras web y en tienda física.<br>
+        🎁 Al juntar <strong>250 puntos</strong> recibes <strong>$10 (C$ 366) de descuento</strong>.
       </div>
       <div class="form-group" style="margin-bottom:12px;">
         <label class="form-label" for="regNombre">Nombre completo *</label>
@@ -142,8 +143,12 @@ async function doLogin(e) {
   try {
     const result = await api.auth.login({ email: identifier, username: identifier, password });
     const userObj = result.user || result.usuario;
-    localStorage.setItem('sisco_token', result.token);
-    localStorage.setItem('sisco_user', JSON.stringify(userObj));
+    if (typeof setActiveSession === 'function') {
+      setActiveSession(result.token, userObj);
+    } else {
+      localStorage.setItem('sisco_token', result.token);
+      localStorage.setItem('sisco_user', JSON.stringify(userObj));
+    }
     const nextUrl = new URLSearchParams(window.location.search).get('next') || '';
     if (userObj && userObj.rol === 'admin') {
       const targetAdminPage = nextUrl.includes('/admin/') ? ('admin/' + nextUrl.split('/admin/').pop()) : 'admin/dashboard.html';
@@ -182,9 +187,19 @@ async function doRegister(e) {
       password: document.getElementById('regPass').value,
     });
     const userObj = result.user || result.usuario;
-    localStorage.setItem('sisco_token', result.token);
-    localStorage.setItem('sisco_user', JSON.stringify(userObj));
-    showToast('¡Cuenta creada exitosamente! Ya eres parte de Club Shiny Points ⭐', 'success');
+    if (typeof setActiveSession === 'function') {
+      setActiveSession(result.token, userObj);
+    } else {
+      localStorage.setItem('sisco_token', result.token);
+      localStorage.setItem('sisco_user', JSON.stringify(userObj));
+    }
+    const bono = Number(result.puntos_bienvenida ?? userObj?.puntos_saldo ?? 0);
+    showToast(
+      bono > 0
+        ? `🎉 ¡Cuenta creada! Recibiste +${bono} puntos de regalo en Club Shiny ⭐`
+        : '¡Cuenta creada exitosamente! Ya eres parte de Club Shiny Points ⭐',
+      'success'
+    );
     const nextUrl = new URLSearchParams(window.location.search).get('next') || '';
     const allowedPublicNext = ['index.html', 'tienda.html', 'carrito.html', 'checkout.html'];
     const leaf = (nextUrl.split('/').pop() || '').split('?')[0];

@@ -20,6 +20,7 @@ def get_or_create_loyalty_config() -> LoyaltyConfig:
             puntos_por_canje=250,
             valor_canje_usd=10.0,
             valor_canje_cordobas=366.20,
+            puntos_bienvenida=100,
         )
         db.session.add(cfg)
         db.session.commit()
@@ -203,6 +204,7 @@ def update_loyalty_config():
         tasa = round(float(data.get('tasa_cambio', cfg.tasa_cambio or 36.62)), 2)
         meta = int(data.get('puntos_por_canje', cfg.puntos_por_canje or 250))
         val_usd = round(float(data.get('valor_canje_usd', cfg.valor_canje_usd or 10.0)), 2)
+        bienvenida = int(data.get('puntos_bienvenida', cfg.puntos_bienvenida if cfg.puntos_bienvenida is not None else 100))
     except (TypeError, ValueError):
         return jsonify({'error': 'Los valores numéricos del programa de puntos no son válidos.'}), 400
 
@@ -212,8 +214,11 @@ def update_loyalty_config():
         return jsonify({'error': 'La meta de puntos por canje debe ser al menos 10 puntos.'}), 400
     if val_usd < 1 or val_usd > 1000:
         return jsonify({'error': 'El valor del canje en USD debe estar entre $1 y $1,000.'}), 400
+    if bienvenida < 0 or bienvenida > 10000:
+        return jsonify({'error': 'El bono de bienvenida debe estar entre 0 y 10,000 puntos.'}), 400
 
     cfg.activo = activo
+    cfg.puntos_bienvenida = bienvenida
     cfg.tasa_cambio = tasa
     # 1 punto por cada $1 gastado => cordobas_por_punto = tasa (o custom si se envía explícitamente)
     if data.get('cordobas_por_punto') is not None:

@@ -102,6 +102,9 @@ def run_schema_migrations() -> bool:
             ('puntos_ganados', 'INTEGER DEFAULT 0'),
             ('puntos_acreditados', 'BOOLEAN DEFAULT FALSE'),
         ],
+        'loyalty_config': [
+            ('puntos_bienvenida', 'INTEGER DEFAULT 100'),
+        ],
     }
 
     # Leer columnas actuales ANTES de abrir transacciones de escritura (evita contención de pool/locks)

@@ -5,6 +5,7 @@ from models import db, User, PasswordResetToken
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from routes.utils import admin_required, now_ni_naive, _extract_uid, validate_full_name, validate_ni_phone
+from routes.loyalty import get_or_create_loyalty_config, apply_loyalty_tx
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -57,9 +58,23 @@ def register():
         ultimo_acceso=now_ni_naive()
     )
     db.session.add(user)
+    db.session.flush()
+
+    # Regalar puntos de bienvenida (por defecto +100 pts) al registrar cuenta nueva
+    cfg_loy = get_or_create_loyalty_config()
+    bono_bienvenida = int(cfg_loy.puntos_bienvenida if cfg_loy.puntos_bienvenida is not None else 100) if cfg_loy.activo else 0
+    if bono_bienvenida > 0:
+        apply_loyalty_tx(
+            user,
+            tipo='ganado',
+            puntos_delta=bono_bienvenida,
+            descripcion=f'Regalo de bienvenida (+{bono_bienvenida} pts) por crear tu cuenta en Shiny Skin',
+            count_towards_lifetime=True,
+        )
+
     db.session.commit()
     token = _issue_token(user)
-    return jsonify({'token': token, 'user': user.to_dict()}), 201
+    return jsonify({'token': token, 'user': user.to_dict(), 'puntos_bienvenida': bono_bienvenida}), 201
 
 
 @auth_bp.route('/login', methods=['POST'])

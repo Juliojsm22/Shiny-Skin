@@ -159,7 +159,7 @@
 // Autocompletar solo si hay una clienta logueada (no sobrescribir con datos de admin al probar)
 (function prefillUser() {
   try {
-    const u = JSON.parse(localStorage.getItem('sisco_user') || 'null');
+    const u = typeof getActiveSession === 'function' ? getActiveSession().user : JSON.parse(localStorage.getItem('sisco_user') || 'null');
     if (u && u.rol === 'cliente') {
       if (u.nombre) document.getElementById('ckNombre').value = u.nombre;
       if (u.telefono) document.getElementById('ckTel').value = u.telefono;
@@ -335,12 +335,13 @@ function renderSummary() {
           <div style="font-size:0.73rem;color:var(--color-success);font-weight:700;margin-top:7px;">✨ Ganarás +${puntosGanar} pts al recibir este pedido</div>
         </div>`;
     } else {
+      const bonoReg = Number(loyCfg.puntos_bienvenida ?? 100);
       loyaltyBoxHtml = `
         <div style="margin:10px 0 12px;padding:10px 12px;background:linear-gradient(135deg,rgba(37,99,153,0.07),rgba(245,158,11,0.11));border:1px dashed rgba(37,99,153,0.32);border-radius:12px;font-size:0.76rem;line-height:1.5;">
-          <div style="font-weight:700;color:var(--color-primary-darker);">⭐ ¿Quieres ganar +${puntosGanar} pts con este pedido?</div>
+          <div style="font-weight:700;color:var(--color-primary-darker);">⭐ ¿Quieres ganar +${puntosGanar} pts${bonoReg > 0 ? ` (+${bonoReg} pts de regalo al registrarte)` : ''}?</div>
           <div style="color:var(--color-text-muted);margin:2px 0 7px;">Crea tu cuenta gratis (${loyCfg.puntos_por_canje} pts = $${loyCfg.valor_canje_usd} / ${formatCurrency(loyCfg.valor_canje_cordobas)} OFF) o continúa como invitado.</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <a href="login.html?next=checkout.html#register" class="btn btn-primary btn-sm" style="padding:5px 11px;font-size:0.72rem;">Crear cuenta</a>
+            <a href="login.html?next=checkout.html#register" class="btn btn-primary btn-sm" style="padding:5px 11px;font-size:0.72rem;">Crear cuenta${bonoReg > 0 ? ` (+${bonoReg} pts)` : ''}</a>
             <a href="login.html?next=checkout.html" class="btn btn-outline btn-sm" style="padding:5px 11px;font-size:0.72rem;">Iniciar sesión</a>
           </div>
         </div>`;

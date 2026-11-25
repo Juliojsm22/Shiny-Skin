@@ -563,6 +563,7 @@ class LoyaltyConfig(db.Model):
     puntos_por_canje = db.Column(db.Integer, default=250, nullable=False)  # Meta por bloque de canje
     valor_canje_usd = db.Column(db.Float, default=10.0, nullable=False)  # Valor de 1 bloque en USD
     valor_canje_cordobas = db.Column(db.Float, default=366.20, nullable=False)  # Valor de 1 bloque en C$
+    puntos_bienvenida = db.Column(db.Integer, default=100, nullable=False)  # Bono gratis al crear cuenta
     updated_at = db.Column(db.DateTime, default=ni_now, onupdate=ni_now)
     updated_by = db.Column(db.String(100), nullable=True)
 
@@ -575,6 +576,7 @@ class LoyaltyConfig(db.Model):
             'puntos_por_canje': int(self.puntos_por_canje or 250),
             'valor_canje_usd': round(float(self.valor_canje_usd or 10.0), 2),
             'valor_canje_cordobas': round(float(self.valor_canje_cordobas or 366.20), 2),
+            'puntos_bienvenida': int(self.puntos_bienvenida if self.puntos_bienvenida is not None else 100),
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'updated_by': self.updated_by,
         }

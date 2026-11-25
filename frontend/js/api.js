@@ -1552,7 +1552,7 @@ async function handleLocalApi(method, path, body) {
 
   // ---- Club Shiny Points (Local Demo Fallback) ----
   if (!db.loyalty_config) {
-    db.loyalty_config = { activo: true, tasa_cambio: 36.62, cordobas_por_punto: 36.62, puntos_por_canje: 250, valor_canje_usd: 10, valor_canje_cordobas: 366.2 };
+    db.loyalty_config = { activo: true, tasa_cambio: 36.62, cordobas_por_punto: 36.62, puntos_por_canje: 250, valor_canje_usd: 10, valor_canje_cordobas: 366.2, puntos_bienvenida: 100 };
   }
   if (!Array.isArray(db.loyalty_txs)) db.loyalty_txs = [];
   if (pathname === '/puntos/config' && method === 'GET') return { ...db.loyalty_config };
@@ -1560,6 +1560,7 @@ async function handleLocalApi(method, path, body) {
     const tasa = Math.max(1, parseFloat(data.tasa_cambio ?? db.loyalty_config.tasa_cambio) || 36.62);
     const meta = Math.max(10, parseInt(data.puntos_por_canje ?? db.loyalty_config.puntos_por_canje) || 250);
     const valUsd = Math.max(1, parseFloat(data.valor_canje_usd ?? db.loyalty_config.valor_canje_usd) || 10);
+    const bienvenida = Math.max(0, parseInt(data.puntos_bienvenida ?? db.loyalty_config.puntos_bienvenida ?? 100) || 0);
     db.loyalty_config = {
       activo: data.activo !== undefined ? !!data.activo : db.loyalty_config.activo,
       tasa_cambio: tasa,
@@ -1567,6 +1568,7 @@ async function handleLocalApi(method, path, body) {
       puntos_por_canje: meta,
       valor_canje_usd: valUsd,
       valor_canje_cordobas: Math.round(valUsd * tasa * 100) / 100,
+      puntos_bienvenida: bienvenida,
       updated_at: nowIso,
       updated_by: currentUser.nombre || 'Administradora'
     };
@@ -1966,19 +1968,109 @@ function saveMyLocalOrder(order) {
   } catch {}
 }
 
-// ---- Sesión activa ----
+// ---- Sesión activa aislada por pestaña (permite Admin, Vendedora y Cliente simultáneos en distintas pestañas) ----
+function _isAdminContextPage() {
+  try {
+    if (document.body && document.body.classList.contains('admin-body')) return true;
+    return String(window.location.pathname || '').toLowerCase().includes('/admin/');
+  } catch {
+    return false;
+  }
+}
+
+function setActiveSession(token, user) {
+  if (!token || !user) return;
+  try {
+    // 1. Aislamiento por pestaña: cada pestaña conserva su propio rol/sesión sin ser sobrescrita por otras pestañas
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem('sisco_tab_token', token);
+      sessionStorage.setItem('sisco_tab_user', JSON.stringify(user));
+    }
+    // 2. Persistencia separada por tipo de sesión (Tienda Cliente vs Panel Staff)
+    if (user.rol === 'cliente') {
+      localStorage.setItem('sisco_client_token', token);
+      localStorage.setItem('sisco_client_user', JSON.stringify(user));
+    } else {
+      localStorage.setItem('sisco_staff_token', token);
+      localStorage.setItem('sisco_staff_user', JSON.stringify(user));
+    }
+  } catch {}
+}
+
 function getActiveSession() {
   let token = null;
   let user = null;
+  const isAdminCtx = _isAdminContextPage();
   try {
-    token = localStorage.getItem('sisco_token');
-    user = JSON.parse(localStorage.getItem('sisco_user') || 'null');
+    // Prioridad 1: sesión propia de esta pestaña (sessionStorage)
+    if (typeof sessionStorage !== 'undefined') {
+      const tabTok = sessionStorage.getItem('sisco_tab_token');
+      const tabUsr = JSON.parse(sessionStorage.getItem('sisco_tab_user') || 'null');
+      if (tabTok && tabUsr) {
+        const isStaffUsr = ['admin', 'vendedor'].includes(tabUsr.rol);
+        // Si esta pestaña navega entre páginas de su contexto (o el propio staff entra a ver tienda), respetar su sesión
+        if (isAdminCtx ? isStaffUsr : true) {
+          return { token: tabTok, user: tabUsr };
+        }
+      }
+    }
+
+    // Prioridad 2: pestaña recién abierta -> restaurar del slot correspondiente (Staff vs Cliente)
+    if (isAdminCtx) {
+      token = localStorage.getItem('sisco_staff_token');
+      user = JSON.parse(localStorage.getItem('sisco_staff_user') || 'null');
+      if (!token || !user) {
+        const legTok = localStorage.getItem('sisco_token');
+        const legUsr = JSON.parse(localStorage.getItem('sisco_user') || 'null');
+        if (legTok && legUsr && ['admin', 'vendedor'].includes(legUsr.rol)) {
+          token = legTok;
+          user = legUsr;
+        }
+      }
+      if (token && user && typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('sisco_tab_token', token);
+        sessionStorage.setItem('sisco_tab_user', JSON.stringify(user));
+      }
+    } else {
+      token = localStorage.getItem('sisco_client_token');
+      user = JSON.parse(localStorage.getItem('sisco_client_user') || 'null');
+      if (!token || !user) {
+        const legTok = localStorage.getItem('sisco_token');
+        const legUsr = JSON.parse(localStorage.getItem('sisco_user') || 'null');
+        if (legTok && legUsr && legUsr.rol === 'cliente') {
+          token = legTok;
+          user = legUsr;
+        }
+      }
+      if (token && user && typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('sisco_tab_token', token);
+        sessionStorage.setItem('sisco_tab_user', JSON.stringify(user));
+      }
+    }
   } catch {}
   return { token, user };
 }
 
 function clearActiveSession() {
   try {
+    const current = getActiveSession();
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.removeItem('sisco_tab_token');
+      sessionStorage.removeItem('sisco_tab_user');
+    }
+    if (current.user && current.user.rol === 'cliente') {
+      const savedCli = JSON.parse(localStorage.getItem('sisco_client_user') || 'null');
+      if (!savedCli || savedCli.id === current.user.id) {
+        localStorage.removeItem('sisco_client_token');
+        localStorage.removeItem('sisco_client_user');
+      }
+    } else if (current.user && ['admin', 'vendedor'].includes(current.user.rol)) {
+      const savedStaff = JSON.parse(localStorage.getItem('sisco_staff_user') || 'null');
+      if (!savedStaff || savedStaff.id === current.user.id) {
+        localStorage.removeItem('sisco_staff_token');
+        localStorage.removeItem('sisco_staff_user');
+      }
+    }
     localStorage.removeItem('sisco_token');
     localStorage.removeItem('sisco_user');
   } catch {}
