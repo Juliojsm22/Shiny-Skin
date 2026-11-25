@@ -91,7 +91,7 @@ def create_app(config_name='default'):
     @app.route('/api/health')
     def health():
         db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
-        db_engine = 'postgresql' if db_uri.startswith('postgresql://') else 'sqlite'
+        db_engine = 'postgresql' if db_uri.startswith('postgresql') else 'sqlite'
         return jsonify({
             'status': 'ok',
             'mode': 'server',
@@ -134,10 +134,11 @@ def create_app(config_name='default'):
                     cursor.close()
 
         db.create_all()
-        from migrate_db import run_migrations
-        run_migrations()
+        from migrate_db import run_schema_migrations, run_data_migrations
+        run_schema_migrations()
         from seed import seed_db
         seed_db()
+        run_data_migrations()
 
     return app
 

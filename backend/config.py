@@ -7,9 +7,20 @@ load_dotenv()
 def _normalize_db_url(url: str) -> str:
     if not url:
         return ''
-    # Compatibilidad con Render / Heroku (postgres:// -> postgresql:// para SQLAlchemy 2.x)
+    # Compatibilidad con Render / Heroku (postgres:// -> postgresql://)
     if url.startswith('postgres://'):
-        return url.replace('postgres://', 'postgresql://', 1)
+        url = url.replace('postgres://', 'postgresql://', 1)
+    # Compatibilidad automática SQLAlchemy 2.0/2.1 y Python 3.11–3.14 (psycopg v3 o psycopg2)
+    if url.startswith('postgresql://'):
+        try:
+            import psycopg  # noqa: F401
+            return url.replace('postgresql://', 'postgresql+psycopg://', 1)
+        except ImportError:
+            try:
+                import psycopg2  # noqa: F401
+                return url.replace('postgresql://', 'postgresql+psycopg2://', 1)
+            except ImportError:
+                return url
     return url
 
 
@@ -18,13 +29,13 @@ _DEFAULT_SQLITE_URI = f"sqlite:///{os.path.join(_BASE_DIR, 'sisco.db')}"
 _RAW_DATABASE_URL = _normalize_db_url(os.getenv('DATABASE_URL', '').strip())
 _RESOLVED_DB_URI = (
     _RAW_DATABASE_URL
-    if _RAW_DATABASE_URL.startswith(('postgresql://', 'sqlite://'))
+    if _RAW_DATABASE_URL.startswith(('postgresql', 'sqlite://'))
     else _DEFAULT_SQLITE_URI
 )
 
 
 def _build_engine_options(db_uri: str) -> dict:
-    if db_uri.startswith('postgresql://'):
+    if db_uri.startswith('postgresql'):
         return {
             'pool_pre_ping': True,
             'pool_recycle': 280,

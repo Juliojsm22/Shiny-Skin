@@ -41,8 +41,8 @@ PRODUCT_DEFAULTS = {
 }
 
 
-def run_migrations():
-    """Actualiza de forma segura tablas existentes y limpia inconsistencias previas."""
+def run_schema_migrations():
+    """Agrega de forma segura columnas nuevas a tablas existentes (SQLite y PostgreSQL)."""
     inspector = inspect(db.engine)
     existing_tables = set(inspector.get_table_names())
 
@@ -95,6 +95,10 @@ def run_migrations():
             for col_name, col_type in cols:
                 if col_name not in current_cols:
                     conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"))
+
+
+def run_data_migrations():
+    """Limpia y normaliza datos existentes sin duplicar registros en bases nuevas."""
 
     # Poblar línea en categorías existentes
     skincare_cat = Category.query.filter_by(nombre='Skincare').first()
@@ -260,4 +264,10 @@ def run_migrations():
         ])
 
     db.session.commit()
+
+
+def run_migrations():
+    """Compatibilidad: ejecuta migración de esquema y normalización de datos."""
+    run_schema_migrations()
+    run_data_migrations()
 
