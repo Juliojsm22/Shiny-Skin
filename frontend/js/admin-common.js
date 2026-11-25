@@ -122,9 +122,10 @@ function renderAdminSidebar(activePage) {
       <button type="button" class="sidebar-item" onclick="openBackupModal()" style="width:100%;text-align:left;">
         <span class="sidebar-icon">🛡️</span> Respaldo BD (NFR-0016)
       </button>` : ''}
+      ${!isAdmin ? `
       <div class="sidebar-section">Tienda Pública</div>
       <a href="../index.html" class="sidebar-item"><span class="sidebar-icon">🏠</span> Inicio Web</a>
-      <a href="../tienda.html" class="sidebar-item"><span class="sidebar-icon">🛍️</span> Ver E-Commerce</a>
+      <a href="../tienda.html" class="sidebar-item"><span class="sidebar-icon">🛍️</span> Ver E-Commerce</a>` : `<div class="sidebar-section">Cuenta</div>`}
       <button type="button" class="sidebar-item" onclick="logout()" style="width:100%;text-align:left;color:#f87171;">
         <span class="sidebar-icon">🚪</span> Cerrar sesión
       </button>
