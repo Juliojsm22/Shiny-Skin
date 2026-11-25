@@ -21,6 +21,14 @@
 
   window.SISCO_USER = user;
   window.IS_ADMIN = user.rol === 'admin';
+
+  // Bloqueo inmediato de módulos exclusivos de Administración para perfil Vendedora
+  const pageName = (window.location.pathname.split('/').pop() || '').toLowerCase();
+  const adminOnlyPages = ['dashboard.html', 'productos.html', 'inventario.html', 'gastos.html', 'usuarios.html'];
+  if (!window.IS_ADMIN && adminOnlyPages.includes(pageName)) {
+    window.location.replace('pedidos.html');
+    return;
+  }
 })();
 
 function logout() {
@@ -50,24 +58,32 @@ function renderAdminSidebar(activePage) {
   const roleLabel = isAdmin ? 'Administradora' : 'Vendedora';
   const initial = (user.nombre || 'A')[0].toUpperCase();
 
-  const itemsPrincipal = [
-    { id: 'dashboard',   href: 'dashboard.html',   icon: '📊', label: 'Dashboard' },
-    { id: 'facturacion', href: 'facturacion.html', icon: '🧾', label: 'POS / Facturación' },
-    { id: 'pedidos',     href: 'pedidos.html',     icon: '🛒', label: 'Pedidos & Envíos', badgeId: 'pendingBadge' },
-  ];
+  const itemsPrincipal = isAdmin
+    ? [
+        { id: 'dashboard',   href: 'dashboard.html',   icon: '📊', label: 'Dashboard' },
+        { id: 'facturacion', href: 'facturacion.html', icon: '🧾', label: 'POS / Facturación' },
+        { id: 'pedidos',     href: 'pedidos.html',     icon: '🛒', label: 'Pedidos & Envíos', badgeId: 'pendingBadge' },
+      ]
+    : [
+        { id: 'pedidos',     href: 'pedidos.html',     icon: '🛒', label: 'Pedidos & Envíos', badgeId: 'pendingBadge' },
+        { id: 'facturacion', href: 'facturacion.html', icon: '🧾', label: 'POS / Caja Ventas' },
+        { id: 'clientes',    href: 'clientes.html',    icon: '👥', label: 'Clientes' },
+      ];
 
-  const itemsCatalogo = [
-    { id: 'productos',   href: 'productos.html',   icon: '🧴', label: 'Productos' },
-    { id: 'inventario',  href: 'inventario.html',  icon: '📦', label: 'Inventario Dual' },
-    { id: 'clientes',    href: 'clientes.html',    icon: '👥', label: 'Cartera Clientes' },
-  ];
+  const itemsCatalogo = isAdmin
+    ? [
+        { id: 'productos',   href: 'productos.html',   icon: '🧴', label: 'Productos' },
+        { id: 'inventario',  href: 'inventario.html',  icon: '📦', label: 'Inventario Dual' },
+        { id: 'clientes',    href: 'clientes.html',    icon: '👥', label: 'Cartera Clientes' },
+      ]
+    : [];
 
-  const itemsGestion = [
-    { id: 'gastos',      href: 'gastos.html',      icon: '💸', label: 'Gastos Operativos' },
-  ];
-  if (isAdmin) {
-    itemsGestion.push({ id: 'usuarios', href: 'usuarios.html', icon: '🔐', label: 'Usuarios & Roles' });
-  }
+  const itemsGestion = isAdmin
+    ? [
+        { id: 'gastos',      href: 'gastos.html',      icon: '💸', label: 'Gastos Operativos' },
+        { id: 'usuarios',    href: 'usuarios.html',    icon: '🔐', label: 'Usuarios & Roles' },
+      ]
+    : [];
 
   const renderGroup = (list) => list.map(it => `
     <a href="${it.href}" class="sidebar-item ${activePage === it.id ? 'active' : ''}">
@@ -81,12 +97,13 @@ function renderAdminSidebar(activePage) {
       <img src="../img/SHINY LOGO 1.jpg" alt="Shiny Skin" />
       <div>
         <div class="logo-text">Shiny <span>Skin</span></div>
-        <div class="logo-sub">SISCO · Omnicanal</div>
+        <div class="logo-sub">${isAdmin ? 'SISCO · Administración' : 'SISCO · Punto de Venta'}</div>
       </div>
     </div>
     <nav class="sidebar-nav">
-      <div class="sidebar-section">Operación Diaria</div>
+      <div class="sidebar-section">${isAdmin ? 'Operación Diaria' : 'Operación de Ventas'}</div>
       ${renderGroup(itemsPrincipal)}
+      ${isAdmin ? `
       <div class="sidebar-section">Catálogo &amp; CRM</div>
       ${renderGroup(itemsCatalogo)}
       <div class="sidebar-section">Finanzas &amp; Acceso</div>
@@ -94,7 +111,6 @@ function renderAdminSidebar(activePage) {
       <button type="button" class="sidebar-item" onclick="openExecutiveReportModal()" style="width:100%;text-align:left;">
         <span class="sidebar-icon">📄</span> Cierre / Reporte PDF
       </button>
-      ${isAdmin ? `
       <button type="button" class="sidebar-item" onclick="openBackupModal()" style="width:100%;text-align:left;">
         <span class="sidebar-icon">🛡️</span> Respaldo BD (NFR-0016)
       </button>` : ''}
@@ -114,6 +130,39 @@ function renderAdminSidebar(activePage) {
         </div>
       </div>
     </div>
+  `;
+
+  // Barra inferior móvil tipo app (solo visible en pantallas <= 768px)
+  let bottomNav = document.getElementById('adminBottomNav');
+  if (!bottomNav) {
+    bottomNav = document.createElement('nav');
+    bottomNav.id = 'adminBottomNav';
+    bottomNav.className = 'admin-bottom-nav no-print';
+    bottomNav.setAttribute('aria-label', 'Navegación móvil');
+    document.body.appendChild(bottomNav);
+  }
+  const bottomItems = isAdmin
+    ? [
+        { id: 'dashboard',   href: 'dashboard.html',   icon: '📊', label: 'Inicio' },
+        { id: 'pedidos',     href: 'pedidos.html',     icon: '🛒', label: 'Pedidos', badge: true },
+        { id: 'facturacion', href: 'facturacion.html', icon: '🧾', label: 'POS' },
+        { id: 'productos',   href: 'productos.html',   icon: '🧴', label: 'Catálogo' },
+      ]
+    : [
+        { id: 'pedidos',     href: 'pedidos.html',     icon: '🛒', label: 'Pedidos', badge: true },
+        { id: 'facturacion', href: 'facturacion.html', icon: '🧾', label: 'Vender POS' },
+        { id: 'clientes',    href: 'clientes.html',    icon: '👥', label: 'Clientes' },
+      ];
+  bottomNav.innerHTML = bottomItems.map(it => `
+    <a href="${it.href}" class="bottom-nav-item ${activePage === it.id ? 'active' : ''}">
+      <span class="bottom-nav-ico">${it.icon}${it.badge ? `<span class="bottom-nav-badge" id="mobilePendingBadge" style="display:none;">0</span>` : ''}</span>
+      <span class="bottom-nav-lbl">${it.label}</span>
+    </a>
+  `).join('') + `
+    <button type="button" class="bottom-nav-item" onclick="toggleAdminSidebar()">
+      <span class="bottom-nav-ico">☰</span>
+      <span class="bottom-nav-lbl">Menú</span>
+    </button>
   `;
 
   if (!document.getElementById('sidebarBackdrop')) {
@@ -510,18 +559,19 @@ async function pollOrderAlerts({ initial = false, skipNewTrigger = false } = {})
 }
 
 function updatePendingVisuals(pendingCount, pendingOrders = [], enCaminoCount = 0) {
-  // 1. Badge lateral en "Pedidos & Envíos"
-  const badge = document.getElementById('pendingBadge');
-  if (badge) {
+  // 1. Badge lateral y barra inferior móvil en "Pedidos"
+  ['pendingBadge', 'mobilePendingBadge'].forEach(bid => {
+    const badge = document.getElementById(bid);
+    if (!badge) return;
     if (pendingCount > 0) {
       badge.textContent = pendingCount;
-      badge.style.display = 'inline-block';
+      badge.style.display = 'inline-flex';
       badge.classList.add('urgent');
     } else {
       badge.style.display = 'none';
       badge.classList.remove('urgent');
     }
-  }
+  });
 
   // 2. Campana urgente en topbar
   const bellBtn = document.getElementById('adminNotifBtn');
@@ -841,6 +891,7 @@ function openRealtimeConfigModal() {
           : (notifPerm === 'granted' ? `<span class="badge badge-success" style="padding:8px 12px;">🖥️ Notificaciones de escritorio: ACTIVAS</span>` : '')}
       </div>
 
+      ${window.IS_ADMIN ? `
       <div style="padding:14px;background:rgba(255,255,255,0.04);border:1px solid var(--admin-border);border-radius:12px;margin-bottom:16px;">
         <div class="admin-form-label" style="margin-bottom:6px;">🌐 Conectar URL de Servidor Backend (opcional, útil para GitHub Pages)</div>
         <div style="font-size:0.75rem;color:rgba(188,210,233,0.68);margin-bottom:8px;">
@@ -851,7 +902,7 @@ function openRealtimeConfigModal() {
           <button type="button" class="btn-admin-primary" onclick="saveRemoteApiUrl()">Guardar</button>
           ${savedRemoteUrl ? `<button type="button" class="btn-admin-secondary" onclick="clearRemoteApiUrl()">Restablecer</button>` : ''}
         </div>
-      </div>
+      </div>` : ''}
 
       <div style="display:flex;justify-content:flex-end;">
         <button type="button" class="btn-admin-secondary" onclick="document.getElementById('siscoConnModal').classList.remove('active')">Cerrar</button>
@@ -888,17 +939,18 @@ async function refreshAdminNotifications() {
     ]);
 
     const pendingCount = Number(st?.pendientes || 0);
-    const badge = document.getElementById('pendingBadge');
-    if (badge) {
+    ['pendingBadge', 'mobilePendingBadge'].forEach(bid => {
+      const badge = document.getElementById(bid);
+      if (!badge) return;
       if (pendingCount > 0) {
         badge.textContent = pendingCount;
-        badge.style.display = 'inline-block';
+        badge.style.display = 'inline-flex';
         badge.classList.add('urgent');
       } else {
         badge.style.display = 'none';
         badge.classList.remove('urgent');
       }
-    }
+    });
 
     const lowStock = (prods || []).filter(p =>
       p.activo !== false && (p.stock_critico || p.alerta_stock || Number(p.stock || 0) <= Number(p.stock_minimo ?? 5))
@@ -946,23 +998,23 @@ async function openNotificationsModal() {
 
   const lowStockHtml = data.lowStock.length
     ? data.lowStock.map(p => `
-      <div class="flex-between" style="padding:10px 12px;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.22);border-radius:10px;margin-bottom:8px;">
+      <div class="flex-between" style="padding:10px 12px;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.22);border-radius:10px;margin-bottom:8px;gap:8px;flex-wrap:wrap;">
         <div>
           <div style="font-weight:700;font-size:0.84rem;color:#fca5a5;">⚠️ ${escapeHtml(p.nombre)}</div>
-          <div style="font-size:0.75rem;color:rgba(188,210,233,0.7);">SKU: ${escapeHtml(p.sku || '—')} · Físico: ${p.stock_fisico ?? p.stock} / Online: ${p.stock_online ?? 0} (Mín: ${p.stock_minimo ?? 5})</div>
+          <div style="font-size:0.75rem;color:rgba(188,210,233,0.7);">Stock disponible: <strong>${p.stock ?? 0} uds.</strong> (Físico: ${p.stock_fisico ?? p.stock} / Online: ${p.stock_online ?? 0})</div>
         </div>
-        <a href="inventario.html" class="btn-table btn-table-edit" style="text-decoration:none;">Reabastecer</a>
+        ${window.IS_ADMIN ? `<a href="inventario.html" class="btn-table btn-table-edit" style="text-decoration:none;">Reabastecer</a>` : `<span class="badge badge-danger">Avisar a Admin</span>`}
       </div>`).join('')
     : `<div style="font-size:0.82rem;color:#34d399;padding:8px 0;">✅ Ningún producto en stock crítico.</div>`;
 
   const expiringHtml = data.expiring.length
     ? data.expiring.map(p => `
-      <div class="flex-between" style="padding:10px 12px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.24);border-radius:10px;margin-bottom:8px;">
+      <div class="flex-between" style="padding:10px 12px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.24);border-radius:10px;margin-bottom:8px;gap:8px;flex-wrap:wrap;">
         <div>
           <div style="font-weight:700;font-size:0.84rem;color:#fcd34d;">⏳ ${escapeHtml(p.nombre)}</div>
           <div style="font-size:0.75rem;color:rgba(188,210,233,0.7);">Vencimiento: <strong>${escapeHtml(p.fecha_vencimiento || '—')}</strong> (${p.vencido ? 'VENCIDO' : `Faltan ${p.dias_para_vencer}d`})</div>
         </div>
-        <a href="productos.html" class="btn-table btn-table-view" style="text-decoration:none;">Ver Lote</a>
+        ${window.IS_ADMIN ? `<a href="productos.html" class="btn-table btn-table-view" style="text-decoration:none;">Ver Lote</a>` : ''}
       </div>`).join('')
     : `<div style="font-size:0.82rem;color:#34d399;padding:8px 0;">✅ Sin lotes próximos a vencer (≤ 60 días).</div>`;
 
@@ -1037,6 +1089,10 @@ function downloadCSVFile(filename, headers, rows) {
 // MODAL DE RESPALDO Y RESTAURACIÓN DE BASE DE DATOS REAL (NFR-0016)
 // =========================================================================
 async function openBackupModal() {
+  if (!window.IS_ADMIN) {
+    showToast('Esta función es exclusiva de Administración.', 'error');
+    return;
+  }
   let modal = document.getElementById('siscoBackupModal');
   if (!modal) {
     modal = document.createElement('div');
@@ -1082,7 +1138,7 @@ async function openBackupModal() {
         Origen activo: <strong style="color:#34d399;">${escapeHtml(stats.source)}</strong>. Exporta una copia íntegra de catálogo, inventario dual, pedidos, facturas, clientes y gastos, o restaura un respaldo previo.
       </p>
 
-      <div style="background:rgba(188,210,233,0.06);border:1px solid var(--admin-border);border-radius:12px;padding:14px;margin-bottom:18px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;text-align:center;">
+      <div style="background:rgba(188,210,233,0.06);border:1px solid var(--admin-border);border-radius:12px;padding:14px;margin-bottom:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px;text-align:center;">
         <div><div style="font-size:1.2rem;font-weight:800;color:#fff;">${stats.productos}</div><div style="font-size:0.72rem;color:var(--color-brand-pastel);">Productos</div></div>
         <div><div style="font-size:1.2rem;font-weight:800;color:#34d399;">${stats.pedidos}</div><div style="font-size:0.72rem;color:var(--color-brand-pastel);">Pedidos</div></div>
         <div><div style="font-size:1.2rem;font-weight:800;color:#60a5fa;">${stats.facturas}</div><div style="font-size:0.72rem;color:var(--color-brand-pastel);">Facturas</div></div>
@@ -1176,6 +1232,10 @@ function resetFactoryDemoDB() {
 // REPORTE EJECUTIVO DE CIERRE DE CAJA Y ESTADO DE RESULTADOS (PDF IMPRIMIBLE)
 // =========================================================================
 async function openExecutiveReportModal() {
+  if (!window.IS_ADMIN) {
+    showToast('El reporte ejecutivo es exclusivo de Administración.', 'error');
+    return;
+  }
   let modal = document.getElementById('siscoExecReportModal');
   if (!modal) {
     modal = document.createElement('div');

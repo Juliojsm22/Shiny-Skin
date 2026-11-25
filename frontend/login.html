@@ -141,9 +141,13 @@ async function doLogin(e) {
     localStorage.setItem('sisco_token', result.token);
     localStorage.setItem('sisco_user', JSON.stringify(userObj));
     const nextUrl = new URLSearchParams(window.location.search).get('next') || '';
-    if (userObj && (userObj.rol === 'admin' || userObj.rol === 'vendedor')) {
+    if (userObj && userObj.rol === 'admin') {
       const targetAdminPage = nextUrl.includes('/admin/') ? ('admin/' + nextUrl.split('/admin/').pop()) : 'admin/dashboard.html';
       window.location.href = targetAdminPage;
+    } else if (userObj && userObj.rol === 'vendedor') {
+      const nextLeaf = nextUrl.includes('/admin/') ? nextUrl.split('/admin/').pop() : '';
+      const allowedSalesPages = ['pedidos.html', 'facturacion.html', 'clientes.html'];
+      window.location.href = allowedSalesPages.includes(nextLeaf) ? ('admin/' + nextLeaf) : 'admin/pedidos.html';
     } else {
       window.location.href = 'index.html';
     }

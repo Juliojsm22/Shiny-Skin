@@ -1,13 +1,13 @@
 from flask import Blueprint, jsonify, request
 from sqlalchemy import func
 from models import db, Product, InventoryMovement, OrderItem, InvoiceItem
-from routes.utils import staff_required, get_current_user_obj
+from routes.utils import admin_required, get_current_user_obj
 
 inventory_bp = Blueprint('inventory', __name__)
 
 
 @inventory_bp.route('/movimientos', methods=['GET'])
-@staff_required
+@admin_required
 def get_movements():
     product_id = request.args.get('product_id', type=int)
     tipo = request.args.get('tipo')
@@ -24,7 +24,7 @@ def get_movements():
 
 
 @inventory_bp.route('/entrada', methods=['POST'])
-@staff_required
+@admin_required
 def entrada_stock():
     """FRQ-0010 / UC5: Entrada manual de inventario por importación o compra."""
     data = request.get_json(silent=True) or {}
@@ -70,7 +70,7 @@ def entrada_stock():
 
 
 @inventory_bp.route('/salida', methods=['POST'])
-@staff_required
+@admin_required
 def salida_stock():
     """FRQ-0011 / UC5: Salida manual justificada por merma, daño o vencimiento."""
     data = request.get_json(silent=True) or {}
@@ -124,7 +124,7 @@ def salida_stock():
 
 
 @inventory_bp.route('/traslado', methods=['POST'])
-@staff_required
+@admin_required
 def traslado_stock():
     """FRQ-0009: Traslado de existencias entre Concept Store (Físico) y E-commerce (Online)."""
     data = request.get_json(silent=True) or {}
@@ -178,7 +178,7 @@ def traslado_stock():
 
 
 @inventory_bp.route('/ajuste', methods=['POST'])
-@staff_required
+@admin_required
 def ajuste_stock():
     data = request.get_json(silent=True) or {}
     pid = data.get('product_id')
@@ -227,7 +227,7 @@ def ajuste_stock():
 
 
 @inventory_bp.route('/resumen', methods=['GET'])
-@staff_required
+@admin_required
 def resumen():
     activos = Product.query.filter_by(activo=True).all()
     total_productos = len(activos)
@@ -256,7 +256,7 @@ def resumen():
 
 
 @inventory_bp.route('/rotacion', methods=['GET'])
-@staff_required
+@admin_required
 def rotacion_inventario():
     """HU-11 / UC7: Clasificación en Bajo Stock, Sin Stock, Alta Rotación, Stock Estancado y Por Vencer."""
     activos = Product.query.filter_by(activo=True).all()

@@ -243,7 +243,7 @@
 .kpi-change.down { color: #f87171; }
 
 /* ---- Admin Table ---- */
-.admin-table-wrapper { overflow-x: auto; }
+.admin-table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .admin-table {
   width: 100%;
   border-collapse: collapse;
@@ -451,23 +451,131 @@
 .admin-tab:hover { color: rgba(255, 255, 255, 0.85); }
 .admin-tab.active { color: var(--color-brand-pastel); border-bottom-color: var(--color-brand-pastel); background: rgba(188, 210, 233, 0.05); }
 
+/* ---- Helpers responsivos de formularios ---- */
+.price-calc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.moto-add-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-bottom: 16px; }
+
+/* ---- Barra de navegación móvil inferior (App-like) ---- */
+.admin-bottom-nav { display: none; }
+
 /* ---- Responsive Admin & Impresión ---- */
 @media (max-width: 1024px) {
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
 }
+@media (max-width: 900px) {
+  .admin-topbar {
+    height: auto;
+    min-height: 58px;
+    padding: 10px 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .topbar-left { flex: 1 1 auto; min-width: 0; gap: 9px; }
+  .topbar-title {
+    font-size: 0.96rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .topbar-actions { width: 100%; justify-content: flex-end; gap: 6px; }
+}
 @media (max-width: 768px) {
-  .admin-sidebar { transform: translateX(-100%); }
+  .admin-sidebar { transform: translateX(-100%); width: min(275px, 84vw); padding-bottom: 24px; }
   .admin-sidebar.open { transform: translateX(0); }
-  .admin-main { margin-left: 0; }
-  .admin-menu-toggle { display: inline-flex; }
-  .kpi-grid { grid-template-columns: 1fr; }
-  .admin-form-grid { grid-template-columns: 1fr; }
-  .admin-content { padding: 18px; }
-  .search-input-admin, .search-input-admin:focus { width: 100%; }
+  .admin-main { margin-left: 0; width: 100%; }
+  .admin-menu-toggle { display: inline-flex; flex-shrink: 0; }
+  .admin-content { padding: 14px 12px calc(88px + env(safe-area-inset-bottom, 0px)); }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
+  .kpi-card { padding: 14px 12px; border-radius: 16px; }
+  .kpi-icon { width: 34px; height: 34px; font-size: 1.05rem; margin-bottom: 8px; }
+  .kpi-value { font-size: 1.24rem; word-break: break-word; }
+  .kpi-label { font-size: 0.66rem; }
+  .kpi-change { font-size: 0.68rem; margin-top: 5px; }
+  .admin-form-grid { grid-template-columns: 1fr; gap: 12px; }
+  .admin-form-control { font-size: 16px; }
+  .admin-body .grid-2, .admin-body .grid-3 { grid-template-columns: 1fr !important; gap: 14px; }
+  .actions-bar { flex-direction: column; align-items: stretch; gap: 10px; margin-bottom: 14px; }
+  .actions-bar-left, .actions-bar-right { width: 100%; }
+  .search-wrapper { width: 100%; }
+  .search-input-admin, .search-input-admin:focus { width: 100%; font-size: 16px; }
+  .actions-bar .admin-form-control { flex: 1 1 135px; width: auto !important; }
+  .admin-card-header { padding: 14px 14px; }
+  .admin-card-body { padding: 14px 14px; }
+  .admin-table { font-size: 0.8rem; }
+  .admin-table th { padding: 10px 10px; font-size: 0.66rem; }
+  .admin-table td { padding: 10px 10px; }
+  .btn-table { padding: 6px 9px; font-size: 0.72rem; }
+  .btn-admin-primary, .btn-admin-secondary { padding: 8px 12px; font-size: 0.78rem; }
+  .conn-pill { padding: 5px 9px; font-size: 0.7rem; }
+  .admin-modal { padding: 20px 14px; border-radius: 20px; max-height: 88dvh; }
+  .admin-tab { padding: 9px 12px; font-size: 0.78rem; }
+  .pos-add-row > * { flex: 1 1 100% !important; width: 100% !important; min-width: 0 !important; }
+
+  .admin-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 230;
+    background: rgba(13, 29, 46, 0.97);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border-top: 1px solid rgba(188, 210, 233, 0.2);
+    padding: 6px 6px calc(8px + env(safe-area-inset-bottom, 0px));
+    justify-content: space-around;
+    align-items: center;
+    box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.45);
+  }
+  .bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 46px;
+    padding: 4px 2px;
+    border-radius: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    text-decoration: none;
+    transition: var(--transition);
+  }
+  .bottom-nav-item.active {
+    color: var(--color-brand-pastel);
+    background: rgba(188, 210, 233, 0.12);
+  }
+  .bottom-nav-ico {
+    position: relative;
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+  .bottom-nav-lbl {
+    font-size: 0.66rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .bottom-nav-badge {
+    position: absolute;
+    top: -5px;
+    right: -12px;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 99px;
+    background: #ef4444;
+    color: #ffffff;
+    font-size: 0.62rem;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid #0d1d2e;
+  }
 }
 
 @media print {
-  .admin-sidebar, .admin-topbar, .actions-bar, .kpi-grid, .modal-close, .no-print, .admin-content, .sisco-order-alert-stack, .sisco-pending-banner { display: none !important; }
+  .admin-sidebar, .admin-topbar, .admin-bottom-nav, .actions-bar, .kpi-grid, .modal-close, .no-print, .admin-content, .sisco-order-alert-stack, .sisco-pending-banner { display: none !important; }
   .admin-body { background: #ffffff !important; color: #000000 !important; }
   .admin-main { margin-left: 0 !important; }
   .modal-overlay { display: none !important; }
@@ -763,6 +871,10 @@ tr.order-row-highlight td {
 }
 
 @media (max-width: 600px) {
-  .sisco-order-alert-stack { top: 10px; right: 10px; left: 10px; width: auto; max-width: none; }
-  .sisco-pending-banner { padding: 10px 14px; font-size: 0.8rem; }
+  .price-calc-grid { grid-template-columns: repeat(2, 1fr); }
+  .moto-add-form { grid-template-columns: 1fr; }
+  .sisco-order-alert-stack { top: 8px; right: 8px; left: 8px; width: auto; max-width: none; max-height: 82dvh; overflow-y: auto; }
+  .sisco-order-alert-card { padding: 14px 14px; border-radius: 16px; }
+  .sisco-alert-btn-confirm { min-height: 44px; font-size: 0.88rem; }
+  .sisco-pending-banner { padding: 10px 12px; font-size: 0.78rem; }
 }

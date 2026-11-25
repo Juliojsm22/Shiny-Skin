@@ -13,7 +13,7 @@
   <header class="admin-topbar">
     <div class="topbar-title">🧾 Punto de Venta (POS) y Facturación</div>
     <div class="topbar-actions">
-      <button type="button" class="btn-admin-secondary" onclick="exportInvoicesCSV()">📊 Exportar Excel</button>
+      <button type="button" class="btn-admin-secondary" data-admin-only onclick="exportInvoicesCSV()">📊 Exportar Excel</button>
       <button class="btn-admin-primary" onclick="openPosModal()">➕ Nueva Venta / Factura</button>
     </div>
   </header>
@@ -28,7 +28,7 @@
         <div class="kpi-label">Facturado Hoy</div>
         <div class="kpi-change up">Caja Concept Store + Online</div>
       </div>
-      <div class="kpi-card blue">
+      <div class="kpi-card blue" data-admin-only>
         <div class="kpi-icon">🧾</div>
         <div class="kpi-value" id="facTotalIngresos">—</div>
         <div class="kpi-label">Total Cobrado Histórico</div>
@@ -40,7 +40,7 @@
         <div class="kpi-label">Pendientes de Pago</div>
         <div class="kpi-change">Estado: Emitida</div>
       </div>
-      <div class="kpi-card pink">
+      <div class="kpi-card pink" data-admin-only>
         <div class="kpi-icon">↩️</div>
         <div class="kpi-value" id="facAnuladas">0</div>
         <div class="kpi-label">Facturas Anuladas</div>
@@ -130,7 +130,7 @@
 
         <div style="padding:14px;background:rgba(255,255,255,0.04);border:1px solid var(--admin-border);border-radius:var(--radius-md);margin-bottom:14px;">
           <label class="admin-form-label" style="display:block;margin-bottom:8px;">🧴 Buscar Producto por Nombre o SKU *</label>
-          <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+          <div class="pos-add-row" style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
             <input class="admin-form-control" id="posSkuFilter" placeholder="Filtrar rápido..." oninput="filterPosSelect()" style="width:160px;" />
             <select class="admin-form-control" id="posProdSelect" style="flex:1;min-width:220px;"></select>
             <input class="admin-form-control" type="number" id="posQty" min="1" value="1" style="width:76px;" />
@@ -273,7 +273,7 @@ function renderFacturas() {
           <button class="btn-table btn-table-view" onclick="viewReceipt(${f.id})">👁 Ver</button>
           <button class="btn-table btn-table-edit" onclick="downloadInvoicePDF(${f.id})">📄 PDF</button>
           ${f.estado === 'emitida' ? `<button class="btn-table btn-table-edit" onclick="markPaid(${f.id})">✅ Cobrar</button>` : ''}
-          ${f.estado !== 'anulada' ? `<button class="btn-table btn-table-delete" onclick="annulInvoice(${f.id})">✕ Anular</button>` : ''}
+          ${window.IS_ADMIN && f.estado !== 'anulada' ? `<button class="btn-table btn-table-delete" onclick="annulInvoice(${f.id})">✕ Anular</button>` : ''}
         </div>
       </td>
     </tr>`).join('');
@@ -524,6 +524,10 @@ async function markPaid(id) {
 }
 
 async function annulInvoice(id) {
+  if (!window.IS_ADMIN) {
+    showToast('Solo la Administradora tiene permiso para anular facturas.', 'error');
+    return;
+  }
   const motivo = prompt('Indica el motivo de anulación de la factura (las unidades vendidas en POS retornarán automáticamente al stock físico):');
   if (motivo === null) return;
   try {
@@ -545,6 +549,7 @@ function downloadInvoicePDF(id) {
 }
 
 function exportInvoicesCSV() {
+  if (!window.IS_ADMIN) return;
   const headers = ['N.° Factura', 'Pedido', 'Cliente', 'Teléfono', 'Canal', 'Método Pago', 'Subtotal (C$)', 'Descuento (C$)', 'Total (C$)', 'Estado', 'Fecha'];
   const rows = allFacturas.map(f => [
     f.numero_factura, f.numero_pedido || '', f.nombre_cliente, f.telefono_cliente || '',

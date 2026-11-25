@@ -3,7 +3,7 @@ from models import (
     db, Product, Category, Brand, Order, OrderItem, Invoice, InvoiceItem,
     Expense, Client, Motorizado, InventoryMovement, User
 )
-from routes.utils import staff_required, admin_required, today_ni, month_ni, now_ni
+from routes.utils import admin_required, today_ni, month_ni, now_ni
 from sqlalchemy import func
 from datetime import timedelta
 
@@ -13,7 +13,7 @@ ESTADOS_PEDIDO_VALIDOS = ('confirmado', 'en_camino', 'entregado')
 
 
 @dashboard_bp.route('/kpis', methods=['GET'])
-@staff_required
+@admin_required
 def get_kpis():
     hoy = today_ni()
     inicio_mes = hoy.replace(day=1)
@@ -77,7 +77,7 @@ def get_kpis():
 
 
 @dashboard_bp.route('/ventas-semana', methods=['GET'])
-@staff_required
+@admin_required
 def ventas_semana():
     resultado = []
     hoy = today_ni()
@@ -100,7 +100,7 @@ def ventas_semana():
 
 
 @dashboard_bp.route('/top-productos', methods=['GET'])
-@staff_required
+@admin_required
 def top_productos():
     acumulado = {}
 
@@ -143,7 +143,7 @@ def top_productos():
 
 
 @dashboard_bp.route('/stock-critico', methods=['GET'])
-@staff_required
+@admin_required
 def productos_stock_critico():
     productos = Product.query.filter(
         Product.activo.is_(True),

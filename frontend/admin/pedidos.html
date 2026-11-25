@@ -14,7 +14,7 @@
     <div class="topbar-title">🛒 Gestión Omnicanal de Pedidos y Motorizados</div>
     <div class="topbar-actions">
       <button class="btn-admin-secondary" onclick="refreshOrdersNow()" title="Sincronizar nuevos pedidos">🔄 Actualizar</button>
-      <button class="btn-admin-secondary" onclick="openMotoModal()">🛵 Motorizados</button>
+      <button class="btn-admin-secondary" data-admin-only onclick="openMotoModal()">🛵 Motorizados</button>
       <button class="btn-admin-primary" onclick="openManualOrderModal()">➕ Pedido Manual (WhatsApp / IG)</button>
     </div>
   </header>
@@ -129,7 +129,7 @@
       <!-- Selector de productos -->
       <div style="margin-top:16px;padding:14px;background:rgba(255,255,255,0.04);border:1px solid var(--admin-border);border-radius:var(--radius-md);">
         <label class="admin-form-label" style="margin-bottom:8px;display:block;">🧴 Agregar Productos al Pedido *</label>
-        <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <div class="pos-add-row" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
           <select class="admin-form-control" id="moProdSelect" style="flex:1;"></select>
           <input class="admin-form-control" type="number" id="moProdQty" min="1" value="1" style="width:82px;" />
           <button type="button" class="btn-admin-primary" onclick="addManualItem()">+ Agregar</button>
@@ -178,7 +178,7 @@
       <div class="modal-title">🛵 Directorio de Motorizados de Entrega</div>
       <button class="modal-close" onclick="document.getElementById('motoModal').classList.remove('active')">✕</button>
     </div>
-    <form onsubmit="saveMotorizado(event)" style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:16px;">
+    <form onsubmit="saveMotorizado(event)" class="moto-add-form">
       <input class="admin-form-control" id="newMotoNombre" placeholder="Nombre del repartidor *" required />
       <input class="admin-form-control" id="newMotoTel" placeholder="Teléfono *" required />
       <button type="submit" class="btn-admin-primary">+ Añadir</button>
@@ -554,6 +554,10 @@ async function submitManualOrder(e) {
 
 // ---- Motorizados ----
 function openMotoModal() {
+  if (!window.IS_ADMIN) {
+    showToast('Solo la Administradora puede gestionar el directorio de motorizados.', 'error');
+    return;
+  }
   renderMotoList();
   document.getElementById('motoModal').classList.add('active');
 }
@@ -576,6 +580,7 @@ function renderMotoList() {
 
 async function saveMotorizado(e) {
   e.preventDefault();
+  if (!window.IS_ADMIN) return;
   const nombre = document.getElementById('newMotoNombre').value.trim();
   const telefono = document.getElementById('newMotoTel').value.trim();
   try {

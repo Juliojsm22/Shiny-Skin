@@ -6,7 +6,7 @@ from models import (
 )
 from routes.utils import (
     get_current_user_obj, get_staff_from_request_or_query, is_staff_request,
-    staff_required, upsert_client, now_ni, now_ni_naive
+    staff_required, admin_required, upsert_client, now_ni, now_ni_naive
 )
 from events import order_event_bus
 from datetime import datetime
@@ -616,7 +616,7 @@ def list_motorizados():
 
 
 @orders_bp.route('/motorizados', methods=['POST'])
-@staff_required
+@admin_required
 def create_motorizado():
     data = request.get_json(silent=True) or {}
     nombre = (data.get('nombre') or '').strip()
@@ -635,7 +635,7 @@ def create_motorizado():
 
 
 @orders_bp.route('/motorizados/<int:mid>', methods=['PUT'])
-@staff_required
+@admin_required
 def update_motorizado(mid):
     moto = db.session.get(Motorizado, mid)
     if not moto:

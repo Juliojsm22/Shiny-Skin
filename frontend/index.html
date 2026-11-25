@@ -89,15 +89,28 @@
     .newsletter-btn:hover { background: #ffffff; }
 
     @media (max-width: 900px) {
-      .hero-content { grid-template-columns: 1fr; text-align: center; padding: 48px 20px; }
-      .hero-desc { margin-left: auto; margin-right: auto; }
+      .hero-content { grid-template-columns: 1fr; text-align: center; padding: 38px 16px 42px; gap: 24px; }
+      .hero-title { font-size: clamp(1.85rem, 6.2vw, 2.55rem); margin-bottom: 14px; }
+      .hero-desc { margin-left: auto; margin-right: auto; font-size: 0.94rem; margin-bottom: 22px; }
       .hero-cta, .hero-stats { justify-content: center; }
+      .hero-stats { gap: 20px; margin-top: 28px; }
+      .hero-stat-num { font-size: 1.45rem; }
       .hero-visual { display: none; }
-      .cat-grid, .features-grid { grid-template-columns: repeat(2, 1fr); }
-      .cat-card:first-child { grid-column: span 2; }
+      .cat-grid, .features-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+      .cat-card:first-child { grid-column: span 2; grid-row: auto; min-height: 195px; aspect-ratio: 16 / 9; }
+      .cat-card-content { padding: 14px; }
+      .cat-card-name { font-size: 0.98rem; }
+      .cat-card:first-child .cat-card-name { font-size: 1.32rem; }
     }
     @media (max-width: 560px) {
-      .features-grid { grid-template-columns: 1fr; }
+      .hero-cta .btn { width: 100%; }
+      .features-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+      .feature-card { padding: 18px 12px; }
+      .feature-icon { font-size: 1.75rem; margin-bottom: 8px; }
+      .feature-title { font-size: 0.85rem; }
+      .feature-desc { font-size: 0.76rem; }
+      .newsletter { padding: 34px 20px; border-radius: 22px; }
+      .newsletter-title { font-size: 1.38rem; }
       .newsletter-form { flex-direction: column; }
     }
   </style>

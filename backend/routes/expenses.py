@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from sqlalchemy import func
 from models import db, Expense
-from routes.utils import get_current_user_obj, staff_required, admin_required, now_ni, month_ni
+from routes.utils import get_current_user_obj, admin_required, now_ni, month_ni
 
 expenses_bp = Blueprint('expenses', __name__)
 
@@ -9,7 +9,7 @@ CATEGORIAS_VALIDAS = ['IMPORTACION', 'ENVIO', 'EMPAQUE', 'PUBLICIDAD', 'ALQUILER
 
 
 @expenses_bp.route('/', methods=['GET'])
-@staff_required
+@admin_required
 def get_expenses():
     """Lista los gastos operativos filtrables por categoría y rango de fechas (HU-13 / FRQ-0030)."""
     categoria = request.args.get('categoria', '').strip().upper()
@@ -32,7 +32,7 @@ def get_expenses():
 
 
 @expenses_bp.route('/resumen', methods=['GET'])
-@staff_required
+@admin_required
 def resumen_gastos():
     hoy_mes = month_ni()
     mes = request.args.get('mes', hoy_mes).strip()
@@ -64,7 +64,7 @@ def resumen_gastos():
 
 
 @expenses_bp.route('/', methods=['POST'])
-@staff_required
+@admin_required
 def create_expense():
     data = request.get_json() or {}
     concepto = (data.get('concepto') or '').strip()
@@ -97,7 +97,7 @@ def create_expense():
 
 
 @expenses_bp.route('/<int:id>', methods=['PUT'])
-@staff_required
+@admin_required
 def update_expense(id):
     gasto = db.session.get(Expense, id)
     if not gasto:

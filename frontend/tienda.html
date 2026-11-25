@@ -69,7 +69,11 @@
 
   <!-- SIDEBAR FILTROS -->
   <aside class="filtros-sidebar" aria-label="Filtros de productos">
-    <div class="filtros-card">
+    <button type="button" class="mobile-filter-toggle" id="mobileFilterToggle" onclick="toggleMobileFilters()" aria-expanded="false">
+      <span>🔍 Filtrar Catálogo <span id="activeFiltersBadge" class="mobile-filter-badge" style="display:none;">0</span></span>
+      <span id="mobileFilterArrow">▾</span>
+    </button>
+    <div class="filtros-card" id="filtrosCard">
       <div class="filtros-title">🔍 Filtrar Catálogo</div>
 
       <div class="filtros-section">
@@ -281,8 +285,34 @@ function getFiltered() {
   return result;
 }
 
+function toggleMobileFilters(forceClose = false) {
+  const card = document.getElementById('filtrosCard');
+  const btn = document.getElementById('mobileFilterToggle');
+  const arrow = document.getElementById('mobileFilterArrow');
+  if (!card) return;
+  const open = forceClose ? false : !card.classList.contains('open');
+  card.classList.toggle('open', open);
+  if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (arrow) arrow.textContent = open ? '▴' : '▾';
+}
+
+function updateActiveFiltersBadge() {
+  const badge = document.getElementById('activeFiltersBadge');
+  if (!badge) return;
+  let active = 0;
+  if (catFilter && catFilter !== 'all') active++;
+  if (brandFilter) active++;
+  if (document.getElementById('minPrice')?.value || document.getElementById('maxPrice')?.value) active++;
+  if (document.getElementById('chkNuevo')?.checked) active++;
+  if (document.getElementById('chkDescuento')?.checked) active++;
+  if (document.getElementById('chkDisponible')?.checked) active++;
+  badge.textContent = active;
+  badge.style.display = active > 0 ? 'inline-flex' : 'none';
+}
+
 function filterProducts() {
   currentPage = 1;
+  updateActiveFiltersBadge();
   renderProducts();
 }
 
@@ -333,18 +363,21 @@ function setCatFilter(cat) {
   document.getElementById('breadcrumbCat').textContent = label;
   renderCategoryFilters();
   filterProducts();
+  if (window.innerWidth <= 768) toggleMobileFilters(true);
 }
 
 function setBrandFilter(brand) {
   brandFilter = normalizeText(brandFilter) === normalizeText(brand) ? '' : brand;
   renderBrandFilters();
   filterProducts();
+  if (window.innerWidth <= 768) toggleMobileFilters(true);
 }
 
 function setPriceRange(min, max) {
   document.getElementById('minPrice').value = min || '';
   document.getElementById('maxPrice').value = max >= 9999 ? '' : max;
   filterProducts();
+  if (window.innerWidth <= 768) toggleMobileFilters(true);
 }
 
 function clearFilters() {
@@ -362,6 +395,7 @@ function clearFilters() {
   renderCategoryFilters();
   renderBrandFilters();
   filterProducts();
+  if (window.innerWidth <= 768) toggleMobileFilters(true);
 }
 
 function setView(v) {

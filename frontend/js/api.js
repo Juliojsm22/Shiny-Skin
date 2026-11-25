@@ -1867,9 +1867,13 @@ function initPublicNavbar() {
   const { token, user } = getActiveSession();
   const adminLink = actions.querySelector('[data-nav-auth]');
   if (adminLink) {
-    if (token && user && (user.rol === 'admin' || user.rol === 'vendedor')) {
+    if (token && user && user.rol === 'admin') {
       adminLink.href = 'admin/dashboard.html';
       adminLink.innerHTML = '⚙️ Panel SISCO';
+      adminLink.className = 'btn btn-primary btn-sm';
+    } else if (token && user && user.rol === 'vendedor') {
+      adminLink.href = 'admin/pedidos.html';
+      adminLink.innerHTML = '🛍️ Panel Ventas';
       adminLink.className = 'btn btn-primary btn-sm';
     } else if (token && user) {
       adminLink.href = '#';

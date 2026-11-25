@@ -161,7 +161,7 @@ def get_product(id):
 
 
 @products_bp.route('/', methods=['POST'])
-@staff_required
+@admin_required
 def create_product():
     if request.content_type and request.content_type.startswith('multipart/form-data'):
         data = request.form.to_dict()
@@ -257,7 +257,7 @@ def create_product():
 
 
 @products_bp.route('/<int:id>', methods=['PUT'])
-@staff_required
+@admin_required
 def update_product(id):
     product = Product.query.get_or_404(id)
 

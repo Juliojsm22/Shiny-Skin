@@ -328,8 +328,10 @@ def update_estado(id):
     estado_anterior = invoice.estado
     user = get_current_user_obj()
 
-    # Anulación de factura con devolución automática de stock (FRQ-0021 / UC4)
+    # Anulación de factura con devolución automática de stock — restringido solo a Administradora
     if nuevo_estado == 'anulada' and estado_anterior != 'anulada':
+        if not user or user.rol != 'admin':
+            return jsonify({'error': 'Solo la Administradora tiene permiso para anular facturas.'}), 403
         motivo = (data.get('motivo_anulacion') or data.get('motivo') or 'Anulación administrativa').strip()
         invoice.motivo_anulacion = motivo
 

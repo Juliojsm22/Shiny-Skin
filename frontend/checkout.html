@@ -43,7 +43,7 @@
       <div class="card-body">
         <h2 style="font-size:1.22rem;font-weight:700;margin-bottom:20px;color:var(--color-primary-darker);">📋 Datos de contacto y entrega</h2>
         <form id="checkoutForm" onsubmit="placeOrder(event)">
-          <div class="grid-2" style="gap:16px;margin-bottom:16px;">
+          <div class="grid-2 checkout-contact-grid" style="gap:16px;margin-bottom:16px;">
             <div class="form-group">
               <label class="form-label" for="ckNombre">Nombre completo *</label>
               <input class="form-control" id="ckNombre" type="text" placeholder="Ej. María Fernanda González" required />
@@ -61,7 +61,7 @@
 
           <div class="form-group" style="margin-bottom:18px;">
             <label class="form-label">Modalidad de recepción *</label>
-            <div class="grid-2" style="gap:12px;">
+            <div class="grid-2 delivery-mode-grid" style="gap:12px;">
               <label id="optDomicilio" style="display:flex;align-items:flex-start;gap:10px;padding:13px;border:2px solid var(--color-primary);border-radius:var(--radius-md);cursor:pointer;background:#ffffff;">
                 <input type="radio" name="entrega" value="domicilio" checked onchange="updateDeliveryMode()" style="margin-top:4px;"/>
                 <div>
@@ -150,7 +150,7 @@
 
   <!-- RIGHT: Resumen -->
   <div>
-    <div class="summary-card" style="position:sticky;top:96px;">
+    <div class="summary-card checkout-summary-card" style="position:sticky;top:96px;">
       <div class="summary-title">📦 Resumen del Pedido</div>
       <div id="orderItems" style="margin:14px 0;max-height:280px;overflow-y:auto;"></div>
       <div id="orderTotals"></div>

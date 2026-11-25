@@ -13,7 +13,7 @@
   <header class="admin-topbar">
     <div class="topbar-title">👥 Cartera de Clientes e Historial (HU-05)</div>
     <div class="topbar-actions">
-      <button type="button" class="btn-admin-secondary" onclick="exportClientsCSV()">📊 Exportar Excel</button>
+      <button type="button" class="btn-admin-secondary" data-admin-only onclick="exportClientsCSV()">📊 Exportar Excel</button>
       <button class="btn-admin-primary" onclick="openClientModal()">➕ Registrar Cliente</button>
     </div>
   </header>
@@ -31,12 +31,12 @@
         <div class="kpi-value" id="cliRecurrentes">0</div>
         <div class="kpi-label">Clientes con Compras</div>
       </div>
-      <div class="kpi-card gold">
+      <div class="kpi-card gold" data-admin-only>
         <div class="kpi-icon">💎</div>
         <div class="kpi-value" id="cliVolumen">C$ 0.00</div>
         <div class="kpi-label">Compras Acumuladas</div>
       </div>
-      <div class="kpi-card pink">
+      <div class="kpi-card pink" data-admin-only>
         <div class="kpi-icon">🧾</div>
         <div class="kpi-value" id="cliTicket">C$ 0.00</div>
         <div class="kpi-label">Valor Promedio por Cliente</div>
@@ -250,6 +250,10 @@ async function viewClientHistory(id) {
 }
 
 async function deleteClient(id) {
+  if (!window.IS_ADMIN) {
+    showToast('Solo la Administradora puede eliminar clientes.', 'error');
+    return;
+  }
   const c = allClients.find(x => x.id == id);
   if (!c || !confirm(`¿Eliminar a "${c.nombre}" de la cartera de clientes? (Sus pedidos históricos se conservarán intactos.)`)) return;
   try {
@@ -262,6 +266,7 @@ async function deleteClient(id) {
 }
 
 function exportClientsCSV() {
+  if (!window.IS_ADMIN) return;
   const headers = ['Nombre', 'Teléfono', 'Correo', 'Dirección', 'Pedidos Válidos', 'Total Comprado (C$)', 'Notas'];
   const rows = allClients.map(c => [
     c.nombre, c.telefono || '', c.email || '', c.direccion || '',
