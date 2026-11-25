@@ -124,12 +124,54 @@ function getStoreWhatsApp() {
   return formatWhatsAppPhone(cfg) || '50588880000';
 }
 
-// ---- Cupones promocionales compartidos (validados también en backend) ----
-const VALID_COUPONS = {
-  SHINY10: { code: 'SHINY10', pct: 10, label: '10% OFF Bienvenida Shiny Skin' },
-  VIP15:   { code: 'VIP15',   pct: 15, label: '15% OFF Clienta VIP K-Beauty' },
-  KBEAUTY: { code: 'KBEAUTY', pct: 10, label: '10% OFF Rutina Coreana' },
-};
+// ---- Descuento General de Tienda (habilitado únicamente por la Administradora) ----
+let _activeStorePromoCache = null;
+
+function getCachedStorePromo() {
+  if (_activeStorePromoCache && _activeStorePromoCache.activo && _activeStorePromoCache.codigo && Number(_activeStorePromoCache.porcentaje) > 0) {
+    return _activeStorePromoCache;
+  }
+  return null;
+}
+
+function setCachedStorePromo(promo) {
+  if (promo && promo.activo && promo.codigo && Number(promo.porcentaje) > 0) {
+    _activeStorePromoCache = {
+      activo: true,
+      codigo: String(promo.codigo).trim().toUpperCase(),
+      porcentaje: Number(promo.porcentaje),
+      descripcion: promo.descripcion || `${Number(promo.porcentaje)}% OFF en toda la tienda`
+    };
+    // Si había un cupón guardado en el navegador que ya no coincide, limpiarlo o sincronizar porcentaje
+    try {
+      const saved = JSON.parse(localStorage.getItem('sisco_coupon') || 'null');
+      if (saved) {
+        if (String(saved.code || '').toUpperCase() === _activeStorePromoCache.codigo) {
+          localStorage.setItem('sisco_coupon', JSON.stringify({
+            code: _activeStorePromoCache.codigo,
+            pct: _activeStorePromoCache.porcentaje,
+            label: _activeStorePromoCache.descripcion
+          }));
+        } else {
+          localStorage.removeItem('sisco_coupon');
+        }
+      }
+    } catch {}
+  } else {
+    _activeStorePromoCache = { activo: false, codigo: null, porcentaje: 0, descripcion: '' };
+    try { localStorage.removeItem('sisco_coupon'); } catch {}
+  }
+  return getCachedStorePromo();
+}
+
+async function fetchActiveStorePromo() {
+  try {
+    const res = await api.promocion.get();
+    return setCachedStorePromo(res);
+  } catch {
+    return setCachedStorePromo(null);
+  }
+}
 
 // ---- Semilla Inicial para Base de Datos Local (solo modo demo sin servidor) ----
 const INITIAL_PRODUCTS = [
@@ -879,9 +921,16 @@ async function handleLocalApi(method, path, body) {
     }
 
     let desc = parseFloat(data.descuento) || 0;
-    if (data.cupon && VALID_COUPONS[String(data.cupon).toUpperCase()]) {
-      const pct = VALID_COUPONS[String(data.cupon).toUpperCase()].pct;
-      desc = Math.round(subtotal * pct) / 100;
+    if (data.cupon) {
+      const promo = db.promocion || { activo: false };
+      const codeReq = String(data.cupon).trim().toUpperCase();
+      if (!promo.activo || !promo.codigo || Number(promo.porcentaje || 0) <= 0) {
+        throw new Error('Actualmente no hay un descuento general habilitado en la tienda.');
+      }
+      if (codeReq !== String(promo.codigo).trim().toUpperCase()) {
+        throw new Error(`El código de descuento "${codeReq}" no es válido o no está activo.`);
+      }
+      desc = Math.round(subtotal * Number(promo.porcentaje)) / 100;
     }
     const base = Math.max(0, subtotal - desc);
     const envio = data.metodo_entrega === 'retiro' ? 0 : (data.costo_envio !== undefined ? (parseFloat(data.costo_envio) || 0) : (base >= 1500 ? 0 : 100));
@@ -1248,6 +1297,37 @@ async function handleLocalApi(method, path, body) {
     return db.productos.filter(p => p.activo !== false && p.stock_critico);
   }
 
+  // ---- Promoción / Descuento General de Tienda (Local Demo) ----
+  if (!db.promocion) {
+    db.promocion = { activo: false, codigo: 'SHINY10', porcentaje: 10, descripcion: 'Descuento especial en toda la tienda' };
+  }
+  if ((pathname === '/promocion' || pathname === '/promocion/') && method === 'GET') {
+    if (!db.promocion.activo || !db.promocion.codigo || Number(db.promocion.porcentaje) <= 0) {
+      return { activo: false, codigo: null, porcentaje: 0, descripcion: '' };
+    }
+    return { ...db.promocion };
+  }
+  if (pathname === '/promocion/admin' && method === 'GET') {
+    return { ...db.promocion };
+  }
+  if ((pathname === '/promocion' || pathname === '/promocion/') && method === 'PUT') {
+    const activo = !!data.activo;
+    const codigo = String(data.codigo !== undefined ? data.codigo : db.promocion.codigo || 'SHINY10').trim().toUpperCase().replace(/\s+/g, '');
+    const porcentaje = Math.round((parseFloat(data.porcentaje !== undefined ? data.porcentaje : db.promocion.porcentaje) || 0) * 100) / 100;
+    if (activo && (!codigo || codigo.length < 2)) throw new Error('Ingresa un código de descuento válido.');
+    if (activo && (porcentaje <= 0 || porcentaje > 90)) throw new Error('El porcentaje debe estar entre 1% y 90%.');
+    db.promocion = {
+      activo,
+      codigo: codigo || 'SHINY10',
+      porcentaje,
+      descripcion: String(data.descripcion !== undefined ? data.descripcion : (db.promocion.descripcion || '')).trim() || `${porcentaje}% OFF en toda la tienda Shiny Skin`,
+      updated_at: nowIso,
+      updated_by: currentUser.nombre || 'Administradora'
+    };
+    saveLocalDB(db);
+    return { ...db.promocion };
+  }
+
   return {};
 }
 
@@ -1475,6 +1555,13 @@ const api = {
     backup:       () => api.get('/dashboard/backup', true),
     restore:      (data) => api.post('/dashboard/restore', data, true),
   },
+
+  // ---- Promoción / Descuento General de Tienda ----
+  promocion: {
+    get:      ()     => api.get('/promocion'),
+    getAdmin: ()     => api.get('/promocion/admin', true),
+    update:   (data) => api.put('/promocion', data, true),
+  },
 };
 
 async function fetchProductos(params = {}) { return await api.productos.list(params); }
@@ -1610,32 +1697,49 @@ function updateCartBadge() {
 }
 
 function getAppliedCoupon() {
+  const activePromo = getCachedStorePromo();
+  if (!activePromo) return null;
   try {
     const c = JSON.parse(localStorage.getItem('sisco_coupon') || 'null');
-    if (c && VALID_COUPONS[c.code]) return VALID_COUPONS[c.code];
+    if (c && String(c.code || '').trim().toUpperCase() === activePromo.codigo) {
+      return {
+        code: activePromo.codigo,
+        pct: activePromo.porcentaje,
+        label: activePromo.descripcion
+      };
+    }
   } catch {}
   return null;
 }
 
 function applyPromoCoupon(rawCode) {
+  const activePromo = getCachedStorePromo();
+  if (!activePromo) {
+    showToast('Actualmente no hay un descuento general habilitado en la tienda.', 'error');
+    return null;
+  }
   const code = String(rawCode || '').trim().toUpperCase();
   if (!code) {
-    showToast('Ingresa un código promocional.', 'error');
+    showToast('Ingresa o selecciona el código de descuento.', 'error');
     return null;
   }
-  const found = VALID_COUPONS[code];
-  if (!found) {
-    showToast('Cupón inválido. Prueba con SHINY10, VIP15 o KBEAUTY.', 'error');
+  if (code !== activePromo.codigo) {
+    showToast(`Código inválido. El código activo es ${activePromo.codigo}.`, 'error');
     return null;
   }
-  localStorage.setItem('sisco_coupon', JSON.stringify(found));
-  showToast(`🎉 Cupón ${found.code} aplicado: ${found.label}`, 'success');
-  return found;
+  const applied = {
+    code: activePromo.codigo,
+    pct: activePromo.porcentaje,
+    label: activePromo.descripcion
+  };
+  localStorage.setItem('sisco_coupon', JSON.stringify(applied));
+  showToast(`🎉 Descuento ${applied.code} (-${applied.pct}%) aplicado`, 'success');
+  return applied;
 }
 
 function clearPromoCoupon(silent = false) {
   localStorage.removeItem('sisco_coupon');
-  if (!silent) showToast('Cupón promocional retirado', 'info');
+  if (!silent) showToast('Descuento retirado', 'info');
 }
 
 // ---- Navegación pública, Rastreo Seguro y Test de Piel K-Beauty ----
@@ -1891,6 +1995,16 @@ function initPublicNavbar() {
       adminLink.className = 'btn btn-outline btn-sm';
     }
   }
+
+  // Mostrar aviso sutil en la barra superior solo si el admin habilitó un descuento general en la tienda
+  fetchActiveStorePromo().then(promo => {
+    const bar = document.querySelector('.top-notice-bar');
+    if (!bar || !promo || !promo.activo || bar.querySelector('[data-promo-notice]')) return;
+    const span = document.createElement('span');
+    span.setAttribute('data-promo-notice', '1');
+    span.innerHTML = ` · 🎉 <strong>${escapeHtml(promo.porcentaje)}% OFF</strong> en toda la tienda con el código <strong>${escapeHtml(promo.codigo)}</strong>`;
+    bar.appendChild(span);
+  }).catch(() => {});
 }
 
 document.addEventListener('DOMContentLoaded', () => {

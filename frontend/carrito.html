@@ -58,7 +58,10 @@ let liveStockMap = {};
 
 async function syncCartStock() {
   try {
-    const prods = await fetchProductos();
+    const [prods] = await Promise.all([
+      fetchProductos(),
+      typeof fetchActiveStorePromo === 'function' ? fetchActiveStorePromo() : Promise.resolve(null)
+    ]);
     prods.forEach(p => { liveStockMap[p.id] = p; });
     const cart = getCart();
     let changed = false;
@@ -97,7 +100,8 @@ function render() {
 
   const subtotal = cart.reduce((s, i) => s + (Number(i.precio) * Number(i.cantidad)), 0);
   const totalUnidades = cart.reduce((s, i) => s + Number(i.cantidad), 0);
-  const coupon = typeof getAppliedCoupon === 'function' ? getAppliedCoupon() : null;
+  const storePromo = typeof getCachedStorePromo === 'function' ? getCachedStorePromo() : null;
+  const coupon = (storePromo && typeof getAppliedCoupon === 'function') ? getAppliedCoupon() : null;
   const descuentoMonto = coupon ? Math.round((subtotal * coupon.pct) / 100) : 0;
   const totalConDescuento = Math.max(0, subtotal - descuentoMonto);
 
@@ -138,20 +142,21 @@ function render() {
     <div class="summary-card">
       <div class="summary-title">Resumen de compra</div>
 
-      <!-- Cupón Promocional -->
+      <!-- Descuento General de Tienda (solo visible cuando el Admin lo habilita) -->
+      ${storePromo ? `
       <div style="margin-bottom:14px;padding:12px;background:var(--color-surface-2);border-radius:var(--radius-md);border:1px solid var(--color-surface-3);">
-        <div style="font-size:0.76rem;font-weight:700;color:var(--color-primary-darker);margin-bottom:6px;">🎟️ ¿Tienes un cupón de descuento?</div>
+        <div style="font-size:0.78rem;font-weight:700;color:var(--color-primary-darker);margin-bottom:3px;">🎟️ Descuento disponible en toda la tienda</div>
+        ${storePromo.descripcion ? `<div style="font-size:0.73rem;color:var(--color-text-muted);margin-bottom:8px;">${escapeHtml(storePromo.descripcion)}</div>` : ''}
         <div style="display:flex;gap:8px;align-items:center;width:100%;">
-          <input type="text" id="cartCouponInput" class="form-control" style="flex:1;min-width:0;width:auto;padding:8px 10px;font-size:0.84rem;" placeholder="Ej. SHINY10" value="${coupon ? coupon.code : ''}" />
+          <input type="text" id="cartCouponInput" class="form-control" style="flex:1;min-width:0;width:auto;padding:8px 10px;font-size:0.84rem;text-transform:uppercase;" placeholder="Código: ${escapeHtml(storePromo.codigo)}" value="${coupon ? escapeHtml(coupon.code) : ''}" />
           <button type="button" class="btn btn-primary btn-sm" style="flex-shrink:0;white-space:nowrap;padding:8px 14px;" onclick="if(applyPromoCoupon(document.getElementById('cartCouponInput').value)) render();">Aplicar</button>
         </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;font-size:0.72rem;">
-          <span style="color:var(--color-text-muted);">Probar:</span>
-          <button type="button" class="badge badge-primary" style="cursor:pointer;border:none;" onclick="applyPromoCoupon('SHINY10');render();">SHINY10 (-10%)</button>
-          <button type="button" class="badge badge-info" style="cursor:pointer;border:none;" onclick="applyPromoCoupon('VIP15');render();">VIP15 (-15%)</button>
-          ${coupon ? `<button type="button" class="badge badge-danger" style="cursor:pointer;border:none;" onclick="clearPromoCoupon();render();">✕ Quitar</button>` : ''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;font-size:0.74rem;">
+          <span style="color:var(--color-text-muted);font-weight:600;">Seleccionar código:</span>
+          <button type="button" class="badge badge-primary" style="cursor:pointer;border:none;padding:5px 10px;" onclick="applyPromoCoupon('${escapeHtml(storePromo.codigo)}');render();">🏷️ ${escapeHtml(storePromo.codigo)} (-${storePromo.porcentaje}%)</button>
+          ${coupon ? `<button type="button" class="badge badge-danger" style="cursor:pointer;border:none;padding:5px 10px;" onclick="clearPromoCoupon();render();">✕ Quitar</button>` : ''}
         </div>
-      </div>
+      </div>` : ''}
 
       <div class="summary-line"><span>Subtotal (${totalUnidades} uds.)</span><span>${formatCurrency(subtotal)}</span></div>
       ${coupon ? `<div class="summary-line" style="color:var(--color-success);font-weight:700;"><span>Cupón ${coupon.code} (-${coupon.pct}%)</span><span>-${formatCurrency(descuentoMonto)}</span></div>` : ''}

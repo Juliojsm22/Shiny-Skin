@@ -504,3 +504,26 @@ class Expense(db.Model):
             'usuario': self.usuario.nombre if self.usuario else 'Administrador',
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
+
+
+class StorePromotion(db.Model):
+    """Descuento general de la tienda habilitado o deshabilitado por la Administradora."""
+    __tablename__ = 'store_promotions'
+    id = db.Column(db.Integer, primary_key=True)
+    activo = db.Column(db.Boolean, default=False, nullable=False)
+    codigo = db.Column(db.String(40), nullable=False, default='SHINY10')
+    porcentaje = db.Column(db.Float, nullable=False, default=10.0)
+    descripcion = db.Column(db.String(200), nullable=True, default='Descuento especial en toda la tienda')
+    updated_at = db.Column(db.DateTime, default=ni_now, onupdate=ni_now)
+    updated_by = db.Column(db.String(100), nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'activo': bool(self.activo),
+            'codigo': (self.codigo or '').strip().upper(),
+            'porcentaje': round(float(self.porcentaje or 0), 2),
+            'descripcion': self.descripcion or 'Descuento especial en toda la tienda',
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'updated_by': self.updated_by,
+        }

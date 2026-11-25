@@ -16,6 +16,7 @@ from routes.auth import auth_bp
 from routes.dashboard import dashboard_bp
 from routes.clients import clients_bp
 from routes.expenses import expenses_bp
+from routes.promotions import promotions_bp
 from routes.utils import now_ni
 
 
@@ -68,6 +69,7 @@ def create_app(config_name='default'):
     app.register_blueprint(dashboard_bp, url_prefix='/api/dashboard')
     app.register_blueprint(clients_bp, url_prefix='/api/clientes')
     app.register_blueprint(expenses_bp, url_prefix='/api/gastos')
+    app.register_blueprint(promotions_bp, url_prefix='/api/promocion')
 
     # Manejadores de errores amigables en JSON para rutas API (NFR-0010)
     @app.errorhandler(404)
@@ -101,7 +103,7 @@ def create_app(config_name='default'):
             'realtime_sse': True,
             'sse_clients': order_event_bus.subscriber_count,
             'server_time': now_ni().isoformat(),
-            'modulos': ['auth', 'productos', 'inventario', 'pedidos', 'facturas', 'clientes', 'gastos', 'dashboard']
+            'modulos': ['auth', 'productos', 'inventario', 'pedidos', 'facturas', 'clientes', 'gastos', 'dashboard', 'promocion']
         })
 
     # Servir archivos del frontend (tienda pública + panel admin)

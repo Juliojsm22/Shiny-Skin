@@ -108,6 +108,10 @@ function renderAdminSidebar(activePage) {
       ${renderGroup(itemsCatalogo)}
       <div class="sidebar-section">Finanzas &amp; Acceso</div>
       ${renderGroup(itemsGestion)}
+      <button type="button" class="sidebar-item" onclick="openStorePromoModal()" style="width:100%;text-align:left;">
+        <span class="sidebar-icon">🏷️</span> Descuento Tienda
+        <span class="sidebar-badge" id="promoSidebarBadge" style="display:none;background:#10b981;">ON</span>
+      </button>
       <button type="button" class="sidebar-item" onclick="openExecutiveReportModal()" style="width:100%;text-align:left;">
         <span class="sidebar-icon">📄</span> Cierre / Reporte PDF
       </button>
@@ -193,6 +197,8 @@ function renderAdminSidebar(activePage) {
 
   if (!isAdmin) {
     document.querySelectorAll('[data-admin-only]').forEach(el => { el.style.display = 'none'; });
+  } else {
+    refreshAdminPromoBadge();
   }
 
   // Inyectar controles de tiempo real (Estado conexión + Sonido + Campana) en la barra superior
@@ -1373,4 +1379,196 @@ async function openExecutiveReportModal() {
       </div>
     </div>
   `;
+}
+
+// =====================================================================
+// DESCUENTO GENERAL DE TIENDA (SOLO ADMINISTRADORA)
+// =====================================================================
+function updateAdminPromoIndicators(promo) {
+  const isOn = !!(promo && promo.activo && promo.codigo && Number(promo.porcentaje) > 0);
+  const sideBadge = document.getElementById('promoSidebarBadge');
+  if (sideBadge) {
+    sideBadge.style.display = isOn ? 'inline-block' : 'none';
+    sideBadge.textContent = isOn ? `-${promo.porcentaje}%` : 'ON';
+  }
+  const dashStatus = document.getElementById('dashPromoStatus');
+  if (dashStatus) {
+    if (isOn) {
+      dashStatus.textContent = `(${promo.codigo} · -${promo.porcentaje}%)`;
+      dashStatus.style.color = '#34d399';
+      dashStatus.style.opacity = '1';
+    } else {
+      dashStatus.textContent = '(Inactivo)';
+      dashStatus.style.color = 'rgba(255,255,255,0.6)';
+      dashStatus.style.opacity = '0.8';
+    }
+  }
+}
+
+async function refreshAdminPromoBadge() {
+  if (!window.IS_ADMIN || !api.promocion) return;
+  try {
+    const promo = await api.promocion.getAdmin();
+    updateAdminPromoIndicators(promo);
+  } catch {}
+}
+
+async function openStorePromoModal() {
+  if (!window.IS_ADMIN) {
+    showToast('Solo la Administradora puede configurar descuentos generales de la tienda.', 'error');
+    return;
+  }
+
+  let modal = document.getElementById('siscoStorePromoModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'siscoStorePromoModal';
+    modal.className = 'modal-overlay';
+    modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('active'); };
+    document.body.appendChild(modal);
+  }
+
+  modal.innerHTML = `<div class="admin-modal" style="max-width:540px;"><p style="text-align:center;padding:30px;">Cargando configuración de descuento...</p></div>`;
+  modal.classList.add('active');
+
+  let promo = { activo: false, codigo: 'SHINY10', porcentaje: 10, descripcion: 'Descuento especial en toda la tienda' };
+  try {
+    promo = await api.promocion.getAdmin();
+    updateAdminPromoIndicators(promo);
+  } catch (err) {
+    showToast(err.message || 'No se pudo cargar la configuración actual', 'error');
+  }
+
+  const isOn = !!promo.activo;
+  const codeVal = escapeHtml(promo.codigo || 'SHINY10');
+  const pctVal = Number(promo.porcentaje || 10);
+  const descVal = escapeHtml(promo.descripcion || '');
+
+  modal.innerHTML = `
+    <div class="admin-modal" style="max-width:560px;">
+      <div class="modal-header">
+        <div class="modal-title">🏷️ Descuento General de la Tienda</div>
+        <button class="modal-close" onclick="document.getElementById('siscoStorePromoModal').classList.remove('active')">✕</button>
+      </div>
+
+      <div id="promoStatusBanner" style="padding:12px 14px;border-radius:12px;margin-bottom:16px;font-size:0.84rem;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:${isOn ? 'rgba(16,185,129,0.16)' : 'rgba(148,163,184,0.12)'};border:1px solid ${isOn ? 'rgba(52,211,153,0.45)' : 'rgba(148,163,184,0.3)'};">
+        <div>
+          <strong style="color:${isOn ? '#34d399' : '#cbd5e1'};">${isOn ? '🟢 DESCUENTO ACTIVO EN TODA LA TIENDA' : '⚪ DESCUENTO DESACTIVADO'}</strong>
+          <div style="font-size:0.76rem;color:rgba(255,255,255,0.72);margin-top:2px;">
+            ${isOn ? `Los clientes ven y pueden seleccionar el código <strong>${codeVal} (-${pctVal}%)</strong> en el carrito y checkout.` : 'Actualmente ningún cliente ve la opción de código de descuento en la tienda.'}
+          </div>
+        </div>
+      </div>
+
+      <form onsubmit="saveStorePromo(event)">
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:rgba(255,255,255,0.05);border:1px solid var(--admin-border);border-radius:12px;margin-bottom:16px;cursor:pointer;">
+          <div>
+            <div style="font-weight:700;font-size:0.9rem;color:#ffffff;">Habilitar descuento para toda la tienda</div>
+            <div style="font-size:0.75rem;color:rgba(188,210,233,0.7);">Solo cuando esté activado aparecerá el código seleccionable al cliente.</div>
+          </div>
+          <input type="checkbox" id="promoActivoChk" ${isOn ? 'checked' : ''} onchange="updatePromoLivePreview()" style="width:22px;height:22px;accent-color:#10b981;flex-shrink:0;cursor:pointer;" />
+        </label>
+
+        <div class="admin-form-grid" style="margin-bottom:14px;">
+          <div class="admin-form-group">
+            <label class="admin-form-label" for="promoCodigoInp">Código de descuento *</label>
+            <input class="admin-form-control" id="promoCodigoInp" value="${codeVal}" maxlength="30" required placeholder="Ej. SHINY10, VERANO15" style="text-transform:uppercase;font-weight:700;letter-spacing:0.6px;" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9_-]/g,'');updatePromoLivePreview();" />
+          </div>
+          <div class="admin-form-group">
+            <label class="admin-form-label" for="promoPctInp">Porcentaje (% OFF) *</label>
+            <input class="admin-form-control" type="number" id="promoPctInp" min="1" max="90" step="0.5" value="${pctVal}" required oninput="updatePromoLivePreview()" />
+          </div>
+        </div>
+
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
+          <span style="font-size:0.74rem;color:rgba(188,210,233,0.65);">Atajos rápidos:</span>
+          ${[5, 10, 15, 20, 25].map(p => `<button type="button" class="btn-table btn-table-view" onclick="setPromoPresetPct(${p})">-${p}%</button>`).join('')}
+        </div>
+
+        <div class="admin-form-group" style="margin-bottom:16px;">
+          <label class="admin-form-label" for="promoDescInp">Mensaje corto para el cliente (opcional)</label>
+          <input class="admin-form-control" id="promoDescInp" value="${descVal}" maxlength="180" placeholder="Ej. Descuento especial en toda la tienda Shiny Skin" oninput="updatePromoLivePreview()" />
+        </div>
+
+        <div id="promoClientPreview" style="padding:12px 14px;background:rgba(188,210,233,0.08);border:1px dashed rgba(188,210,233,0.35);border-radius:12px;margin-bottom:18px;font-size:0.8rem;"></div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+          ${isOn ? `<button type="button" class="btn-table btn-table-delete" style="padding:9px 14px;" onclick="disableStorePromoQuick()">⛔ Desactivar ahora</button>` : '<span></span>'}
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="btn-admin-secondary" onclick="document.getElementById('siscoStorePromoModal').classList.remove('active')">Cancelar</button>
+            <button type="submit" class="btn-admin-primary" id="btnSaveStorePromo">💾 Guardar Configuración</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  `;
+  updatePromoLivePreview();
+}
+
+function setPromoPresetPct(pct) {
+  const inp = document.getElementById('promoPctInp');
+  if (inp) {
+    inp.value = pct;
+    updatePromoLivePreview();
+  }
+}
+
+function updatePromoLivePreview() {
+  const box = document.getElementById('promoClientPreview');
+  if (!box) return;
+  const activo = !!document.getElementById('promoActivoChk')?.checked;
+  const code = (document.getElementById('promoCodigoInp')?.value || 'SHINY10').trim().toUpperCase();
+  const pct = parseFloat(document.getElementById('promoPctInp')?.value) || 0;
+  const desc = (document.getElementById('promoDescInp')?.value || '').trim();
+
+  if (!activo) {
+    box.innerHTML = `<div style="color:rgba(255,255,255,0.65);">👁️ <strong>Vista del cliente:</strong> El apartado de código de descuento permanecerá <strong>oculto</strong> en el carrito y en el checkout.</div>`;
+  } else {
+    box.innerHTML = `
+      <div style="color:var(--color-brand-pastel);font-weight:700;margin-bottom:6px;">👁️ Vista previa en Carrito y Checkout del cliente:</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="color:rgba(255,255,255,0.8);">Seleccionar código:</span>
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:99px;background:#256399;color:#ffffff;font-weight:700;font-size:0.76rem;">🏷️ ${escapeHtml(code)} (-${pct}%)</span>
+      </div>
+      ${desc ? `<div style="font-size:0.74rem;color:rgba(255,255,255,0.65);margin-top:6px;">${escapeHtml(desc)}</div>` : ''}`;
+  }
+}
+
+async function saveStorePromo(e) {
+  e.preventDefault();
+  if (!window.IS_ADMIN) return;
+  const activo = !!document.getElementById('promoActivoChk').checked;
+  const codigo = (document.getElementById('promoCodigoInp').value || '').trim().toUpperCase();
+  const porcentaje = parseFloat(document.getElementById('promoPctInp').value) || 0;
+  const descripcion = (document.getElementById('promoDescInp').value || '').trim();
+
+  const btn = document.getElementById('btnSaveStorePromo');
+  if (btn) btn.disabled = true;
+  try {
+    const saved = await api.promocion.update({ activo, codigo, porcentaje, descripcion });
+    updateAdminPromoIndicators(saved);
+    showToast(
+      saved.activo
+        ? `🎉 Descuento general activado: ${saved.codigo} (-${saved.porcentaje}%)`
+        : 'Descuento general desactivado en toda la tienda',
+      saved.activo ? 'success' : 'info'
+    );
+    document.getElementById('siscoStorePromoModal').classList.remove('active');
+  } catch (err) {
+    showToast(err.message || 'No se pudo guardar el descuento general', 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function disableStorePromoQuick() {
+  if (!window.IS_ADMIN) return;
+  try {
+    const saved = await api.promocion.update({ activo: false });
+    updateAdminPromoIndicators(saved);
+    showToast('Descuento general desactivado. Ya no aparece a los clientes.', 'info');
+    document.getElementById('siscoStorePromoModal').classList.remove('active');
+  } catch (err) {
+    showToast(err.message || 'No se pudo desactivar el descuento', 'error');
+  }
 }

@@ -172,13 +172,14 @@
 function getTotals() {
   const cart = getCart();
   const subtotal = cart.reduce((s, i) => s + (Number(i.precio) * Number(i.cantidad)), 0);
-  const coupon = typeof getAppliedCoupon === 'function' ? getAppliedCoupon() : null;
+  const storePromo = typeof getCachedStorePromo === 'function' ? getCachedStorePromo() : null;
+  const coupon = (storePromo && typeof getAppliedCoupon === 'function') ? getAppliedCoupon() : null;
   const descuento = coupon ? Math.round((subtotal * coupon.pct) / 100) : 0;
   const subConDesc = Math.max(0, subtotal - descuento);
   const entrega = document.querySelector('input[name="entrega"]:checked')?.value || 'domicilio';
   const costoEnvio = entrega === 'retiro' ? 0 : (subConDesc >= 1500 ? 0 : 100);
   const total = subConDesc + costoEnvio;
-  return { cart, subtotal, coupon, descuento, entrega, costoEnvio, total };
+  return { cart, subtotal, storePromo, coupon, descuento, entrega, costoEnvio, total };
 }
 
 function applyCheckoutCoupon(codeOverride) {
@@ -222,7 +223,7 @@ function selectPay(id) {
 }
 
 function renderSummary() {
-  const { cart, subtotal, coupon, descuento, entrega, costoEnvio, total } = getTotals();
+  const { cart, subtotal, storePromo, coupon, descuento, entrega, costoEnvio, total } = getTotals();
   if (cart.length === 0 && document.getElementById('confirmSection').style.display === 'none') {
     window.location = 'carrito.html';
     return;
@@ -253,19 +254,25 @@ function renderSummary() {
   }
 
   document.getElementById('orderTotals').innerHTML = `
+    ${storePromo ? `
     <div style="margin:12px 0;padding:10px 12px;background:var(--color-surface-2);border-radius:12px;border:1px dashed var(--color-surface-3);">
       ${coupon ? `
-        <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.8rem;">
-          <span style="color:var(--color-success);font-weight:700;">🏷️ Cupón <strong>${coupon.code}</strong> (-${coupon.pct}%)</span>
-          <button type="button" onclick="removeCheckoutCoupon()" style="border:none;background:none;color:var(--color-danger);font-size:0.76rem;font-weight:700;cursor:pointer;">✕ Quitar</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:0.8rem;">
+          <span style="color:var(--color-success);font-weight:700;">🏷️ Descuento <strong>${escapeHtml(coupon.code)}</strong> (-${coupon.pct}%)</span>
+          <button type="button" onclick="removeCheckoutCoupon()" style="border:none;background:none;color:var(--color-danger);font-size:0.76rem;font-weight:700;cursor:pointer;flex-shrink:0;">✕ Quitar</button>
         </div>
       ` : `
+        <div style="font-size:0.75rem;font-weight:700;color:var(--color-primary-darker);margin-bottom:6px;">🎟️ Descuento activo en la tienda</div>
         <div style="display:flex;gap:8px;align-items:center;width:100%;">
-          <input type="text" id="ckPromoInput" class="form-control" placeholder="Cupón (ej. SHINY10)" style="flex:1;min-width:0;width:auto;padding:8px 10px;font-size:0.84rem;text-transform:uppercase;" />
+          <input type="text" id="ckPromoInput" class="form-control" placeholder="Código: ${escapeHtml(storePromo.codigo)}" style="flex:1;min-width:0;width:auto;padding:8px 10px;font-size:0.84rem;text-transform:uppercase;" />
           <button type="button" class="btn btn-primary btn-sm" onclick="applyCheckoutCoupon()" style="flex-shrink:0;white-space:nowrap;padding:8px 14px;">Aplicar</button>
         </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;font-size:0.74rem;">
+          <span style="color:var(--color-text-muted);font-weight:600;">Seleccionar:</span>
+          <button type="button" class="badge badge-primary" style="cursor:pointer;border:none;padding:5px 10px;" onclick="applyCheckoutCoupon('${escapeHtml(storePromo.codigo)}')">🏷️ ${escapeHtml(storePromo.codigo)} (-${storePromo.porcentaje}%)</button>
+        </div>
       `}
-    </div>
+    </div>` : ''}
     <div class="summary-line" style="border-top:1px solid var(--color-surface-3);padding-top:12px;"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
     ${descuento > 0 ? `<div class="summary-line" style="color:var(--color-success);font-weight:600;"><span>Descuento (${coupon.code})</span><span>-${formatCurrency(descuento)}</span></div>` : ''}
     <div class="summary-line">
@@ -354,7 +361,13 @@ async function placeOrder(e) {
   showToast(`Pedido ${numeroPedido} registrado con éxito`, 'success');
 }
 
-renderSummary();
+async function initCheckout() {
+  if (typeof fetchActiveStorePromo === 'function') {
+    await fetchActiveStorePromo();
+  }
+  renderSummary();
+}
+initCheckout();
 </script>
 </body>
 </html>

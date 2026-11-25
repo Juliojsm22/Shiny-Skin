@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request, current_app, Response, stream_wit
 from sqlalchemy import or_, func
 from models import (
     db, Order, OrderItem, OrderStatusHistory,
-    Product, InventoryMovement, Motorizado
+    Product, InventoryMovement, Motorizado, StorePromotion
 )
 from routes.utils import (
     get_current_user_obj, get_staff_from_request_or_query, is_staff_request,
@@ -16,12 +16,6 @@ import random
 import string
 
 orders_bp = Blueprint('orders', __name__)
-
-VALID_COUPONS = {
-    'SHINY10': 10,
-    'VIP15': 15,
-    'KBEAUTY': 10,
-}
 
 FREE_SHIPPING_THRESHOLD = 1500.0
 STANDARD_SHIPPING_COST = 100.0
@@ -297,16 +291,20 @@ def create_order():
     if metodo_entrega not in ('domicilio', 'retiro'):
         metodo_entrega = 'domicilio'
 
-    # Validación estricta de cupón / descuento en servidor
+    # Validación estricta de descuento general de la tienda en servidor
     cupon_code = (data.get('cupon') or '').strip().upper()
     descuento = 0.0
     nota_cupon = ''
     if cupon_code:
-        if cupon_code not in VALID_COUPONS:
-            return jsonify({'error': f'El cupón "{cupon_code}" no es válido.'}), 400
-        pct = VALID_COUPONS[cupon_code]
+        promo = StorePromotion.query.order_by(StorePromotion.id.asc()).first()
+        if not promo or not promo.activo or not promo.codigo or (promo.porcentaje or 0) <= 0:
+            return jsonify({'error': 'Actualmente no hay un descuento general habilitado en la tienda.'}), 400
+        active_code = promo.codigo.strip().upper()
+        if cupon_code != active_code:
+            return jsonify({'error': f'El código de descuento "{cupon_code}" no es válido o no está activo.'}), 400
+        pct = round(float(promo.porcentaje), 2)
         descuento = round(subtotal * (pct / 100.0), 2)
-        nota_cupon = f'[Cupón {cupon_code}: -{pct}%]'
+        nota_cupon = f'[Descuento Tienda {active_code}: -{pct:g}%]'
     elif staff_caller:
         try:
             descuento = min(subtotal, max(0.0, round(float(data.get('descuento') or 0), 2)))

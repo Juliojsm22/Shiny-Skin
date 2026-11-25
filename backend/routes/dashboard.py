@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from models import (
     db, Product, Category, Brand, Order, OrderItem, Invoice, InvoiceItem,
-    Expense, Client, Motorizado, InventoryMovement, User
+    Expense, Client, Motorizado, InventoryMovement, User, StorePromotion
 )
 from routes.utils import admin_required, today_ni, month_ni, now_ni
 from sqlalchemy import func
@@ -171,6 +171,7 @@ def export_backup():
         'gastos': [e.to_dict() for e in Expense.query.order_by(Expense.id.desc()).all()],
         'movimientos': [mv.to_dict() for mv in InventoryMovement.query.order_by(InventoryMovement.id.desc()).limit(500).all()],
         'usuarios': [u.to_dict() for u in User.query.order_by(User.id.asc()).all()],
+        'promocion': (lambda p: p.to_dict() if p else None)(StorePromotion.query.order_by(StorePromotion.id.asc()).first()),
     })
 
 
