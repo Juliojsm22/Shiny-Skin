@@ -349,7 +349,7 @@ async function placeOrder(e) {
   document.getElementById('confirmNumero').textContent = `Código de seguimiento: ${numeroPedido}`;
 
   const msgWA = `Hola Shiny Skin ✨ Acabo de realizar el pedido *${numeroPedido}* a nombre de *${orderData.nombre_cliente}* por *${formatCurrency(finalTotal)}* (${entrega === 'retiro' ? 'Retiro en tienda' : 'Envío a domicilio'}).`;
-  const storeWa = (window.SISCO_CONFIG && window.SISCO_CONFIG.STORE_WHATSAPP) || '50588880000';
+  const storeWa = typeof getStoreWhatsApp === 'function' ? getStoreWhatsApp() : '50588880000';
   document.getElementById('waConfirmBtn').href = `https://wa.me/${storeWa}?text=${encodeURIComponent(msgWA)}`;
   const trackBtn = document.getElementById('trackConfirmBtn');
   if (trackBtn && typeof openTrackingModal === 'function') {

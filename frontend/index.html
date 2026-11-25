@@ -346,7 +346,7 @@
         <div class="footer-title">Contacto</div>
         <div class="footer-links">
           <span class="footer-link">📍 Camino de Oriente, Managua</span>
-          <a href="https://wa.me/50588880000" target="_blank" rel="noopener" class="footer-link">💬 WhatsApp: +505 8888-0000</a>
+          <a id="footerWaLink" href="https://wa.me/50588880000" target="_blank" rel="noopener" class="footer-link">💬 WhatsApp Shiny Skin</a>
           <span class="footer-link">📧 hola@shinyskin.ni</span>
           <span class="footer-link">⏰ Lun–Sáb: 9:30 am – 7:00 pm</span>
         </div>
@@ -471,6 +471,15 @@ function handleNewsletter(e) {
 }
 
 initHome();
+(function syncFooterWa() {
+  const link = document.getElementById('footerWaLink');
+  if (link && typeof getStoreWhatsApp === 'function') {
+    const wa = getStoreWhatsApp();
+    link.href = `https://wa.me/${wa}`;
+    const pretty = wa.length === 11 && wa.startsWith('505') ? `+505 ${wa.slice(3, 7)}-${wa.slice(7)}` : `+${wa}`;
+    link.textContent = `💬 WhatsApp: ${pretty}`;
+  }
+})();
 </script>
 </body>
 </html>

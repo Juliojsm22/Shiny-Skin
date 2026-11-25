@@ -615,8 +615,9 @@ function renderOrderAlertStack() {
     const itemsPreview = (o.items || []).slice(0, 4).map(it =>
       `<div>• <strong>${it.cantidad}×</strong> ${escapeHtml(it.nombre_producto)} (${formatCurrency(it.subtotal)})</div>`
     ).join('');
-    const waClean = String(o.telefono_cliente || '').replace(/\D/g, '');
-    const waPhone = waClean ? (waClean.startsWith('505') ? waClean : '505' + waClean) : '';
+    const waPhone = typeof formatWhatsAppPhone === 'function'
+      ? formatWhatsAppPhone(o.telefono_cliente)
+      : String(o.telefono_cliente || '').replace(/\D/g, '');
     const waMsg = `Hola *${o.nombre_cliente}* ✨ Recibimos tu pedido *${o.numero_pedido}* en *Shiny Skin* por *${formatCurrency(o.total)}*. ¡En breve te confirmamos el despacho!`;
     const waHref = waPhone ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waMsg)}` : '';
 

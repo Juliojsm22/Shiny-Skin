@@ -103,6 +103,27 @@ function escapeHtml(val) {
     .replace(/'/g, '&#39;');
 }
 
+// ---- Normalización segura de números de WhatsApp (Nicaragua + Internacional) ----
+function formatWhatsAppPhone(rawPhone) {
+  const raw = String(rawPhone || '').trim();
+  if (!raw) return '';
+  const hasIntlPrefix = raw.startsWith('+') || raw.startsWith('00');
+  let digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+  if (raw.startsWith('00')) digits = digits.replace(/^00/, '');
+  if (hasIntlPrefix) return digits;
+  // Número local estándar de Nicaragua (8 dígitos, incluso si empieza por 505)
+  if (digits.length === 8) return '505' + digits;
+  // Número de Nicaragua ya con código 505 (11 dígitos)
+  if (digits.length === 11 && digits.startsWith('505')) return digits;
+  return digits;
+}
+
+function getStoreWhatsApp() {
+  const cfg = (window.SISCO_CONFIG && window.SISCO_CONFIG.STORE_WHATSAPP) || '50588880000';
+  return formatWhatsAppPhone(cfg) || '50588880000';
+}
+
 // ---- Cupones promocionales compartidos (validados también en backend) ----
 const VALID_COUPONS = {
   SHINY10: { code: 'SHINY10', pct: 10, label: '10% OFF Bienvenida Shiny Skin' },

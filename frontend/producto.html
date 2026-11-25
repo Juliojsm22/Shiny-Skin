@@ -188,7 +188,7 @@ async function init() {
       <div style="margin-top:24px;padding:14px 16px;background:var(--color-surface-2);border-radius:var(--radius-md);font-size:0.82rem;color:var(--color-text-muted);display:flex;flex-direction:column;gap:6px;">
         <span>🏬 <strong>Retiro gratis</strong> en Concept Store (Camino de Oriente)</span>
         <span>🛵 <strong>Envío a domicilio</strong> rápido en Managua y departamentos</span>
-        <span>💬 ¿Dudas sobre tu tipo de piel? <a href="https://wa.me/50588880000?text=${encodeURIComponent('Hola Shiny Skin, quiero consultar sobre: ' + productData.nombre)}" target="_blank" style="color:var(--color-primary-dark);font-weight:700;">Consultar por WhatsApp</a></span>
+        <span>💬 ¿Dudas sobre tu tipo de piel? <a href="https://wa.me/${getStoreWhatsApp()}?text=${encodeURIComponent('Hola Shiny Skin, quiero consultar sobre: ' + productData.nombre)}" target="_blank" style="color:var(--color-primary-dark);font-weight:700;">Consultar por WhatsApp</a></span>
       </div>
     </div>
   </div>`;

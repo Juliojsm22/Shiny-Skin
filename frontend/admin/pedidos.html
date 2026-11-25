@@ -325,12 +325,11 @@ async function quickConfirmOrder(orderId, closeDet = false) {
 function notifyOrderWhatsApp(orderId) {
   const o = allOrders.find(x => x.id == orderId);
   if (!o) return;
-  const waClean = String(o.telefono_cliente || '').replace(/\D/g, '');
-  if (!waClean) {
+  const phone = formatWhatsAppPhone(o.telefono_cliente);
+  if (!phone) {
     showToast('Este cliente no tiene número de teléfono registrado', 'error');
     return;
   }
-  const phone = waClean.startsWith('505') ? waClean : '505' + waClean;
   const statusMessages = {
     pendiente: `Hola *${o.nombre_cliente}* ✨ Te saludamos de *Shiny Skin*. Hemos recibido tu pedido *${o.numero_pedido}* por *${formatCurrency(o.total)}* y estamos verificando tus productos.`,
     confirmado: `Hola *${o.nombre_cliente}* ✨ Tu pedido *${o.numero_pedido}* de *Shiny Skin* (${formatCurrency(o.total)}) ya está *CONFIRMADO* y listo para despacho.`,
@@ -359,8 +358,8 @@ function openOrderDetail(id) {
     </div>`
   ).join('') || '<div style="color:rgba(255,255,255,0.4);font-size:0.84rem;">Sin detalle de ítems</div>';
 
-  const waClean = String(o.telefono_cliente || '').replace(/\D/g, '');
-  const waHref = waClean ? `https://wa.me/${waClean.startsWith('505') ? waClean : '505' + waClean}?text=${encodeURIComponent(`Hola ${o.nombre_cliente}, te escribimos de Shiny Skin sobre tu pedido ${o.numero_pedido}.`)}` : '#';
+  const waClean = formatWhatsAppPhone(o.telefono_cliente);
+  const waHref = waClean ? `https://wa.me/${waClean}?text=${encodeURIComponent(`Hola ${o.nombre_cliente}, te escribimos de Shiny Skin sobre tu pedido ${o.numero_pedido}.`)}` : '#';
 
   document.getElementById('detContent').innerHTML = `
     <div class="grid-2" style="gap:14px;margin-bottom:16px;font-size:0.85rem;">

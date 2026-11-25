@@ -160,8 +160,8 @@ function renderClients() {
   }
 
   tbody.innerHTML = allClients.map(c => {
-    const wa = String(c.telefono || '').replace(/\D/g, '');
-    const waUrl = wa ? `https://wa.me/${wa.startsWith('505') ? wa : '505' + wa}` : '';
+    const wa = formatWhatsAppPhone(c.telefono);
+    const waUrl = wa ? `https://wa.me/${wa}` : '';
     return `
       <tr>
         <td>
