@@ -11,7 +11,7 @@
 <body>
 
 <div class="top-notice-bar">
-  📍 <strong>Concept Store:</strong> Camino de Oriente, Managua · Precios finales en Córdobas (Ley N.° 842)
+  📍 <strong>Concept Store:</strong> Camino de Oriente, Managua · 🛵 Envíos a todo Nicaragua
 </div>
 
 <header class="navbar">
@@ -153,7 +153,6 @@ async function init() {
         ${hasDiscount ? `<span class="producto-precio-original">${formatCurrency(productData.precio_venta)}</span>` : ''}
         ${hasDiscount ? `<span class="producto-descuento">-${productData.descuento}% OFF</span>` : ''}
       </div>
-      <div style="font-size:0.76rem;color:var(--color-text-light);margin-top:-10px;margin-bottom:18px;">Precio final en Córdobas con impuestos incluidos (Ley N.° 842).</div>
 
       ${specs.length ? `<div class="producto-specs">${specs.map(s => `<span class="spec-chip">${s}</span>`).join('')}</div>` : ''}
 

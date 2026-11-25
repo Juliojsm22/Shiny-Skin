@@ -73,7 +73,7 @@
         <div class="admin-form-group">
           <label class="admin-form-label">Rol del Sistema *</label>
           <select class="admin-form-control" id="uRol">
-            <option value="vendedor">🛍️ Vendedora (POS, Pedidos, Inventario)</option>
+            <option value="vendedor">🛍️ Vendedora (Solo Ventas: Pedidos, POS y Clientes)</option>
             <option value="admin">👩‍💼 Administradora (Acceso total)</option>
             <option value="cliente">👤 Cliente Web</option>
           </select>
@@ -100,7 +100,7 @@
 <script src="../js/admin-common.js"></script>
 <script>
 if (!window.IS_ADMIN) {
-  window.location.replace('dashboard.html');
+  window.location.replace('pedidos.html');
 }
 renderAdminSidebar('usuarios');
 

@@ -455,7 +455,7 @@ def download_invoice_pdf(id):
         elements.append(tt)
         elements.append(Spacer(1, 14))
         elements.append(Paragraph(
-            'Precios finales conforme a Ley N.° 842 (Régimen Cuota Fija — Nicaragua). ¡Gracias por elegir Shiny Skin!',
+            '¡Gracias por elegir Shiny Skin! ✨',
             sub_style
         ))
 
@@ -498,7 +498,7 @@ def download_invoice_pdf(id):
           {f"<div>Descuento: -C$ {inv['descuento']:.2f}</div>" if inv['descuento'] > 0 else ""}
           <div class="grand">Total: C$ {inv['total']:.2f}</div>
         </div>
-        <p class="muted" style="margin-top:18px;text-align:center">Precios finales conforme a Ley N.° 842 · ¡Gracias por tu compra!</p>
+        <p class="muted" style="margin-top:18px;text-align:center">¡Gracias por tu compra en Shiny Skin! ✨</p>
         </body></html>"""
         return Response(html_doc, mimetype='text/html')
 

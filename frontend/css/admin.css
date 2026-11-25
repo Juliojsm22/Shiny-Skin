@@ -485,15 +485,17 @@
   .admin-main { margin-left: 0; width: 100%; }
   .admin-menu-toggle { display: inline-flex; flex-shrink: 0; }
   .admin-content { padding: 14px 12px calc(88px + env(safe-area-inset-bottom, 0px)); }
-  .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .kpi-grid > * { min-width: 0; }
   .kpi-card { padding: 14px 12px; border-radius: 16px; }
   .kpi-icon { width: 34px; height: 34px; font-size: 1.05rem; margin-bottom: 8px; }
   .kpi-value { font-size: 1.24rem; word-break: break-word; }
   .kpi-label { font-size: 0.66rem; }
   .kpi-change { font-size: 0.68rem; margin-top: 5px; }
-  .admin-form-grid { grid-template-columns: 1fr; gap: 12px; }
+  .admin-form-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .admin-form-grid > * { min-width: 0; }
   .admin-form-control { font-size: 16px; }
-  .admin-body .grid-2, .admin-body .grid-3 { grid-template-columns: 1fr !important; gap: 14px; }
+  .admin-body .grid-2, .admin-body .grid-3 { grid-template-columns: minmax(0, 1fr) !important; gap: 14px; }
   .actions-bar { flex-direction: column; align-items: stretch; gap: 10px; margin-bottom: 14px; }
   .actions-bar-left, .actions-bar-right { width: 100%; }
   .search-wrapper { width: 100%; }

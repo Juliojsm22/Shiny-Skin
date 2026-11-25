@@ -1290,7 +1290,7 @@ async function openExecutiveReportModal() {
           <div>
             <div style="font-size:1.45rem;font-weight:800;color:#1a4973;letter-spacing:-0.5px;">SHINY SKIN · NICARAGUA</div>
             <div style="font-size:0.8rem;color:#475569;">Sistema Web de Gestión Comercial e Inventario Omnicanal (SISCO)</div>
-            <div style="font-size:0.76rem;color:#64748b;">Concept Store Camino de Oriente · Managua, Nicaragua · Régimen Cuota Fija (Ley N.° 842)</div>
+            <div style="font-size:0.76rem;color:#64748b;">Concept Store Camino de Oriente · Managua, Nicaragua</div>
           </div>
           <div style="text-align:right;font-size:0.76rem;color:#475569;">
             <div><strong>REPORTE EJECUTIVO GERENCIAL</strong></div>

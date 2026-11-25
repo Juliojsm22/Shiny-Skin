@@ -10,7 +10,7 @@
 <body>
 
 <div class="top-notice-bar">
-  📍 <strong>Concept Store:</strong> Camino de Oriente, Managua · Precios finales en Córdobas conforme a <strong>Ley N.° 842</strong>
+  📍 <strong>Concept Store:</strong> Camino de Oriente, Managua · 🛵 Envíos a todo Nicaragua
 </div>
 
 <header class="navbar">
@@ -141,9 +141,9 @@ function render() {
       <!-- Cupón Promocional -->
       <div style="margin-bottom:14px;padding:12px;background:var(--color-surface-2);border-radius:var(--radius-md);border:1px solid var(--color-surface-3);">
         <div style="font-size:0.76rem;font-weight:700;color:var(--color-primary-darker);margin-bottom:6px;">🎟️ ¿Tienes un cupón de descuento?</div>
-        <div style="display:flex;gap:6px;">
-          <input type="text" id="cartCouponInput" class="form-control" style="padding:7px 10px;font-size:0.82rem;" placeholder="Ej. SHINY10" value="${coupon ? coupon.code : ''}" />
-          <button type="button" class="btn btn-primary btn-sm" onclick="if(applyPromoCoupon(document.getElementById('cartCouponInput').value)) render();">Aplicar</button>
+        <div style="display:flex;gap:8px;align-items:center;width:100%;">
+          <input type="text" id="cartCouponInput" class="form-control" style="flex:1;min-width:0;width:auto;padding:8px 10px;font-size:0.84rem;" placeholder="Ej. SHINY10" value="${coupon ? coupon.code : ''}" />
+          <button type="button" class="btn btn-primary btn-sm" style="flex-shrink:0;white-space:nowrap;padding:8px 14px;" onclick="if(applyPromoCoupon(document.getElementById('cartCouponInput').value)) render();">Aplicar</button>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;font-size:0.72rem;">
           <span style="color:var(--color-text-muted);">Probar:</span>
@@ -155,7 +155,6 @@ function render() {
 
       <div class="summary-line"><span>Subtotal (${totalUnidades} uds.)</span><span>${formatCurrency(subtotal)}</span></div>
       ${coupon ? `<div class="summary-line" style="color:var(--color-success);font-weight:700;"><span>Cupón ${coupon.code} (-${coupon.pct}%)</span><span>-${formatCurrency(descuentoMonto)}</span></div>` : ''}
-      <div class="summary-line"><span>Impuestos (Cuota Fija)</span><span>Incluidos</span></div>
       <div class="summary-line"><span>Entrega</span><span style="color:var(--color-primary-dark);font-weight:600;">Se elige en el siguiente paso</span></div>
       <div class="summary-line summary-total" style="border-bottom:none;padding-top:14px;margin-top:6px;border-top:2px solid var(--color-surface-3);">
         <span>Total productos</span><span class="summary-total-value">${formatCurrency(totalConDescuento)}</span>
