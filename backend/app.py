@@ -1,5 +1,7 @@
 import os
 import socket
+import threading
+import time
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
@@ -124,8 +126,39 @@ def create_app(config_name='default'):
         return send_from_directory(frontend_dir, 'index.html')
 
     # Optimizar SQLite para concurrencia multi-dispositivo (WAL + busy_timeout + FK)
+    app._db_ready = False
+    app._db_init_lock = threading.Lock()
+
+    def _run_db_bootstrap() -> bool:
+        with app._db_init_lock:
+            if app._db_ready:
+                return True
+            try:
+                with app.app_context():
+                    db.create_all()
+                    from migrate_db import run_schema_migrations, run_data_migrations
+                    schema_ok = run_schema_migrations()
+                    if not schema_ok:
+                        db.session.remove()
+                        return False
+                    from seed import seed_db
+                    seed_db()
+                    run_data_migrations()
+                    db.session.remove()
+                    app._db_ready = True
+                    return True
+            except Exception as exc:
+                print(f"[BOOT] Aviso al inicializar BD (se reintentará): {exc}", flush=True)
+                try:
+                    with app.app_context():
+                        db.session.remove()
+                except Exception:
+                    pass
+                return False
+
     with app.app_context():
-        if app.config.get('SQLALCHEMY_DATABASE_URI', '').startswith('sqlite:'):
+        db_uri_now = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        if db_uri_now.startswith('sqlite:'):
             @event.listens_for(db.engine, 'connect')
             def _set_sqlite_pragma(dbapi_connection, connection_record):
                 cursor = dbapi_connection.cursor()
@@ -136,13 +169,34 @@ def create_app(config_name='default'):
                     cursor.execute('PRAGMA foreign_keys=ON')
                 finally:
                     cursor.close()
+        elif db_uri_now.startswith('postgresql'):
+            @event.listens_for(db.engine, 'connect')
+            def _set_pg_timeouts(dbapi_connection, connection_record):
+                cursor = dbapi_connection.cursor()
+                try:
+                    cursor.execute("SET lock_timeout = '4000ms'")
+                    cursor.execute("SET idle_in_transaction_session_timeout = '30000ms'")
+                except Exception:
+                    pass
+                finally:
+                    cursor.close()
 
-        db.create_all()
-        from migrate_db import run_schema_migrations, run_data_migrations
-        run_schema_migrations()
-        from seed import seed_db
-        seed_db()
-        run_data_migrations()
+    if not _run_db_bootstrap():
+        # Si PostgreSQL tenía un bloqueo momentáneo de la instancia anterior durante el deploy en Render,
+        # permitimos abrir $PORT de inmediato para que Render apague la instancia vieja y reintentamos en segundo plano.
+        def _deferred_bootstrap_worker():
+            for _ in range(60):
+                time.sleep(2)
+                if _run_db_bootstrap():
+                    print("[BOOT] Migraciones diferidas completadas con éxito.", flush=True)
+                    break
+
+        threading.Thread(target=_deferred_bootstrap_worker, daemon=True).start()
+
+    @app.before_request
+    def _ensure_db_ready_before_api():
+        if not app._db_ready and request.path.startswith('/api/') and request.path != '/api/health':
+            _run_db_bootstrap()
 
     return app
 

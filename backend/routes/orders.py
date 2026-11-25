@@ -169,7 +169,13 @@ def stream_orders():
     """Server-Sent Events (SSE): empuja nuevos pedidos al instante al panel administrativo."""
     staff_user = get_staff_from_request_or_query()
     if not staff_user:
+        db.session.remove()
         return jsonify({'error': 'Autenticación de personal requerida para alertas en tiempo real.'}), 401
+
+    staff_name = staff_user.nombre
+    # CRÍTICO: liberar la sesión/conexión de BD antes de abrir el stream infinito
+    # para no dejar transacciones abiertas (idle in transaction) bloqueando PostgreSQL.
+    db.session.remove()
 
     sub_q = order_event_bus.subscribe()
 
@@ -178,7 +184,7 @@ def stream_orders():
         try:
             hello = json.dumps({
                 'status': 'connected',
-                'staff': staff_user.nombre,
+                'staff': staff_name,
                 'server_time': now_ni().isoformat(),
             }, ensure_ascii=False)
             yield f"event: connected\ndata: {hello}\n\n"

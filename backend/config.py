@@ -39,6 +39,9 @@ def _build_engine_options(db_uri: str) -> dict:
         return {
             'pool_pre_ping': True,
             'pool_recycle': 280,
+            'connect_args': {
+                'connect_timeout': 10,
+            }
         }
     return {
         'connect_args': {
@@ -63,7 +66,7 @@ class Config:
     # Configuración comercial de Shiny Skin (Régimen Cuota Fija - Nicaragua)
     STORE_NAME = 'Shiny Skin'
     STORE_ADDRESS = 'Concept Store, Camino de Oriente, Managua, Nicaragua'
-    STORE_PHONE = '+505 8888-0000'
+    STORE_PHONE = '+505 8167-9324'
     STORE_CURRENCY = 'C$'
     STORE_COUNTRY = 'Nicaragua'
     IVA_RATE = float(os.getenv('IVA_RATE', '0.0'))  # 0% adicional en régimen Cuota Fija (Ley 842)

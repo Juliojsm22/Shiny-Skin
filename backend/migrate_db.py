@@ -41,10 +41,16 @@ PRODUCT_DEFAULTS = {
 }
 
 
-def run_schema_migrations():
-    """Agrega de forma segura columnas nuevas a tablas existentes (SQLite y PostgreSQL)."""
+def run_schema_migrations() -> bool:
+    """
+    Agrega de forma segura columnas nuevas a tablas existentes (SQLite y PostgreSQL).
+    Usa lock_timeout corto en PostgreSQL para no bloquear el arranque de Gunicorn/Render
+    si una instancia anterior mantiene conexiones abiertas durante un deploy sin caída.
+    Devuelve True si todas las columnas existen o fueron creadas; False si alguna quedó pendiente.
+    """
     inspector = inspect(db.engine)
     existing_tables = set(inspector.get_table_names())
+    is_pg = db.engine.dialect.name == 'postgresql'
 
     alter_map = {
         'users': [
@@ -98,14 +104,33 @@ def run_schema_migrations():
         ],
     }
 
-    with db.engine.begin() as conn:
-        for table_name, cols in alter_map.items():
-            if table_name not in existing_tables:
-                continue
-            current_cols = {c['name'] for c in inspector.get_columns(table_name)}
-            for col_name, col_type in cols:
-                if col_name not in current_cols:
+    # Leer columnas actuales ANTES de abrir transacciones de escritura (evita contención de pool/locks)
+    missing_alters = []
+    for table_name, cols in alter_map.items():
+        if table_name not in existing_tables:
+            continue
+        current_cols = {c['name'] for c in inspector.get_columns(table_name)}
+        for col_name, col_type in cols:
+            if col_name not in current_cols:
+                missing_alters.append((table_name, col_name, col_type))
+
+    if not missing_alters:
+        return True
+
+    pending = 0
+    for table_name, col_name, col_type in missing_alters:
+        try:
+            with db.engine.begin() as conn:
+                if is_pg:
+                    conn.execute(text("SET LOCAL lock_timeout = '3000ms'"))
+                    conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS {col_name} {col_type}"))
+                else:
                     conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"))
+        except Exception as exc:
+            pending += 1
+            print(f"[MIGRATE] Aviso en {table_name}.{col_name} (se reintentará): {exc}", flush=True)
+
+    return pending == 0
 
 
 def run_data_migrations():
