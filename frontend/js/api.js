@@ -120,8 +120,128 @@ function formatWhatsAppPhone(rawPhone) {
 }
 
 function getStoreWhatsApp() {
-  const cfg = (window.SISCO_CONFIG && window.SISCO_CONFIG.STORE_WHATSAPP) || '50588880000';
-  return formatWhatsAppPhone(cfg) || '50588880000';
+  const cfg = (window.SISCO_CONFIG && window.SISCO_CONFIG.STORE_WHATSAPP) || '50581679324';
+  return formatWhatsAppPhone(cfg) || '50581679324';
+}
+
+function buildWhatsAppUrl(rawPhone, message) {
+  const phone = formatWhatsAppPhone(rawPhone);
+  if (!phone) return '';
+  return `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
+}
+
+function formatPaymentMethodLabel(metodo) {
+  const map = {
+    efectivo_entrega: 'Efectivo contra entrega',
+    efectivo: 'Efectivo en caja',
+    transferencia: 'Transferencia bancaria (LAFISE / BAC / Banpro)',
+    tarjeta: 'Tarjeta POS Bancario',
+    whatsapp: 'Coordinar pago por WhatsApp'
+  };
+  return map[metodo] || metodo || 'Efectivo';
+}
+
+function buildOrderWhatsAppMessage(o) {
+  if (!o) return '';
+  const nombre = o.nombre_cliente || 'Cliente';
+  const codigo = o.numero_pedido || '';
+  const estado = String(o.estado || 'pendiente').toLowerCase();
+
+  const headers = {
+    pendiente: {
+      titulo: '¡PEDIDO RECIBIDO!',
+      intro: `Hola *${nombre}*, ¡gracias por comprar en *Shiny Skin*!\nHemos recibido tu pedido y en este momento estamos verificando tus productos para confirmarte el despacho.`
+    },
+    confirmado: {
+      titulo: '¡PEDIDO CONFIRMADO!',
+      intro: `Hola *${nombre}*, ¡excelentes noticias!\nTu pedido ya está *CONFIRMADO* y nuestro equipo lo está preparando con mucho cuidado para su entrega.`
+    },
+    en_camino: {
+      titulo: '¡TU PEDIDO VA EN CAMINO!',
+      intro: `Hola *${nombre}*, ¡tu rutina K-Beauty ya salió hacia ti!\nTu pedido se encuentra *EN CAMINO*${o.motorizado_nombre ? ` con nuestro repartidor *${o.motorizado_nombre}*` : ''}.`
+    },
+    entregado: {
+      titulo: '¡PEDIDO ENTREGADO!',
+      intro: `Hola *${nombre}*, tu pedido figura como *ENTREGADO*.\n¡Esperamos que disfrutes al máximo tus productos de *Shiny Skin*!`
+    },
+    cancelado: {
+      titulo: 'ACTUALIZACION DE PEDIDO',
+      intro: `Hola *${nombre}*, te informamos que tu pedido fue marcado como *CANCELADO*.\nSi deseas reactivarlo o realizar un nuevo pedido, con gusto te ayudamos por aquí.`
+    }
+  };
+
+  const h = headers[estado] || headers.pendiente;
+  const items = Array.isArray(o.items) ? o.items : [];
+  const itemsLines = items.length
+    ? items.map(it => `- ${it.cantidad}x ${it.nombre_producto} (${formatCurrency(it.subtotal)})`).join('\n')
+    : '- Productos seleccionados en tu compra';
+
+  const subtotal = Number(o.subtotal || 0);
+  const descuento = Number(o.descuento || 0);
+  const envio = Number(o.costo_envio || 0);
+  const total = Number(o.total || 0);
+  const isRetiro = o.metodo_entrega === 'retiro';
+
+  const pagoLines = [
+    `- Subtotal: ${formatCurrency(subtotal)}`,
+    ...(descuento > 0 ? [`- Descuento aplicado: *-${formatCurrency(descuento)}*`] : []),
+    `- Envío: ${envio === 0 ? '*GRATIS*' : formatCurrency(envio)}`,
+    `- *TOTAL: ${formatCurrency(total)}*`,
+    `- Método de pago: ${formatPaymentMethodLabel(o.metodo_pago)}`
+  ];
+
+  if (o.monto_pago_cliente && Number(o.monto_pago_cliente) > 0) {
+    const vuelto = Math.max(0, Number(o.cambio_entregar ?? (Number(o.monto_pago_cliente) - total)));
+    pagoLines.push(`- Paga con: ${formatCurrency(o.monto_pago_cliente)} (Vuelto: *${formatCurrency(vuelto)}*)`);
+  }
+
+  const entregaLines = isRetiro
+    ? [
+        '- Modalidad: *Retiro en Concept Store*',
+        '- Ubicación: Camino de Oriente, Managua'
+      ]
+    : [
+        '- Modalidad: *Envío a domicilio*',
+        `- Dirección: ${o.direccion_entrega || 'Por confirmar'}`
+      ];
+
+  if (o.motorizado_nombre) {
+    entregaLines.push(`- Repartidor: *${o.motorizado_nombre}*${o.motorizado_telefono ? ` (${o.motorizado_telefono})` : ''}`);
+  }
+
+  const footers = {
+    pendiente: '_En breve te confirmaremos la salida de tu pedido. ¡Gracias por tu preferencia!_',
+    confirmado: '_Te avisaremos en cuanto salga a ruta. Si necesitas ajustar algún dato, respóndenos por aquí._',
+    en_camino: '_Por favor mantente pendiente de tu teléfono para recibir tu entrega sin demoras._',
+    entregado: '_¡Gracias por confiar en Shiny Skin para tu rutina K-Beauty! Vuelve pronto._',
+    cancelado: '_Quedamos a tu orden para cualquier consulta en Shiny Skin._'
+  };
+
+  return [
+    '*SHINY SKIN | K-BEAUTY & SKINCARE*',
+    '================================',
+    `*${h.titulo}*`,
+    '',
+    h.intro,
+    '',
+    '*DETALLE DEL PEDIDO*',
+    '--------------------------------',
+    `- *Código:* \`${codigo}\``,
+    `- *Estado:* *${estado.replace('_', ' ').toUpperCase()}*`,
+    ...(o.fecha ? [`- *Fecha:* ${formatDateTime(o.fecha)}`] : []),
+    '',
+    '*PRODUCTOS:*',
+    itemsLines,
+    '',
+    '*RESUMEN DE PAGO:*',
+    ...pagoLines,
+    '',
+    '*DATOS DE ENTREGA:*',
+    ...entregaLines,
+    '',
+    '================================',
+    footers[estado] || footers.pendiente
+  ].join('\n');
 }
 
 // ---- Descuento General de Tienda (habilitado únicamente por la Administradora) ----

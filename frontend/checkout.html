@@ -286,7 +286,7 @@ function renderSummary() {
 
 async function placeOrder(e) {
   e.preventDefault();
-  const { cart, coupon, descuento, entrega, costoEnvio, total } = getTotals();
+  const { cart, subtotal, coupon, descuento, entrega, costoEnvio, total } = getTotals();
   const pago = document.querySelector('input[name="pago"]:checked').value;
   const rawMonto = parseFloat(document.getElementById('ckMontoPago').value);
 
@@ -350,9 +350,43 @@ async function placeOrder(e) {
   document.getElementById('confirmMsg').textContent = `¡Gracias por tu compra, ${orderData.nombre_cliente}! Tu pedido fue enviado directamente a nuestro equipo.`;
   document.getElementById('confirmNumero').textContent = `Código de seguimiento: ${numeroPedido}`;
 
-  const msgWA = `Hola Shiny Skin ✨ Acabo de realizar el pedido *${numeroPedido}* a nombre de *${orderData.nombre_cliente}* por *${formatCurrency(finalTotal)}* (${entrega === 'retiro' ? 'Retiro en tienda' : 'Envío a domicilio'}).`;
-  const storeWa = typeof getStoreWhatsApp === 'function' ? getStoreWhatsApp() : '50588880000';
-  document.getElementById('waConfirmBtn').href = `https://wa.me/${storeWa}?text=${encodeURIComponent(msgWA)}`;
+  const itemsWA = (createdOrder?.items || cart).map(it =>
+    `- ${it.cantidad}x ${it.nombre_producto || it.nombre} (${formatCurrency(it.subtotal ?? (Number(it.precio) * Number(it.cantidad)))})`
+  ).join('\n');
+  const subWA = createdOrder?.subtotal ?? subtotal;
+  const descWA = createdOrder?.descuento ?? descuento ?? 0;
+  const envWA = createdOrder?.costo_envio ?? costoEnvio ?? 0;
+  const pagoWA = typeof formatPaymentMethodLabel === 'function' ? formatPaymentMethodLabel(pago) : pago;
+  const vueltoLine = (orderData.monto_pago_cliente && orderData.monto_pago_cliente >= finalTotal)
+    ? `\n- Paga con: ${formatCurrency(orderData.monto_pago_cliente)} (Vuelto: *${formatCurrency(orderData.monto_pago_cliente - finalTotal)}*)`
+    : '';
+  const msgWA = [
+    '*NUEVO PEDIDO - SHINY SKIN*',
+    '================================',
+    `Hola *Shiny Skin*, acabo de realizar mi pedido en la tienda web:`,
+    '',
+    `- *Código:* \`${numeroPedido}\``,
+    `- *Cliente:* ${orderData.nombre_cliente}`,
+    `- *Teléfono:* ${orderData.telefono_cliente}`,
+    `- *Entrega:* ${entrega === 'retiro' ? 'Retiro en Concept Store (Camino de Oriente)' : `Domicilio (${orderData.direccion_entrega})`}`,
+    '',
+    '*PRODUCTOS:*',
+    itemsWA,
+    '',
+    '*RESUMEN:*',
+    `- Subtotal: ${formatCurrency(subWA)}`,
+    ...(descWA > 0 ? [`- Descuento${coupon ? ` (${coupon.code})` : ''}: *-${formatCurrency(descWA)}*`] : []),
+    `- Envío: ${envWA === 0 ? '*GRATIS*' : formatCurrency(envWA)}`,
+    `- *TOTAL: ${formatCurrency(finalTotal)}*`,
+    `- Pago: ${pagoWA}${vueltoLine}`,
+    ...(orderData.notas ? [`- Notas: ${orderData.notas}`] : ''),
+    '================================',
+    '_¡Quedo atento(a) a la confirmación de mi pedido!_'
+  ].join('\n');
+  const storeWa = typeof getStoreWhatsApp === 'function' ? getStoreWhatsApp() : '50581679324';
+  document.getElementById('waConfirmBtn').href = typeof buildWhatsAppUrl === 'function'
+    ? buildWhatsAppUrl(storeWa, msgWA)
+    : `https://api.whatsapp.com/send?phone=${storeWa}&text=${encodeURIComponent(msgWA)}`;
   const trackBtn = document.getElementById('trackConfirmBtn');
   if (trackBtn && typeof openTrackingModal === 'function') {
     trackBtn.onclick = () => openTrackingModal(numeroPedido);

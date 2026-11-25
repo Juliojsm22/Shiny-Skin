@@ -674,8 +674,12 @@ function renderOrderAlertStack() {
     const waPhone = typeof formatWhatsAppPhone === 'function'
       ? formatWhatsAppPhone(o.telefono_cliente)
       : String(o.telefono_cliente || '').replace(/\D/g, '');
-    const waMsg = `Hola *${o.nombre_cliente}* ✨ Recibimos tu pedido *${o.numero_pedido}* en *Shiny Skin* por *${formatCurrency(o.total)}*. ¡En breve te confirmamos el despacho!`;
-    const waHref = waPhone ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waMsg)}` : '';
+    const waMsg = typeof buildOrderWhatsAppMessage === 'function'
+      ? buildOrderWhatsAppMessage(o)
+      : `Hola *${o.nombre_cliente}*, recibimos tu pedido *${o.numero_pedido}* en *Shiny Skin* por *${formatCurrency(o.total)}*. ¡En breve te confirmamos el despacho!`;
+    const waHref = waPhone
+      ? (typeof buildWhatsAppUrl === 'function' ? buildWhatsAppUrl(waPhone, waMsg) : `https://api.whatsapp.com/send?phone=${waPhone}&text=${encodeURIComponent(waMsg)}`)
+      : '';
 
     return `
       <div class="sisco-order-alert-card" data-alert-id="${escapeHtml(o.id)}">
