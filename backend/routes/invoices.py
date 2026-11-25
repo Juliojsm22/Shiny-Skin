@@ -1,10 +1,14 @@
 from flask import Blueprint, jsonify, request, current_app, send_file, Response
 from sqlalchemy import or_, func
-from models import db, Invoice, InvoiceItem, Order, Product, InventoryMovement
+from models import db, Invoice, InvoiceItem, Order, Product, InventoryMovement, User
 from routes.utils import (
     get_current_user_obj, get_staff_from_request_or_query,
     staff_required, upsert_client, now_ni, now_ni_naive, today_ni,
     validate_full_name, validate_ni_phone
+)
+from routes.loyalty import (
+    get_or_create_loyalty_config, find_customer_user,
+    calculate_points_earned, compute_redemption, apply_loyalty_tx
 )
 from datetime import datetime
 import io
@@ -247,14 +251,40 @@ def create_invoice():
     raw_desc = max(0.0, float(data.get('descuento') or 0))
     if tipo_descuento == 'porcentaje':
         porcentaje = min(100.0, raw_desc)
-        descuento_monto = round(subtotal * (porcentaje / 100.0), 2)
+        descuento_manual = round(subtotal * (porcentaje / 100.0), 2)
     else:
         tipo_descuento = 'monto'
-        descuento_monto = min(subtotal, round(raw_desc, 2))
+        descuento_manual = min(subtotal, round(raw_desc, 2))
 
-    base_imponible = max(0.0, subtotal - descuento_monto)
+    # Club Shiny Points en Caja POS (buscar cuenta por ID / teléfono / correo)
+    loyalty_cfg = get_or_create_loyalty_config()
+    customer_user = find_customer_user(
+        user_id=data.get('cliente_user_id'),
+        telefono=telefono_cliente,
+        email=email_cliente
+    )
+    if customer_user and customer_user.rol != 'cliente' and not data.get('cliente_user_id'):
+        customer_user = None
+
+    try:
+        canjear_bloques = int(data.get('canjear_bloques') or 0)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Cantidad de bloques de puntos a canjear inválida.'}), 400
+    if canjear_bloques < 0:
+        return jsonify({'error': 'Cantidad de bloques de puntos inválida.'}), 400
+
+    base_tras_manual = max(0.0, round(subtotal - descuento_manual, 2))
+    puntos_usados, descuento_puntos, err_pts = compute_redemption(
+        customer_user, canjear_bloques, base_tras_manual, loyalty_cfg
+    )
+    if err_pts:
+        return jsonify({'error': err_pts}), 400
+
+    descuento_monto = round(descuento_manual + descuento_puntos, 2)
+    base_imponible = max(0.0, round(subtotal - descuento_monto, 2))
     iva = round(base_imponible * iva_rate, 2)
     total = round(base_imponible + iva, 2)
+    puntos_ganados = calculate_points_earned(base_imponible, loyalty_cfg) if customer_user else 0
 
     monto_recibido = data.get('monto_recibido')
     cambio = 0.0
@@ -275,10 +305,17 @@ def create_invoice():
     if estado_fac not in ('emitida', 'pagada'):
         estado_fac = 'pagada'
 
+    acreditar_pos = bool(customer_user and estado_fac == 'pagada' and puntos_ganados > 0)
+    notas_pos = (data.get('notas') or '').strip()
+    if descuento_puntos > 0:
+        tag_pts = f'[Canje Club Shiny: -{puntos_usados} pts / -C$ {descuento_puntos:.2f}]'
+        notas_pos = f'{tag_pts} {notas_pos}'.strip()
+
     invoice = Invoice(
         numero_factura=numero_factura,
         order_id=None,
         client_id=client.id if client else None,
+        cliente_user_id=customer_user.id if customer_user else None,
         user_id=user.id if user else None,
         nombre_cliente=nombre_cliente,
         telefono_cliente=telefono_cliente,
@@ -289,15 +326,40 @@ def create_invoice():
         descuento=descuento_monto,
         iva=iva,
         total=total,
+        puntos_usados=puntos_usados,
+        descuento_puntos=descuento_puntos,
+        puntos_ganados=puntos_ganados,
+        puntos_acreditados=acreditar_pos,
         metodo_pago=metodo_pago,
         monto_recibido=monto_recibido,
         cambio=cambio,
         estado=estado_fac,
-        notas=data.get('notas'),
+        notas=notas_pos or None,
         items=inv_items
     )
     db.session.add(invoice)
     db.session.flush()
+
+    # Registrar movimientos de puntos Club Shiny en Caja POS
+    if customer_user and puntos_usados > 0:
+        apply_loyalty_tx(
+            customer_user,
+            tipo='canjeado',
+            puntos_delta=-puntos_usados,
+            descripcion=f'Canje en Caja POS {numero_factura} (-C$ {descuento_puntos:.2f})',
+            monto_relacionado=descuento_puntos,
+            invoice_id=invoice.id,
+        )
+    if acreditar_pos:
+        apply_loyalty_tx(
+            customer_user,
+            tipo='ganado',
+            puntos_delta=puntos_ganados,
+            descripcion=f'Compra en Tienda Física {numero_factura}',
+            monto_relacionado=base_imponible,
+            invoice_id=invoice.id,
+            count_towards_lifetime=True,
+        )
 
     # Descontar stock físico de los productos vendidos en POS
     for pid, qty in agrupados.items():
@@ -341,7 +403,7 @@ def update_estado(id):
         motivo = (data.get('motivo_anulacion') or data.get('motivo') or 'Anulación administrativa').strip()
         invoice.motivo_anulacion = motivo
 
-        # Si es venta directa POS (sin pedido padre), devolver unidades al stock físico
+        # Si es venta directa POS (sin pedido padre), devolver unidades al stock físico y revertir puntos
         if invoice.order_id is None:
             for item in invoice.items:
                 if item.product_id:
@@ -360,6 +422,43 @@ def update_estado(id):
                             motivo=f'Anulación {invoice.numero_factura}: {motivo}',
                             user_id=user.id if user else None
                         ))
+            if invoice.cliente_user_id:
+                cust = db.session.get(User, invoice.cliente_user_id)
+                if cust:
+                    if invoice.puntos_acreditados and (invoice.puntos_ganados or 0) > 0:
+                        apply_loyalty_tx(
+                            cust,
+                            tipo='reversion',
+                            puntos_delta=-int(invoice.puntos_ganados),
+                            descripcion=f'Reversión por anulación de factura {invoice.numero_factura}',
+                            invoice_id=invoice.id,
+                        )
+                        invoice.puntos_acreditados = False
+                    if (invoice.puntos_usados or 0) > 0:
+                        apply_loyalty_tx(
+                            cust,
+                            tipo='reversion',
+                            puntos_delta=int(invoice.puntos_usados),
+                            descripcion=f'Devolución de puntos canjeados por anulación de {invoice.numero_factura}',
+                            monto_relacionado=invoice.descuento_puntos or 0,
+                            invoice_id=invoice.id,
+                        )
+
+    # Si una factura POS emitida se marca como pagada, acreditar puntos pendientes
+    if nuevo_estado == 'pagada' and estado_anterior != 'pagada' and invoice.order_id is None:
+        if invoice.cliente_user_id and not invoice.puntos_acreditados and (invoice.puntos_ganados or 0) > 0:
+            cust = db.session.get(User, invoice.cliente_user_id)
+            if cust:
+                apply_loyalty_tx(
+                    cust,
+                    tipo='ganado',
+                    puntos_delta=int(invoice.puntos_ganados),
+                    descripcion=f'Compra pagada en Tienda Física {invoice.numero_factura}',
+                    monto_relacionado=max(0.0, round((invoice.subtotal or 0) - (invoice.descuento or 0), 2)),
+                    invoice_id=invoice.id,
+                    count_towards_lifetime=True,
+                )
+                invoice.puntos_acreditados = True
 
     invoice.estado = nuevo_estado
     db.session.commit()

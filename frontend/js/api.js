@@ -354,6 +354,47 @@ async function fetchActiveStorePromo() {
   }
 }
 
+// ---- Club Shiny Points (1 pt por $1 / C$ 36.62 · 250 pts = $10 / C$ 366.20) ----
+let _loyaltyConfigCache = null;
+let _myLoyaltyCache = null;
+
+function getCachedLoyaltyConfig() {
+  return _loyaltyConfigCache;
+}
+
+function getCachedMyLoyalty() {
+  return _myLoyaltyCache;
+}
+
+function estimatePointsForCordobas(amountCordobas, cfg = _loyaltyConfigCache) {
+  const c = cfg || { activo: true, cordobas_por_punto: 36.62 };
+  if (!c.activo) return 0;
+  const rate = Number(c.cordobas_por_punto || 36.62);
+  if (rate <= 0 || Number(amountCordobas || 0) <= 0) return 0;
+  return Math.floor(Number(amountCordobas) / rate);
+}
+
+async function fetchLoyaltyStatus() {
+  let config = { activo: false, tasa_cambio: 36.62, cordobas_por_punto: 36.62, puntos_por_canje: 250, valor_canje_usd: 10, valor_canje_cordobas: 366.2 };
+  let account = null;
+  try {
+    config = await api.puntos.config();
+  } catch {}
+  _loyaltyConfigCache = config;
+
+  const { token, user } = getActiveSession();
+  if (token && user) {
+    try {
+      account = await api.puntos.miCuenta();
+      if (account && account.config) _loyaltyConfigCache = account.config;
+    } catch {
+      account = null;
+    }
+  }
+  _myLoyaltyCache = account;
+  return { config: _loyaltyConfigCache, account };
+}
+
 // ---- Semilla Inicial para Base de Datos Local (solo modo demo sin servidor) ----
 const INITIAL_PRODUCTS = [
   { id: 1, nombre: 'ANUA Heartleaf 77% Soothing Serum', sku: 'SKN-SER-001', marca: 'ANUA', linea: 'Skincare', categoria: 'Sueros & Esencias', tamano: '30 ml', tono: '', fecha_vencimiento: '2027-08-15', precio_costo: 400, porcentaje_ganancia: 80, precio_venta: 720, precio_final: 720, descuento: 0, stock: 30, stock_fisico: 14, stock_online: 16, stock_minimo: 8, es_nuevo: true, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=600&q=80', descripcion: 'Suero calmante con 77% de hoja de corazón. Calma irritaciones y reduce el enrojecimiento.', beneficios: 'Calma irritaciones · Reduce enrojecimiento · Equilibra el sebo', ingredientes: 'Houttuynia Cordata Extract 77%, Pantenol, Ácido Hialurónico' },
@@ -1509,6 +1550,82 @@ async function handleLocalApi(method, path, body) {
     return { ...db.promocion };
   }
 
+  // ---- Club Shiny Points (Local Demo Fallback) ----
+  if (!db.loyalty_config) {
+    db.loyalty_config = { activo: true, tasa_cambio: 36.62, cordobas_por_punto: 36.62, puntos_por_canje: 250, valor_canje_usd: 10, valor_canje_cordobas: 366.2 };
+  }
+  if (!Array.isArray(db.loyalty_txs)) db.loyalty_txs = [];
+  if (pathname === '/puntos/config' && method === 'GET') return { ...db.loyalty_config };
+  if (pathname === '/puntos/config' && method === 'PUT') {
+    const tasa = Math.max(1, parseFloat(data.tasa_cambio ?? db.loyalty_config.tasa_cambio) || 36.62);
+    const meta = Math.max(10, parseInt(data.puntos_por_canje ?? db.loyalty_config.puntos_por_canje) || 250);
+    const valUsd = Math.max(1, parseFloat(data.valor_canje_usd ?? db.loyalty_config.valor_canje_usd) || 10);
+    db.loyalty_config = {
+      activo: data.activo !== undefined ? !!data.activo : db.loyalty_config.activo,
+      tasa_cambio: tasa,
+      cordobas_por_punto: tasa,
+      puntos_por_canje: meta,
+      valor_canje_usd: valUsd,
+      valor_canje_cordobas: Math.round(valUsd * tasa * 100) / 100,
+      updated_at: nowIso,
+      updated_by: currentUser.nombre || 'Administradora'
+    };
+    saveLocalDB(db);
+    return { ...db.loyalty_config };
+  }
+  if (pathname === '/puntos/mi-cuenta' && method === 'GET') {
+    const u = db.usuarios.find(x => x.id === currentUser.id) || { id: 0, nombre: currentUser.nombre, email: currentUser.email, puntos_saldo: 0, puntos_acumulados: 0 };
+    const cfg = db.loyalty_config;
+    const saldo = Number(u.puntos_saldo || 0);
+    const bloques = Math.floor(saldo / cfg.puntos_por_canje);
+    return {
+      user_id: u.id, nombre: u.nombre, email: u.email, telefono: u.telefono || '',
+      puntos_saldo: saldo, puntos_acumulados: Number(u.puntos_acumulados || 0), puntos_pendientes: 0,
+      bloques_disponibles: bloques, descuento_disponible: Math.round(bloques * cfg.valor_canje_cordobas * 100) / 100,
+      descuento_disponible_usd: Math.round(bloques * cfg.valor_canje_usd * 100) / 100,
+      faltan_puntos: bloques >= 1 ? 0 : Math.max(0, cfg.puntos_por_canje - saldo),
+      progreso_pct: bloques >= 1 ? 100 : Math.min(99, Math.round((saldo / cfg.puntos_por_canje) * 100)),
+      config: { ...cfg },
+      movimientos: db.loyalty_txs.filter(t => t.user_id === u.id).slice(0, 30)
+    };
+  }
+  if (pathname === '/puntos/buscar' && method === 'GET') {
+    const q = normalizeText(params.get('q') || '');
+    const found = q ? db.usuarios.find(u => u.rol === 'cliente' && (normalizeText(u.telefono).includes(q) || normalizeText(u.email).includes(q) || normalizeText(u.nombre).includes(q))) : null;
+    if (!found) return { found: false, cliente: null, config: { ...db.loyalty_config } };
+    const saldo = Number(found.puntos_saldo || 0);
+    const bloques = Math.floor(saldo / db.loyalty_config.puntos_por_canje);
+    return {
+      found: true,
+      config: { ...db.loyalty_config },
+      cliente: {
+        user_id: found.id, nombre: found.nombre, email: found.email, telefono: found.telefono || '',
+        puntos_saldo: saldo, bloques_disponibles: bloques,
+        descuento_disponible: Math.round(bloques * db.loyalty_config.valor_canje_cordobas * 100) / 100,
+        config: { ...db.loyalty_config }
+      }
+    };
+  }
+  if (pathname === '/puntos/clientes' && method === 'GET') {
+    const miembros = db.usuarios.filter(u => u.rol === 'cliente').map(u => {
+      const s = Number(u.puntos_saldo || 0);
+      const b = Math.floor(s / db.loyalty_config.puntos_por_canje);
+      return { id: u.id, nombre: u.nombre, email: u.email, telefono: u.telefono || '', activo: u.activo !== false, puntos_saldo: s, puntos_acumulados: Number(u.puntos_acumulados || 0), bloques_disponibles: b, valor_disponible: Math.round(b * db.loyalty_config.valor_canje_cordobas * 100) / 100 };
+    });
+    return { config: { ...db.loyalty_config }, total_miembros: miembros.length, total_puntos_circulacion: miembros.reduce((a, m) => a + m.puntos_saldo, 0), miembros };
+  }
+  if (pathname === '/puntos/ajustar' && method === 'POST') {
+    const u = db.usuarios.find(x => Number(x.id) === Number(data.user_id));
+    if (!u) throw new Error('Cuenta de cliente no encontrada.');
+    const pts = parseInt(data.puntos) || 0;
+    u.puntos_saldo = Math.max(0, Number(u.puntos_saldo || 0) + pts);
+    if (pts > 0) u.puntos_acumulados = Number(u.puntos_acumulados || 0) + pts;
+    const tx = { id: nextId(db.loyalty_txs), user_id: u.id, tipo: 'ajuste', puntos: pts, saldo_resultante: u.puntos_saldo, descripcion: data.motivo || 'Ajuste manual', fecha: nowIso };
+    db.loyalty_txs.unshift(tx);
+    saveLocalDB(db);
+    return { message: `Saldo actualizado: ${u.puntos_saldo} pts`, puntos_saldo: u.puntos_saldo, movimiento: tx };
+  }
+
   return {};
 }
 
@@ -1742,6 +1859,16 @@ const api = {
     get:      ()     => api.get('/promocion'),
     getAdmin: ()     => api.get('/promocion/admin', true),
     update:   (data) => api.put('/promocion', data, true),
+  },
+
+  // ---- Club Shiny Points ----
+  puntos: {
+    config:       ()     => api.get('/puntos/config'),
+    updateConfig: (data) => api.put('/puntos/config', data, true),
+    miCuenta:     ()     => api.get('/puntos/mi-cuenta', true),
+    buscar:       (q)    => api.get('/puntos/buscar' + buildQuery({ q }), true),
+    clientes:     ()     => api.get('/puntos/clientes', true),
+    ajustar:      (data) => api.post('/puntos/ajustar', data, true),
   },
 };
 
@@ -2132,6 +2259,104 @@ function addAllQuizToCart() {
   showToast('¡Rutina K-Beauty completa añadida al carrito!', 'success');
 }
 
+// ---- Modal "⭐ Mis Puntos Club Shiny" para clientas con sesión iniciada ----
+async function openMyPointsModal() {
+  let modal = document.getElementById('globalMyPointsModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'globalMyPointsModal';
+    modal.className = 'modal-overlay';
+    modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('active'); };
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `<div class="modal" style="max-width:520px;text-align:center;padding:36px;"><div class="spinner" style="margin:0 auto 12px;"></div><p>Cargando tus puntos Shiny Club...</p></div>`;
+  modal.classList.add('active');
+
+  const { config, account } = await fetchLoyaltyStatus();
+  if (!account) {
+    modal.innerHTML = `
+      <div class="modal" style="max-width:480px;">
+        <div class="modal-header">
+          <div class="modal-title">⭐ Club Shiny Points</div>
+          <button class="modal-close" onclick="document.getElementById('globalMyPointsModal').classList.remove('active')">✕</button>
+        </div>
+        <p style="font-size:0.9rem;color:var(--color-text-muted);margin-bottom:16px;">Inicia sesión o crea tu cuenta gratis para empezar a acumular puntos en cada compra web y en tienda física.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <a href="login.html" class="btn btn-primary" style="flex:1;">Iniciar sesión</a>
+          <a href="login.html#register" class="btn btn-outline" style="flex:1;">Crear cuenta</a>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const cfg = account.config || config || { cordobas_por_punto: 36.62, puntos_por_canje: 250, valor_canje_usd: 10, valor_canje_cordobas: 366.2 };
+  const movs = account.movimientos || [];
+  const txIcons = { ganado: '⭐', canjeado: '🎁', reversion: '↩️', ajuste: '✨' };
+
+  modal.innerHTML = `
+    <div class="modal" style="max-width:540px;">
+      <div class="modal-header">
+        <div class="modal-title">⭐ Mi Cuenta · Club Shiny Points</div>
+        <button class="modal-close" onclick="document.getElementById('globalMyPointsModal').classList.remove('active')">✕</button>
+      </div>
+
+      <div style="background:linear-gradient(135deg,#103252,#256399);color:#ffffff;border-radius:18px;padding:20px;margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+          <div>
+            <div style="font-size:0.75rem;opacity:0.8;text-transform:uppercase;letter-spacing:0.8px;">Saldo Disponible</div>
+            <div style="font-family:'Poppins',sans-serif;font-size:2.1rem;font-weight:800;line-height:1.1;margin-top:2px;">⭐ ${account.puntos_saldo} pts</div>
+            <div style="font-size:0.8rem;opacity:0.9;margin-top:4px;">${escapeHtml(account.nombre)} ${account.telefono ? `· ${escapeHtml(account.telefono)}` : ''}</div>
+          </div>
+          <div style="text-align:right;">
+            ${account.bloques_disponibles >= 1
+              ? `<span style="display:inline-block;background:#10b981;color:#fff;padding:5px 12px;border-radius:99px;font-size:0.76rem;font-weight:800;">🎁 ${formatCurrency(account.descuento_disponible)} ($${account.descuento_disponible_usd}) listo para canjear</span>`
+              : `<span style="display:inline-block;background:rgba(255,255,255,0.18);color:#fff;padding:5px 12px;border-radius:99px;font-size:0.74rem;font-weight:700;">Faltan ${account.faltan_puntos} pts para tu canje</span>`}
+            ${account.puntos_pendientes > 0
+              ? `<div style="font-size:0.74rem;color:#fde68a;margin-top:6px;">⏳ +${account.puntos_pendientes} pts por acreditar al entregar</div>`
+              : ''}
+          </div>
+        </div>
+
+        <div style="margin-top:14px;">
+          <div style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.85;margin-bottom:5px;">
+            <span>Progreso para tu descuento de $${cfg.valor_canje_usd} (${formatCurrency(cfg.valor_canje_cordobas)})</span>
+            <span>${Math.min(account.puntos_saldo, cfg.puntos_por_canje)} / ${cfg.puntos_por_canje} pts</span>
+          </div>
+          <div style="height:8px;border-radius:99px;background:rgba(255,255,255,0.2);overflow:hidden;">
+            <div style="height:100%;width:${account.progreso_pct}%;background:linear-gradient(90deg,#fbbf24,#34d399);border-radius:99px;transition:width 0.4s ease;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:var(--color-surface-2);border:1px solid var(--color-surface-3);border-radius:14px;padding:12px 14px;font-size:0.8rem;color:var(--color-text-muted);margin-bottom:16px;line-height:1.6;">
+        <strong style="color:var(--color-primary-darker);">¿Cómo funcionan tus puntos?</strong><br>
+        • Ganas <strong>1 punto por cada $1 (${formatCurrency(cfg.cordobas_por_punto)})</strong> en productos.<br>
+        • Cada <strong>${cfg.puntos_por_canje} puntos = $${cfg.valor_canje_usd} (${formatCurrency(cfg.valor_canje_cordobas)}) OFF</strong> en tu próxima compra.<br>
+        • Los puntos se acreditan al entregarse tu pedido web o al pagar en <strong>Tienda Física</strong> dando tu teléfono.
+      </div>
+
+      <div style="font-size:0.78rem;font-weight:700;color:var(--color-primary-darker);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:8px;">Historial reciente (${movs.length})</div>
+      <div style="max-height:200px;overflow-y:auto;margin-bottom:18px;border:1px solid var(--color-surface-3);border-radius:12px;padding:4px 12px;">
+        ${movs.length ? movs.map(m => `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--color-surface-2);font-size:0.8rem;">
+            <div style="min-width:0;">
+              <div style="font-weight:600;color:var(--color-text);">${txIcons[m.tipo] || '⭐'} ${escapeHtml(m.descripcion || m.tipo)}</div>
+              <div style="font-size:0.71rem;color:var(--color-text-light);">${formatDateTime(m.fecha)}</div>
+            </div>
+            <div style="font-weight:800;white-space:nowrap;color:${m.puntos >= 0 ? 'var(--color-success)' : 'var(--color-danger)'};">
+              ${m.puntos >= 0 ? `+${m.puntos}` : m.puntos} pts
+            </div>
+          </div>`).join('') : '<div style="text-align:center;padding:18px;color:var(--color-text-light);font-size:0.82rem;">Aún no tienes movimientos de puntos. ¡Haz tu primera compra para empezar!</div>'}
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+        <button type="button" class="btn btn-ghost btn-sm" style="color:var(--color-danger);" onclick="clearActiveSession();showToast('Sesión cerrada correctamente','info');setTimeout(()=>window.location.reload(),450);">🚪 Cerrar sesión</button>
+        <a href="tienda.html" class="btn btn-primary btn-sm">🛍️ Seguir comprando</a>
+      </div>
+    </div>
+  `;
+}
+
 function initPublicNavbar() {
   updateCartBadge();
   const nav = document.querySelector('.navbar-nav');
@@ -2161,15 +2386,20 @@ function initPublicNavbar() {
       adminLink.innerHTML = '🛍️ Panel Ventas';
       adminLink.className = 'btn btn-primary btn-sm';
     } else if (token && user) {
+      const firstName = (user.nombre || 'Cuenta').split(' ')[0];
       adminLink.href = '#';
-      adminLink.textContent = `👤 ${(user.nombre || 'Cuenta').split(' ')[0]} (Salir)`;
+      adminLink.textContent = `⭐ ${firstName}`;
+      adminLink.title = 'Ver mis puntos Club Shiny y cuenta';
       adminLink.className = 'btn btn-outline btn-sm';
       adminLink.onclick = (ev) => {
         ev.preventDefault();
-        clearActiveSession();
-        showToast('Sesión cerrada correctamente', 'info');
-        setTimeout(() => window.location.reload(), 500);
+        openMyPointsModal();
       };
+      fetchLoyaltyStatus().then(({ account }) => {
+        if (account && adminLink) {
+          adminLink.textContent = `⭐ ${account.puntos_saldo} pts · ${firstName}`;
+        }
+      }).catch(() => {});
     } else {
       adminLink.href = 'login.html';
       adminLink.innerHTML = '👤 Ingresar';

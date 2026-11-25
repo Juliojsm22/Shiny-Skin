@@ -169,17 +169,56 @@
   } catch {}
 })();
 
+let loyaltyState = { config: null, account: null };
+let selectedRedeemBlocks = 0;
+
+function setRedeemBlocks(val) {
+  selectedRedeemBlocks = Math.max(0, parseInt(val) || 0);
+  renderSummary();
+}
+
 function getTotals() {
   const cart = getCart();
   const subtotal = cart.reduce((s, i) => s + (Number(i.precio) * Number(i.cantidad)), 0);
   const storePromo = typeof getCachedStorePromo === 'function' ? getCachedStorePromo() : null;
   const coupon = (storePromo && typeof getAppliedCoupon === 'function') ? getAppliedCoupon() : null;
-  const descuento = coupon ? Math.round((subtotal * coupon.pct) / 100) : 0;
-  const subConDesc = Math.max(0, subtotal - descuento);
+  const descuentoCupon = coupon ? Math.round((subtotal * coupon.pct) / 100) : 0;
+  const subTrasCupon = Math.max(0, subtotal - descuentoCupon);
+
+  const loyCfg = loyaltyState.config;
+  const loyAcc = loyaltyState.account;
+  let maxRedeemBlocks = 0;
+  let descuentoPuntos = 0;
+  let puntosUsados = 0;
+
+  if (loyCfg && loyCfg.activo && loyAcc && loyAcc.bloques_disponibles >= 1 && subTrasCupon > 0) {
+    const valBloque = Number(loyCfg.valor_canje_cordobas || 366.2);
+    const meta = Number(loyCfg.puntos_por_canje || 250);
+    const maxBySub = Math.max(1, Math.ceil(subTrasCupon / valBloque));
+    maxRedeemBlocks = Math.min(Number(loyAcc.bloques_disponibles || 0), maxBySub);
+    if (selectedRedeemBlocks > maxRedeemBlocks) selectedRedeemBlocks = maxRedeemBlocks;
+    if (selectedRedeemBlocks > 0) {
+      puntosUsados = selectedRedeemBlocks * meta;
+      descuentoPuntos = Math.min(subTrasCupon, Math.round(selectedRedeemBlocks * valBloque * 100) / 100);
+    }
+  } else {
+    selectedRedeemBlocks = 0;
+  }
+
+  const descuento = Math.round((descuentoCupon + descuentoPuntos) * 100) / 100;
+  const subConDesc = Math.max(0, Math.round((subtotal - descuento) * 100) / 100);
   const entrega = document.querySelector('input[name="entrega"]:checked')?.value || 'domicilio';
   const costoEnvio = entrega === 'retiro' ? 0 : (subConDesc >= 1500 ? 0 : 100);
-  const total = subConDesc + costoEnvio;
-  return { cart, subtotal, storePromo, coupon, descuento, entrega, costoEnvio, total };
+  const total = Math.round((subConDesc + costoEnvio) * 100) / 100;
+  const puntosGanar = (loyCfg && loyCfg.activo && typeof estimatePointsForCordobas === 'function')
+    ? estimatePointsForCordobas(subConDesc, loyCfg)
+    : 0;
+
+  return {
+    cart, subtotal, storePromo, coupon, descuentoCupon,
+    descuentoPuntos, puntosUsados, maxRedeemBlocks,
+    descuento, subConDesc, entrega, costoEnvio, total, puntosGanar
+  };
 }
 
 function applyCheckoutCoupon(codeOverride) {
@@ -223,7 +262,11 @@ function selectPay(id) {
 }
 
 function renderSummary() {
-  const { cart, subtotal, storePromo, coupon, descuento, entrega, costoEnvio, total } = getTotals();
+  const {
+    cart, subtotal, storePromo, coupon, descuentoCupon,
+    descuentoPuntos, puntosUsados, maxRedeemBlocks,
+    descuento, entrega, costoEnvio, total, puntosGanar
+  } = getTotals();
   if (cart.length === 0 && document.getElementById('confirmSection').style.display === 'none') {
     window.location = 'carrito.html';
     return;
@@ -253,6 +296,57 @@ function renderSummary() {
     }
   }
 
+  const loyCfg = loyaltyState.config;
+  const loyAcc = loyaltyState.account;
+  let loyaltyBoxHtml = '';
+  if (loyCfg && loyCfg.activo) {
+    if (loyAcc) {
+      const meta = Number(loyCfg.puntos_por_canje || 250);
+      const valBloque = Number(loyCfg.valor_canje_cordobas || 366.2);
+      const valUsd = Number(loyCfg.valor_canje_usd || 10);
+      let redeemCtrl = '';
+      if (maxRedeemBlocks >= 1) {
+        const opts = [`<option value="0" ${selectedRedeemBlocks === 0 ? 'selected' : ''}>No canjear puntos (guardar saldo)</option>`];
+        for (let b = 1; b <= maxRedeemBlocks; b++) {
+          opts.push(`<option value="${b}" ${selectedRedeemBlocks === b ? 'selected' : ''}>🎁 Canjear ${b * meta} pts (-${formatCurrency(b * valBloque)} / $${b * valUsd})</option>`);
+        }
+        redeemCtrl = `
+          <div style="margin-top:8px;">
+            <select class="form-control" style="padding:7px 10px;font-size:0.8rem;" onchange="setRedeemBlocks(this.value)">
+              ${opts.join('')}
+            </select>
+          </div>`;
+      } else {
+        redeemCtrl = `
+          <div style="margin-top:6px;">
+            <div style="height:6px;border-radius:99px;background:rgba(37,99,153,0.16);overflow:hidden;">
+              <div style="height:100%;width:${loyAcc.progreso_pct}%;background:linear-gradient(90deg,#f59e0b,#10b981);border-radius:99px;"></div>
+            </div>
+            <div style="font-size:0.71rem;color:var(--color-text-muted);margin-top:4px;">Te faltan <strong>${loyAcc.faltan_puntos} pts</strong> para desbloquear $${valUsd} (${formatCurrency(valBloque)}) OFF.</div>
+          </div>`;
+      }
+      loyaltyBoxHtml = `
+        <div style="margin:10px 0 12px;padding:10px 12px;background:linear-gradient(135deg,rgba(37,99,153,0.08),rgba(245,158,11,0.12));border:1px solid rgba(37,99,153,0.22);border-radius:12px;font-size:0.78rem;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+            <strong style="color:var(--color-primary-darker);">⭐ Club Shiny Points</strong>
+            <span class="badge badge-primary">Saldo: ${loyAcc.puntos_saldo} pts</span>
+          </div>
+          ${redeemCtrl}
+          <div style="font-size:0.73rem;color:var(--color-success);font-weight:700;margin-top:7px;">✨ Ganarás +${puntosGanar} pts al recibir este pedido</div>
+        </div>`;
+    } else {
+      loyaltyBoxHtml = `
+        <div style="margin:10px 0 12px;padding:10px 12px;background:linear-gradient(135deg,rgba(37,99,153,0.07),rgba(245,158,11,0.11));border:1px dashed rgba(37,99,153,0.32);border-radius:12px;font-size:0.76rem;line-height:1.5;">
+          <div style="font-weight:700;color:var(--color-primary-darker);">⭐ ¿Quieres ganar +${puntosGanar} pts con este pedido?</div>
+          <div style="color:var(--color-text-muted);margin:2px 0 7px;">Crea tu cuenta gratis (${loyCfg.puntos_por_canje} pts = $${loyCfg.valor_canje_usd} / ${formatCurrency(loyCfg.valor_canje_cordobas)} OFF) o continúa como invitado.</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <a href="login.html?next=checkout.html#register" class="btn btn-primary btn-sm" style="padding:5px 11px;font-size:0.72rem;">Crear cuenta</a>
+            <a href="login.html?next=checkout.html" class="btn btn-outline btn-sm" style="padding:5px 11px;font-size:0.72rem;">Iniciar sesión</a>
+          </div>
+        </div>`;
+    }
+  }
+
   document.getElementById('orderTotals').innerHTML = `
     ${storePromo ? `
     <div style="margin:12px 0;padding:10px 12px;background:var(--color-surface-2);border-radius:12px;border:1px dashed var(--color-surface-3);">
@@ -273,8 +367,10 @@ function renderSummary() {
         </div>
       `}
     </div>` : ''}
+    ${loyaltyBoxHtml}
     <div class="summary-line" style="border-top:1px solid var(--color-surface-3);padding-top:12px;"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
-    ${descuento > 0 ? `<div class="summary-line" style="color:var(--color-success);font-weight:600;"><span>Descuento (${coupon.code})</span><span>-${formatCurrency(descuento)}</span></div>` : ''}
+    ${descuentoCupon > 0 ? `<div class="summary-line" style="color:var(--color-success);font-weight:600;"><span>Descuento (${escapeHtml(coupon.code)})</span><span>-${formatCurrency(descuentoCupon)}</span></div>` : ''}
+    ${descuentoPuntos > 0 ? `<div class="summary-line" style="color:var(--color-success);font-weight:700;"><span>⭐ Canje Club Shiny (-${puntosUsados} pts)</span><span>-${formatCurrency(descuentoPuntos)}</span></div>` : ''}
     <div class="summary-line">
       <span>${entrega === 'retiro' ? 'Retiro en tienda' : 'Costo de envío'}</span>
       <span style="color:${costoEnvio === 0 ? 'var(--color-success)' : 'var(--color-text)'};font-weight:600;">${costoEnvio === 0 ? 'Gratis' : formatCurrency(costoEnvio)}</span>
@@ -321,6 +417,7 @@ async function placeOrder(e) {
     costo_envio: costoEnvio,
     descuento: descuento || 0,
     cupon: coupon ? coupon.code : null,
+    canjear_bloques: selectedRedeemBlocks || 0,
     metodo_pago: pago,
     monto_pago_cliente: (pago === 'efectivo_entrega' && !isNaN(rawMonto) && rawMonto >= total) ? rawMonto : null,
     notas: document.getElementById('ckNotas').value.trim(),
@@ -362,6 +459,20 @@ async function placeOrder(e) {
   document.getElementById('confirmSection').style.display = 'block';
   document.getElementById('confirmMsg').textContent = `¡Gracias por tu compra, ${orderData.nombre_cliente}! Tu pedido fue enviado directamente a nuestro equipo.`;
   document.getElementById('confirmNumero').textContent = `Código de seguimiento: ${numeroPedido}`;
+
+  const stepsBox = document.getElementById('confirmSteps');
+  if (stepsBox && createdOrder) {
+    const extraPts = [];
+    if (createdOrder.puntos_usados > 0) {
+      extraPts.push(`<div>🎁 <strong>Canjeaste ${createdOrder.puntos_usados} puntos</strong> Club Shiny (-${formatCurrency(createdOrder.descuento_puntos)} aplicados).</div>`);
+    }
+    if (createdOrder.puntos_ganados > 0) {
+      extraPts.push(`<div>⭐ <strong>Ganarás +${createdOrder.puntos_ganados} puntos</strong> en tu cuenta en cuanto recibas tu pedido.</div>`);
+    }
+    if (extraPts.length) {
+      stepsBox.innerHTML += extraPts.join('');
+    }
+  }
 
   const itemsWA = (createdOrder?.items || cart).map(it =>
     `- ${it.cantidad}x ${it.nombre_producto || it.nombre} (${formatCurrency(it.subtotal ?? (Number(it.precio) * Number(it.cantidad)))})`
@@ -409,9 +520,11 @@ async function placeOrder(e) {
 }
 
 async function initCheckout() {
-  if (typeof fetchActiveStorePromo === 'function') {
-    await fetchActiveStorePromo();
-  }
+  const [, loy] = await Promise.all([
+    typeof fetchActiveStorePromo === 'function' ? fetchActiveStorePromo() : Promise.resolve(null),
+    typeof fetchLoyaltyStatus === 'function' ? fetchLoyaltyStatus() : Promise.resolve({ config: null, account: null })
+  ]);
+  if (loy) loyaltyState = loy;
   renderSummary();
 }
 initCheckout();

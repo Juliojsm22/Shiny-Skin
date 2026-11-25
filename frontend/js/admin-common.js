@@ -112,6 +112,10 @@ function renderAdminSidebar(activePage) {
         <span class="sidebar-icon">🏷️</span> Descuento Tienda
         <span class="sidebar-badge" id="promoSidebarBadge" style="display:none;background:#10b981;">ON</span>
       </button>
+      <button type="button" class="sidebar-item" onclick="openLoyaltyAdminModal()" style="width:100%;text-align:left;">
+        <span class="sidebar-icon">⭐</span> Club de Puntos
+        <span class="sidebar-badge" id="loyaltySidebarBadge" style="display:none;background:#f59e0b;color:#0f172a;">ON</span>
+      </button>
       <button type="button" class="sidebar-item" onclick="openExecutiveReportModal()" style="width:100%;text-align:left;">
         <span class="sidebar-icon">📄</span> Cierre / Reporte PDF
       </button>
@@ -1410,11 +1414,19 @@ function updateAdminPromoIndicators(promo) {
 }
 
 async function refreshAdminPromoBadge() {
-  if (!window.IS_ADMIN || !api.promocion) return;
-  try {
-    const promo = await api.promocion.getAdmin();
-    updateAdminPromoIndicators(promo);
-  } catch {}
+  if (!window.IS_ADMIN) return;
+  if (api.promocion) {
+    try {
+      const promo = await api.promocion.getAdmin();
+      updateAdminPromoIndicators(promo);
+    } catch {}
+  }
+  if (api.puntos) {
+    try {
+      const cfg = await api.puntos.config();
+      updateAdminLoyaltyIndicators(cfg);
+    } catch {}
+  }
 }
 
 async function openStorePromoModal() {
@@ -1574,5 +1586,206 @@ async function disableStorePromoQuick() {
     document.getElementById('siscoStorePromoModal').classList.remove('active');
   } catch (err) {
     showToast(err.message || 'No se pudo desactivar el descuento', 'error');
+  }
+}
+
+// =====================================================================
+// CLUB SHINY POINTS — CONFIGURACIÓN Y GESTIÓN (SOLO ADMINISTRADORA)
+// =====================================================================
+function updateAdminLoyaltyIndicators(cfg) {
+  const isOn = !!(cfg && cfg.activo);
+  const badge = document.getElementById('loyaltySidebarBadge');
+  if (badge) {
+    badge.style.display = isOn ? 'inline-block' : 'none';
+    badge.textContent = isOn ? 'ON' : '';
+  }
+  const dashEl = document.getElementById('dashLoyaltyStatus');
+  if (dashEl) {
+    dashEl.textContent = isOn ? `(${cfg.puntos_por_canje || 250} pts = $${cfg.valor_canje_usd || 10})` : '(Inactivo)';
+    dashEl.style.color = isOn ? '#fbbf24' : 'rgba(255,255,255,0.6)';
+  }
+}
+
+async function openLoyaltyAdminModal() {
+  if (!window.IS_ADMIN) {
+    showToast('Solo la Administradora puede configurar el Club de Puntos.', 'error');
+    return;
+  }
+
+  let modal = document.getElementById('siscoLoyaltyAdminModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'siscoLoyaltyAdminModal';
+    modal.className = 'modal-overlay';
+    modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('active'); };
+    document.body.appendChild(modal);
+  }
+
+  modal.innerHTML = `<div class="admin-modal" style="max-width:640px;"><p style="text-align:center;padding:30px;">Cargando Club Shiny Points...</p></div>`;
+  modal.classList.add('active');
+
+  let data = {
+    config: { activo: true, tasa_cambio: 36.62, cordobas_por_punto: 36.62, puntos_por_canje: 250, valor_canje_usd: 10, valor_canje_cordobas: 366.2 },
+    total_miembros: 0,
+    total_puntos_circulacion: 0,
+    miembros: []
+  };
+  try {
+    data = await api.puntos.clientes();
+    updateAdminLoyaltyIndicators(data.config);
+  } catch (err) {
+    showToast(err.message || 'No se pudo cargar el programa de puntos', 'error');
+  }
+
+  const cfg = data.config || {};
+  const members = data.miembros || [];
+
+  modal.innerHTML = `
+    <div class="admin-modal" style="max-width:660px;">
+      <div class="modal-header">
+        <div class="modal-title">⭐ Club Shiny Points (Programa de Fidelidad)</div>
+        <button class="modal-close" onclick="document.getElementById('siscoLoyaltyAdminModal').classList.remove('active')">✕</button>
+      </div>
+
+      <div class="admin-tabs" style="margin-bottom:16px;">
+        <div class="admin-tab active" id="tabLoyCfg" onclick="switchLoyaltyAdminTab('cfg')">⚙️ Reglas del Programa</div>
+        <div class="admin-tab" id="tabLoyMem" onclick="switchLoyaltyAdminTab('mem')">👥 Miembros (${data.total_miembros || 0}) · ${data.total_puntos_circulacion || 0} pts</div>
+      </div>
+
+      <!-- TAB 1: REGLAS -->
+      <div id="loyPaneCfg">
+        <form onsubmit="saveLoyaltyAdminConfig(event)">
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:rgba(255,255,255,0.05);border:1px solid var(--admin-border);border-radius:12px;margin-bottom:14px;cursor:pointer;">
+            <div>
+              <div style="font-weight:700;font-size:0.9rem;color:#ffffff;">Programa Club Shiny Points activo</div>
+              <div style="font-size:0.75rem;color:rgba(188,210,233,0.7);">Acredita puntos al entregar pedidos web y al cobrar ventas en Caja POS.</div>
+            </div>
+            <input type="checkbox" id="loyActivoChk" ${cfg.activo ? 'checked' : ''} onchange="updateLoyaltyAdminPreview()" style="width:22px;height:22px;accent-color:#f59e0b;flex-shrink:0;cursor:pointer;" />
+          </label>
+
+          <div class="admin-form-grid" style="margin-bottom:14px;">
+            <div class="admin-form-group">
+              <label class="admin-form-label" for="loyTasaInp">Tasa de cambio (C$ por $1 USD = 1 pt) *</label>
+              <input class="admin-form-control" type="number" step="0.01" min="1" max="500" id="loyTasaInp" value="${Number(cfg.tasa_cambio || 36.62)}" required oninput="updateLoyaltyAdminPreview()" />
+            </div>
+            <div class="admin-form-group">
+              <label class="admin-form-label" for="loyMetaInp">Puntos requeridos por canje *</label>
+              <input class="admin-form-control" type="number" step="1" min="10" max="100000" id="loyMetaInp" value="${Number(cfg.puntos_por_canje || 250)}" required oninput="updateLoyaltyAdminPreview()" />
+            </div>
+            <div class="admin-form-group admin-form-full">
+              <label class="admin-form-label" for="loyValUsdInp">Valor del descuento por canje ($ USD) *</label>
+              <input class="admin-form-control" type="number" step="0.5" min="1" max="1000" id="loyValUsdInp" value="${Number(cfg.valor_canje_usd || 10)}" required oninput="updateLoyaltyAdminPreview()" />
+            </div>
+          </div>
+
+          <div id="loyPreviewBox" style="padding:12px 14px;background:rgba(245,158,11,0.12);border:1px solid rgba(251,191,36,0.35);border-radius:12px;margin-bottom:16px;font-size:0.82rem;line-height:1.6;"></div>
+
+          <div style="display:flex;justify-content:flex-end;gap:10px;">
+            <button type="button" class="btn-admin-secondary" onclick="document.getElementById('siscoLoyaltyAdminModal').classList.remove('active')">Cerrar</button>
+            <button type="submit" class="btn-admin-primary" id="btnSaveLoyCfg">💾 Guardar Reglas</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- TAB 2: MIEMBROS Y AJUSTE MANUAL -->
+      <div id="loyPaneMem" style="display:none;">
+        ${members.length ? `
+        <form onsubmit="submitManualPointsAdjust(event)" style="padding:12px;background:rgba(255,255,255,0.04);border:1px solid var(--admin-border);border-radius:12px;margin-bottom:14px;">
+          <div style="font-size:0.74rem;font-weight:700;color:var(--color-brand-pastel);margin-bottom:8px;text-transform:uppercase;">🎁 Ajuste / Bono Manual de Puntos</div>
+          <div class="admin-form-grid" style="gap:10px;margin-bottom:10px;">
+            <select class="admin-form-control" id="loyAdjUser" required>
+              ${members.map(m => `<option value="${m.id}">${escapeHtml(m.nombre)} (${m.telefono || m.email}) — ${m.puntos_saldo} pts</option>`).join('')}
+            </select>
+            <input class="admin-form-control" type="number" id="loyAdjPts" placeholder="Ej. 50 o -50" required />
+            <input class="admin-form-control admin-form-full" id="loyAdjMotivo" placeholder="Motivo (ej. Bono de cumpleaños Shiny Skin)" />
+          </div>
+          <button type="submit" class="btn-admin-primary" style="width:100%;justify-content:center;">✨ Aplicar Ajuste de Puntos</button>
+        </form>
+        <div style="max-height:240px;overflow-y:auto;">
+          <table class="admin-table" style="font-size:0.8rem;">
+            <thead><tr><th>Cliente</th><th>Teléfono</th><th>Saldo</th><th>Canjes</th></tr></thead>
+            <tbody>
+              ${members.map(m => `
+                <tr>
+                  <td><strong>${escapeHtml(m.nombre)}</strong><div style="font-size:0.7rem;color:rgba(188,210,233,0.6);">${escapeHtml(m.email)}</div></td>
+                  <td>${escapeHtml(m.telefono || '—')}</td>
+                  <td><strong style="color:#fbbf24;">⭐ ${m.puntos_saldo}</strong><div style="font-size:0.68rem;color:rgba(255,255,255,0.5);">Hist: ${m.puntos_acumulados}</div></td>
+                  <td>${m.bloques_disponibles >= 1 ? `<span class="badge badge-success">${m.bloques_disponibles} (${formatCurrency(m.valor_disponible)})</span>` : '<span style="opacity:0.5;">En progreso</span>'}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : '<p style="text-align:center;padding:24px;color:rgba(255,255,255,0.55);font-size:0.86rem;">Aún no hay clientas con cuenta registrada. En cuanto creen su cuenta aparecerán aquí.</p>'}
+      </div>
+    </div>
+  `;
+  updateLoyaltyAdminPreview();
+}
+
+function switchLoyaltyAdminTab(tab) {
+  document.getElementById('tabLoyCfg')?.classList.toggle('active', tab === 'cfg');
+  document.getElementById('tabLoyMem')?.classList.toggle('active', tab === 'mem');
+  const pCfg = document.getElementById('loyPaneCfg');
+  const pMem = document.getElementById('loyPaneMem');
+  if (pCfg) pCfg.style.display = tab === 'cfg' ? 'block' : 'none';
+  if (pMem) pMem.style.display = tab === 'mem' ? 'block' : 'none';
+}
+
+function updateLoyaltyAdminPreview() {
+  const box = document.getElementById('loyPreviewBox');
+  if (!box) return;
+  const on = !!document.getElementById('loyActivoChk')?.checked;
+  const tasa = parseFloat(document.getElementById('loyTasaInp')?.value) || 36.62;
+  const meta = parseInt(document.getElementById('loyMetaInp')?.value) || 250;
+  const valUsd = parseFloat(document.getElementById('loyValUsdInp')?.value) || 10;
+  const valC = Math.round(valUsd * tasa * 100) / 100;
+  const cashbackPct = meta > 0 ? ((valUsd / meta) * 100).toFixed(1) : '0';
+
+  if (!on) {
+    box.innerHTML = '⚪ <strong>Programa pausado:</strong> No se mostrarán ni acumularán puntos nuevos en la tienda hasta volver a activarlo.';
+  } else {
+    box.innerHTML = `
+      <strong style="color:#fde68a;">⭐ Resumen de la regla vigente:</strong><br>
+      • Cliente gana <strong>1 punto por cada $1 (${formatCurrency(tasa)})</strong> en productos.<br>
+      • Al llegar a <strong>${meta} puntos</strong>, desbloquea <strong>$${valUsd} (${formatCurrency(valC)}) OFF</strong> en web o tienda física.<br>
+      • Retorno real sobre ventas: <strong>${cashbackPct}%</strong> · Acreditación segura al entregar pedido / pagar en POS.
+    `;
+  }
+}
+
+async function saveLoyaltyAdminConfig(e) {
+  e.preventDefault();
+  if (!window.IS_ADMIN) return;
+  const btn = document.getElementById('btnSaveLoyCfg');
+  if (btn) btn.disabled = true;
+  try {
+    const saved = await api.puntos.updateConfig({
+      activo: !!document.getElementById('loyActivoChk').checked,
+      tasa_cambio: parseFloat(document.getElementById('loyTasaInp').value) || 36.62,
+      puntos_por_canje: parseInt(document.getElementById('loyMetaInp').value) || 250,
+      valor_canje_usd: parseFloat(document.getElementById('loyValUsdInp').value) || 10,
+    });
+    updateAdminLoyaltyIndicators(saved);
+    showToast(saved.activo ? '⭐ Reglas de Club Shiny Points guardadas' : 'Programa de puntos pausado', 'success');
+    document.getElementById('siscoLoyaltyAdminModal').classList.remove('active');
+  } catch (err) {
+    showToast(err.message || 'No se pudo guardar la configuración', 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function submitManualPointsAdjust(e) {
+  e.preventDefault();
+  if (!window.IS_ADMIN) return;
+  const user_id = parseInt(document.getElementById('loyAdjUser').value);
+  const puntos = parseInt(document.getElementById('loyAdjPts').value);
+  const motivo = document.getElementById('loyAdjMotivo').value.trim();
+  try {
+    const res = await api.puntos.ajustar({ user_id, puntos, motivo });
+    showToast(res.message || 'Puntos ajustados correctamente', 'success');
+    await openLoyaltyAdminModal();
+    switchLoyaltyAdminTab('mem');
+  } catch (err) {
+    showToast(err.message || 'No se pudo aplicar el ajuste de puntos', 'error');
   }
 }

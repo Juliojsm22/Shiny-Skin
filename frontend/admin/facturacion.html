@@ -123,10 +123,14 @@
             <input class="admin-form-control" id="posCliente" value="Consumidor Final" maxlength="100" placeholder="Consumidor Final o nombre..." oninput="sanitizeFullNameInput(this)" />
           </div>
           <div class="admin-form-group">
-            <label class="admin-form-label">Teléfono NI (opcional, guarda en cartera)</label>
-            <input class="admin-form-control" id="posTel" type="tel" inputmode="tel" maxlength="16" placeholder="Ej. 8888-0000" oninput="sanitizeNiPhoneInput(this)" />
+            <label class="admin-form-label">Teléfono NI (opcional — suma/canjea puntos ⭐)</label>
+            <div style="display:flex;gap:6px;">
+              <input class="admin-form-control" id="posTel" type="tel" inputmode="tel" maxlength="16" placeholder="Ej. 8888-0000" oninput="sanitizeNiPhoneInput(this);schedulePosLoyaltyLookup();" onblur="lookupPosLoyalty()" style="flex:1;min-width:0;" />
+              <button type="button" class="btn-admin-secondary" onclick="lookupPosLoyalty(true)" style="padding:8px 10px;white-space:nowrap;" title="Buscar cuenta de puntos por teléfono">⭐ Puntos</button>
+            </div>
           </div>
         </div>
+        <div id="posLoyaltyPanel" style="display:none;padding:11px 13px;background:rgba(245,158,11,0.12);border:1px solid rgba(251,191,36,0.38);border-radius:12px;margin-bottom:14px;font-size:0.82rem;"></div>
 
         <div style="padding:14px;background:rgba(255,255,255,0.04);border:1px solid var(--admin-border);border-radius:var(--radius-md);margin-bottom:14px;">
           <label class="admin-form-label" style="display:block;margin-bottom:8px;">🧴 Buscar Producto por Nombre o SKU *</label>
@@ -208,6 +212,10 @@ let allProducts = [];
 let unbilledOrders = [];
 let posMode = 'direct';
 let posItems = [];
+let posLoyaltyAccount = null;
+let posLoyaltyConfig = null;
+let posRedeemBlocks = 0;
+let _posLookupTimer = null;
 
 async function init() {
   allProducts = await fetchProductos();
@@ -281,6 +289,10 @@ function renderFacturas() {
 
 async function openPosModal() {
   posItems = [];
+  posLoyaltyAccount = null;
+  posRedeemBlocks = 0;
+  const lp = document.getElementById('posLoyaltyPanel');
+  if (lp) { lp.style.display = 'none'; lp.innerHTML = ''; }
   document.getElementById('posCliente').value = 'Consumidor Final';
   document.getElementById('posTel').value = '';
   document.getElementById('posDescuento').value = 0;
@@ -385,28 +397,133 @@ function previewSelectedOrder() {
   recalcPosTotals();
 }
 
+function schedulePosLoyaltyLookup() {
+  clearTimeout(_posLookupTimer);
+  const digits = (document.getElementById('posTel')?.value || '').replace(/\D/g, '');
+  if (digits.length === 8 || (digits.length === 11 && digits.startsWith('505'))) {
+    _posLookupTimer = setTimeout(() => lookupPosLoyalty(false), 260);
+  } else if (posLoyaltyAccount) {
+    posLoyaltyAccount = null;
+    posRedeemBlocks = 0;
+    renderPosLoyaltyPanel();
+    recalcPosTotals();
+  }
+}
+
+async function lookupPosLoyalty(explicit = false) {
+  const q = (document.getElementById('posTel')?.value || '').trim();
+  if (!q) {
+    posLoyaltyAccount = null;
+    posRedeemBlocks = 0;
+    renderPosLoyaltyPanel();
+    recalcPosTotals();
+    return;
+  }
+  try {
+    const res = await api.puntos.buscar(q);
+    posLoyaltyConfig = res.config || posLoyaltyConfig;
+    if (res && res.found && res.cliente) {
+      posLoyaltyAccount = res.cliente;
+      const cliInp = document.getElementById('posCliente');
+      if (cliInp && (!cliInp.value.trim() || cliInp.value.trim().toLowerCase() === 'consumidor final')) {
+        cliInp.value = res.cliente.nombre;
+      }
+      posRedeemBlocks = 0;
+      renderPosLoyaltyPanel();
+      recalcPosTotals();
+    } else {
+      posLoyaltyAccount = null;
+      posRedeemBlocks = 0;
+      renderPosLoyaltyPanel(explicit ? 'Sin cuenta Club Shiny registrada con ese teléfono.' : '');
+      recalcPosTotals();
+    }
+  } catch {
+    posLoyaltyAccount = null;
+    posRedeemBlocks = 0;
+    renderPosLoyaltyPanel();
+  }
+}
+
+function setPosRedeemBlocks(val) {
+  posRedeemBlocks = Math.max(0, parseInt(val) || 0);
+  recalcPosTotals();
+}
+
+function renderPosLoyaltyPanel(notFoundMsg = '') {
+  const panel = document.getElementById('posLoyaltyPanel');
+  if (!panel) return;
+  if (!posLoyaltyAccount) {
+    if (notFoundMsg) {
+      panel.style.display = 'block';
+      panel.innerHTML = `<span style="color:rgba(255,255,255,0.65);">ℹ️ ${escapeHtml(notFoundMsg)}</span>`;
+    } else {
+      panel.style.display = 'none';
+      panel.innerHTML = '';
+    }
+    return;
+  }
+  const cfg = posLoyaltyAccount.config || posLoyaltyConfig || { activo: true, puntos_por_canje: 250, valor_canje_cordobas: 366.2, valor_canje_usd: 10, cordobas_por_punto: 36.62 };
+  const bloques = Number(posLoyaltyAccount.bloques_disponibles || 0);
+  const meta = Number(cfg.puntos_por_canje || 250);
+  const valC = Number(cfg.valor_canje_cordobas || 366.2);
+  const valUsd = Number(cfg.valor_canje_usd || 10);
+
+  let redeemSelect = '<div style="font-size:0.75rem;color:rgba(255,255,255,0.7);margin-top:4px;">Aún no alcanza el mínimo de canje (' + meta + ' pts). Esta compra sumará puntos automáticamente.</div>';
+  if (cfg.activo && bloques >= 1) {
+    const opts = [`<option value="0" ${posRedeemBlocks === 0 ? 'selected' : ''}>No canjear puntos en esta compra</option>`];
+    for (let b = 1; b <= bloques; b++) {
+      opts.push(`<option value="${b}" ${posRedeemBlocks === b ? 'selected' : ''}>🎁 Canjear ${b * meta} pts (-${formatCurrency(b * valC)} / $${b * valUsd})</option>`);
+    }
+    redeemSelect = `<select class="admin-form-control" style="margin-top:8px;padding:7px 10px;font-size:0.8rem;" onchange="setPosRedeemBlocks(this.value)">${opts.join('')}</select>`;
+  }
+
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+      <strong style="color:#fde68a;">⭐ Club Shiny: ${escapeHtml(posLoyaltyAccount.nombre)}</strong>
+      <span class="badge" style="background:rgba(245,158,11,0.28);color:#fde68a;">Saldo: ${posLoyaltyAccount.puntos_saldo} pts</span>
+    </div>
+    ${redeemSelect}
+    <div id="posEarnPtsHint" style="font-size:0.74rem;color:#34d399;font-weight:700;margin-top:6px;"></div>
+  `;
+}
+
 function getPosCalculated() {
   if (posMode === 'order') {
     const oid = document.getElementById('posOrderId').value;
     const o = unbilledOrders.find(x => x.id == oid);
-    return { subtotal: o ? o.subtotal : 0, descMonto: o ? o.descuento : 0, total: o ? o.total : 0 };
+    return { subtotal: o ? o.subtotal : 0, descMonto: o ? o.descuento : 0, descPts: 0, total: o ? o.total : 0, ptsGanar: 0 };
   }
   const subtotal = posItems.reduce((s, i) => s + i.precio * i.cantidad, 0);
   const tipo = document.getElementById('posTipoDesc').value;
   const rawD = Math.max(0, parseFloat(document.getElementById('posDescuento').value) || 0);
-  const descMonto = tipo === 'porcentaje' ? Math.round(subtotal * Math.min(100, rawD)) / 100 : Math.min(subtotal, rawD);
-  const total = Math.max(0, subtotal - descMonto);
-  return { subtotal, descMonto, total };
+  const descManual = tipo === 'porcentaje' ? Math.round(subtotal * Math.min(100, rawD)) / 100 : Math.min(subtotal, rawD);
+  const trasManual = Math.max(0, subtotal - descManual);
+
+  let descPts = 0;
+  const cfg = (posLoyaltyAccount && posLoyaltyAccount.config) || posLoyaltyConfig;
+  if (posLoyaltyAccount && cfg && cfg.activo && posRedeemBlocks > 0) {
+    descPts = Math.min(trasManual, Math.round(posRedeemBlocks * Number(cfg.valor_canje_cordobas || 366.2) * 100) / 100);
+  }
+  const descMonto = Math.round((descManual + descPts) * 100) / 100;
+  const total = Math.max(0, Math.round((subtotal - descMonto) * 100) / 100);
+  const ptsGanar = (posLoyaltyAccount && cfg && cfg.activo) ? Math.floor(total / Number(cfg.cordobas_por_punto || 36.62)) : 0;
+  return { subtotal, descMonto, descPts, total, ptsGanar };
 }
 
 function recalcPosTotals() {
-  const { subtotal, descMonto, total } = getPosCalculated();
+  const { subtotal, descMonto, descPts, total, ptsGanar } = getPosCalculated();
   const metodo = document.getElementById('posMetodoPago').value;
   document.getElementById('posRecibidoGroup').style.display = metodo === 'efectivo' ? 'flex' : 'none';
 
   document.getElementById('posSubLine').textContent =
-    `Subtotal: ${formatCurrency(subtotal)}${descMonto > 0 ? ` · Descuento: -${formatCurrency(descMonto)}` : ''}`;
+    `Subtotal: ${formatCurrency(subtotal)}${descMonto > 0 ? ` · Descuento total: -${formatCurrency(descMonto)}` : ''}${descPts > 0 ? ` (incl. ⭐ -${formatCurrency(descPts)})` : ''}`;
   document.getElementById('posTotalLine').textContent = `Total a cobrar: ${formatCurrency(total)}`;
+
+  const earnEl = document.getElementById('posEarnPtsHint');
+  if (earnEl && posLoyaltyAccount) {
+    earnEl.textContent = `✨ Acreditará +${ptsGanar} puntos a la cuenta de ${posLoyaltyAccount.nombre} al cobrar`;
+  }
 
   const recibido = parseFloat(document.getElementById('posMontoRecibido').value) || 0;
   const cambioEl = document.getElementById('posCambioLine');
@@ -444,6 +561,8 @@ async function submitInvoice(e) {
     payload = {
       nombre_cliente: nameCheck.value,
       telefono_cliente: phoneCheck.value,
+      cliente_user_id: posLoyaltyAccount ? posLoyaltyAccount.user_id : null,
+      canjear_bloques: posLoyaltyAccount ? posRedeemBlocks : 0,
       canal: 'colectivo',
       tipo_descuento: document.getElementById('posTipoDesc').value,
       descuento: parseFloat(document.getElementById('posDescuento').value) || 0,
@@ -506,6 +625,7 @@ function viewReceipt(id, directObj = null) {
         ${f.descuento > 0 ? `<div style="color:#d97706;">Descuento: -${formatCurrency(f.descuento)}</div>` : ''}
         <div style="font-size:1.15rem;font-weight:800;color:#1a4973;margin-top:4px;">TOTAL: ${formatCurrency(f.total)}</div>
         ${f.monto_recibido ? `<div style="font-size:0.8rem;color:#475569;">Recibido: ${formatCurrency(f.monto_recibido)} · Cambio: ${formatCurrency(f.cambio)}</div>` : ''}
+        ${(f.puntos_usados > 0 || f.puntos_ganados > 0) ? `<div style="font-size:0.78rem;color:#0f766e;margin-top:4px;font-weight:600;">⭐ Club Shiny: ${f.puntos_usados > 0 ? `Canjeados -${f.puntos_usados} pts` : ''}${f.puntos_usados > 0 && f.puntos_ganados > 0 ? ' · ' : ''}${f.puntos_ganados > 0 ? `Ganados +${f.puntos_ganados} pts` : ''}</div>` : ''}
       </div>
       <div style="text-align:center;font-size:0.72rem;color:#64748b;margin-top:14px;">¡Gracias por tu compra en Shiny Skin! ✨</div>
     </div>

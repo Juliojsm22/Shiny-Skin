@@ -50,6 +50,8 @@ def run_schema_migrations():
         'users': [
             ('username', 'VARCHAR(50)'),
             ('ultimo_acceso', 'TIMESTAMP'),
+            ('puntos_saldo', 'INTEGER DEFAULT 0'),
+            ('puntos_acumulados', 'INTEGER DEFAULT 0'),
         ],
         'categories': [
             ('linea', 'VARCHAR(30)'),
@@ -73,9 +75,14 @@ def run_schema_migrations():
             ('monto_pago_cliente', 'FLOAT'),
             ('cambio_entregar', 'FLOAT DEFAULT 0'),
             ('fecha_entrega', 'TIMESTAMP'),
+            ('puntos_usados', 'INTEGER DEFAULT 0'),
+            ('descuento_puntos', 'FLOAT DEFAULT 0'),
+            ('puntos_ganados', 'INTEGER DEFAULT 0'),
+            ('puntos_acreditados', 'BOOLEAN DEFAULT FALSE'),
         ],
         'invoices': [
             ('client_id', 'INTEGER'),
+            ('cliente_user_id', 'INTEGER'),
             ('user_id', 'INTEGER'),
             ('telefono_cliente', 'VARCHAR(25)'),
             ('canal', "VARCHAR(20) DEFAULT 'colectivo'"),
@@ -84,6 +91,10 @@ def run_schema_migrations():
             ('monto_recibido', 'FLOAT'),
             ('cambio', 'FLOAT DEFAULT 0'),
             ('motivo_anulacion', 'VARCHAR(200)'),
+            ('puntos_usados', 'INTEGER DEFAULT 0'),
+            ('descuento_puntos', 'FLOAT DEFAULT 0'),
+            ('puntos_ganados', 'INTEGER DEFAULT 0'),
+            ('puntos_acreditados', 'BOOLEAN DEFAULT FALSE'),
         ],
     }
 

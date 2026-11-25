@@ -60,7 +60,8 @@ async function syncCartStock() {
   try {
     const [prods] = await Promise.all([
       fetchProductos(),
-      typeof fetchActiveStorePromo === 'function' ? fetchActiveStorePromo() : Promise.resolve(null)
+      typeof fetchActiveStorePromo === 'function' ? fetchActiveStorePromo() : Promise.resolve(null),
+      typeof fetchLoyaltyStatus === 'function' ? fetchLoyaltyStatus() : Promise.resolve(null)
     ]);
     prods.forEach(p => { liveStockMap[p.id] = p; });
     const cart = getCart();
@@ -104,6 +105,11 @@ function render() {
   const coupon = (storePromo && typeof getAppliedCoupon === 'function') ? getAppliedCoupon() : null;
   const descuentoMonto = coupon ? Math.round((subtotal * coupon.pct) / 100) : 0;
   const totalConDescuento = Math.max(0, subtotal - descuentoMonto);
+  const loyCfg = typeof getCachedLoyaltyConfig === 'function' ? getCachedLoyaltyConfig() : null;
+  const loyAcc = typeof getCachedMyLoyalty === 'function' ? getCachedMyLoyalty() : null;
+  const ptsEst = (loyCfg && loyCfg.activo && typeof estimatePointsForCordobas === 'function')
+    ? estimatePointsForCordobas(totalConDescuento, loyCfg)
+    : 0;
 
   container.innerHTML = `
   <div class="card" style="padding:24px;">
@@ -164,7 +170,27 @@ function render() {
       <div class="summary-line summary-total" style="border-bottom:none;padding-top:14px;margin-top:6px;border-top:2px solid var(--color-surface-3);">
         <span>Total productos</span><span class="summary-total-value">${formatCurrency(totalConDescuento)}</span>
       </div>
-      <a href="checkout.html" class="btn btn-primary btn-lg" style="width:100%;margin-top:20px;justify-content:center;">Continuar al Checkout →</a>
+
+      ${loyCfg && loyCfg.activo ? (loyAcc ? `
+      <div style="margin-top:14px;padding:11px 12px;background:linear-gradient(135deg,rgba(37,99,153,0.09),rgba(245,158,11,0.12));border:1px solid rgba(37,99,153,0.22);border-radius:12px;font-size:0.78rem;line-height:1.5;">
+        <div style="font-weight:700;color:var(--color-primary-darker);">⭐ Ganarás +${ptsEst} pts Club Shiny al recibir tu pedido</div>
+        <div style="color:var(--color-text-muted);margin-top:2px;">
+          Saldo actual: <strong>${loyAcc.puntos_saldo} pts</strong>
+          ${loyAcc.bloques_disponibles >= 1
+            ? ` · <strong style="color:var(--color-success);">🎁 ¡Tienes ${formatCurrency(loyAcc.descuento_disponible)} ($${loyAcc.descuento_disponible_usd}) para canjear en el Checkout!</strong>`
+            : ` · Te faltan ${loyAcc.faltan_puntos} pts para $${loyCfg.valor_canje_usd} OFF.`}
+        </div>
+      </div>` : `
+      <div style="margin-top:14px;padding:12px;background:linear-gradient(135deg,rgba(37,99,153,0.08),rgba(245,158,11,0.12));border:1px dashed rgba(37,99,153,0.35);border-radius:12px;font-size:0.78rem;line-height:1.5;">
+        <div style="font-weight:700;color:var(--color-primary-darker);">⭐ ¡Gana +${ptsEst} puntos con esta compra!</div>
+        <div style="color:var(--color-text-muted);margin:3px 0 8px;">Acumula 1 pt por cada $1 (${formatCurrency(loyCfg.cordobas_por_punto)}) · ${loyCfg.puntos_por_canje} pts = $${loyCfg.valor_canje_usd} (${formatCurrency(loyCfg.valor_canje_cordobas)}) OFF.</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <a href="login.html?next=carrito.html#register" class="btn btn-primary btn-sm" style="padding:6px 12px;font-size:0.74rem;">Crear cuenta gratis</a>
+          <a href="login.html?next=carrito.html" class="btn btn-outline btn-sm" style="padding:6px 12px;font-size:0.74rem;">Iniciar sesión</a>
+        </div>
+      </div>`) : ''}
+
+      <a href="checkout.html" class="btn btn-primary btn-lg" style="width:100%;margin-top:18px;justify-content:center;">Continuar al Checkout →</a>
       <a href="tienda.html" class="btn btn-ghost btn-sm" style="width:100%;margin-top:10px;justify-content:center;">← Agregar más productos</a>
       <div style="margin-top:18px;padding:12px;background:var(--color-surface-2);border-radius:var(--radius-md);font-size:0.78rem;color:var(--color-text-muted);text-align:center;line-height:1.6;">
         🏬 Retiro sin costo en Concept Store (Camino de Oriente)<br>

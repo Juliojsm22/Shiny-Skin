@@ -50,7 +50,11 @@
 
     <!-- Register Form -->
     <form id="registerForm" style="display:none;" onsubmit="doRegister(event)">
-      <p class="login-subtitle">Regístrate como clienta para agilizar tus futuras compras ✨</p>
+      <p class="login-subtitle">Crea tu cuenta gratis y únete a <strong>Club Shiny Points</strong> ⭐</p>
+      <div style="background:linear-gradient(135deg,rgba(37,99,153,0.1),rgba(245,158,11,0.12));border:1px solid rgba(37,99,153,0.22);border-radius:12px;padding:10px 12px;margin-bottom:14px;font-size:0.76rem;color:var(--color-primary-darker);line-height:1.5;">
+        ⭐ Gana <strong>1 punto por cada $1 (C$ 36.62)</strong> en compras web y en tienda física.<br>
+        🎁 Al acumular <strong>250 puntos</strong> recibes <strong>$10 (C$ 366) de descuento</strong>.
+      </div>
       <div class="form-group" style="margin-bottom:12px;">
         <label class="form-label" for="regNombre">Nombre completo *</label>
         <input class="form-control" id="regNombre" type="text" placeholder="María Fernanda González" required maxlength="100" oninput="sanitizeFullNameInput(this)"/>
@@ -60,7 +64,7 @@
         <input class="form-control" id="regEmail" type="email" placeholder="tucorreo@ejemplo.com" required/>
       </div>
       <div class="form-group" style="margin-bottom:12px;">
-        <label class="form-label" for="regTel">Teléfono / WhatsApp (Nicaragua +505)</label>
+        <label class="form-label" for="regTel">Teléfono / WhatsApp (Nicaragua +505 — para puntos en tienda física)</label>
         <input class="form-control" id="regTel" type="tel" inputmode="tel" placeholder="Ej. 8888-0000" maxlength="16" oninput="sanitizeNiPhoneInput(this)"/>
       </div>
       <div class="form-group" style="margin-bottom:20px;">
@@ -149,7 +153,9 @@ async function doLogin(e) {
       const allowedSalesPages = ['pedidos.html', 'facturacion.html', 'clientes.html'];
       window.location.href = allowedSalesPages.includes(nextLeaf) ? ('admin/' + nextLeaf) : 'admin/pedidos.html';
     } else {
-      window.location.href = 'index.html';
+      const allowedPublicNext = ['index.html', 'tienda.html', 'carrito.html', 'checkout.html'];
+      const leaf = (nextUrl.split('/').pop() || '').split('?')[0];
+      window.location.href = allowedPublicNext.includes(leaf) ? leaf : 'index.html';
     }
   } catch (err) {
     showToast(err.message || 'Credenciales incorrectas.', 'error');
@@ -178,8 +184,11 @@ async function doRegister(e) {
     const userObj = result.user || result.usuario;
     localStorage.setItem('sisco_token', result.token);
     localStorage.setItem('sisco_user', JSON.stringify(userObj));
-    showToast('¡Cuenta creada exitosamente!', 'success');
-    setTimeout(() => window.location = 'index.html', 900);
+    showToast('¡Cuenta creada exitosamente! Ya eres parte de Club Shiny Points ⭐', 'success');
+    const nextUrl = new URLSearchParams(window.location.search).get('next') || '';
+    const allowedPublicNext = ['index.html', 'tienda.html', 'carrito.html', 'checkout.html'];
+    const leaf = (nextUrl.split('/').pop() || '').split('?')[0];
+    setTimeout(() => { window.location = allowedPublicNext.includes(leaf) ? leaf : 'index.html'; }, 850);
   } catch (err) {
     showToast(err.message || 'No se pudo registrar la cuenta.', 'error');
     btn.disabled = false;

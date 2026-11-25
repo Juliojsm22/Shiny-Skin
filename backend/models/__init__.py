@@ -27,6 +27,8 @@ class User(db.Model):
     telefono = db.Column(db.String(20))
     direccion = db.Column(db.Text)
     activo = db.Column(db.Boolean, default=True)
+    puntos_saldo = db.Column(db.Integer, default=0)
+    puntos_acumulados = db.Column(db.Integer, default=0)
     ultimo_acceso = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=ni_now)
     orders = db.relationship('Order', backref='usuario_cliente', lazy=True, foreign_keys='Order.user_id')
@@ -41,6 +43,8 @@ class User(db.Model):
             'telefono': self.telefono,
             'direccion': self.direccion,
             'activo': self.activo,
+            'puntos_saldo': int(self.puntos_saldo or 0),
+            'puntos_acumulados': int(self.puntos_acumulados or 0),
             'ultimo_acceso': self.ultimo_acceso.isoformat() if self.ultimo_acceso else None,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
@@ -311,6 +315,10 @@ class Order(db.Model):
     costo_envio = db.Column(db.Float, default=0)
     iva = db.Column(db.Float, default=0)
     total = db.Column(db.Float, default=0)
+    puntos_usados = db.Column(db.Integer, default=0)
+    descuento_puntos = db.Column(db.Float, default=0)
+    puntos_ganados = db.Column(db.Integer, default=0)
+    puntos_acreditados = db.Column(db.Boolean, default=False)
     metodo_pago = db.Column(db.String(50), default='efectivo_entrega')
     monto_pago_cliente = db.Column(db.Float, nullable=True)
     cambio_entregar = db.Column(db.Float, default=0)
@@ -341,6 +349,11 @@ class Order(db.Model):
             'costo_envio': round(float(self.costo_envio or 0), 2),
             'iva': round(float(self.iva or 0), 2),
             'total': round(float(self.total or 0), 2),
+            'user_id': self.user_id,
+            'puntos_usados': int(self.puntos_usados or 0),
+            'descuento_puntos': round(float(self.descuento_puntos or 0), 2),
+            'puntos_ganados': int(self.puntos_ganados or 0),
+            'puntos_acreditados': bool(self.puntos_acreditados),
             'metodo_pago': self.metodo_pago,
             'monto_pago_cliente': round(float(self.monto_pago_cliente), 2) if self.monto_pago_cliente else None,
             'cambio_entregar': round(float(self.cambio_entregar or 0), 2),
@@ -404,6 +417,7 @@ class Invoice(db.Model):
     numero_factura = db.Column(db.String(25), unique=True)
     order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=True)
     client_id = db.Column(db.Integer, db.ForeignKey('clients.id'), nullable=True)
+    cliente_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     nombre_cliente = db.Column(db.String(100))
     telefono_cliente = db.Column(db.String(25), nullable=True)
@@ -414,6 +428,10 @@ class Invoice(db.Model):
     descuento = db.Column(db.Float, default=0)
     iva = db.Column(db.Float, default=0)
     total = db.Column(db.Float, default=0)
+    puntos_usados = db.Column(db.Integer, default=0)
+    descuento_puntos = db.Column(db.Float, default=0)
+    puntos_ganados = db.Column(db.Integer, default=0)
+    puntos_acreditados = db.Column(db.Boolean, default=False)
     metodo_pago = db.Column(db.String(30), default='efectivo')  # efectivo, transferencia, tarjeta
     monto_recibido = db.Column(db.Float, nullable=True)
     cambio = db.Column(db.Float, default=0)
@@ -422,7 +440,8 @@ class Invoice(db.Model):
     fecha = db.Column(db.DateTime, default=ni_now)
     notas = db.Column(db.Text)
     items = db.relationship('InvoiceItem', backref='factura', lazy=True, cascade='all, delete-orphan')
-    emisor = db.relationship('User')
+    emisor = db.relationship('User', foreign_keys=[user_id])
+    cliente_usuario = db.relationship('User', foreign_keys=[cliente_user_id])
 
     def to_dict(self):
         # Si no tiene invoice_items propios pero viene de un pedido, mostrar los items del pedido
@@ -443,6 +462,11 @@ class Invoice(db.Model):
             'descuento': round(float(self.descuento or 0), 2),
             'iva': round(float(self.iva or 0), 2),
             'total': round(float(self.total or 0), 2),
+            'cliente_user_id': self.cliente_user_id,
+            'puntos_usados': int(self.puntos_usados or 0),
+            'descuento_puntos': round(float(self.descuento_puntos or 0), 2),
+            'puntos_ganados': int(self.puntos_ganados or 0),
+            'puntos_acreditados': bool(self.puntos_acreditados),
             'metodo_pago': self.metodo_pago or 'efectivo',
             'monto_recibido': round(float(self.monto_recibido), 2) if self.monto_recibido is not None else None,
             'cambio': round(float(self.cambio or 0), 2),
@@ -526,4 +550,62 @@ class StorePromotion(db.Model):
             'descripcion': self.descripcion or 'Descuento especial en toda la tienda',
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'updated_by': self.updated_by,
+        }
+
+
+class LoyaltyConfig(db.Model):
+    """Configuración del programa de puntos Club Shiny Points (1 pt por $1 / 250 pts = $10 OFF)."""
+    __tablename__ = 'loyalty_config'
+    id = db.Column(db.Integer, primary_key=True)
+    activo = db.Column(db.Boolean, default=True, nullable=False)
+    tasa_cambio = db.Column(db.Float, default=36.62, nullable=False)  # C$ por $1 USD
+    cordobas_por_punto = db.Column(db.Float, default=36.62, nullable=False)  # C$ gastados para ganar 1 pt
+    puntos_por_canje = db.Column(db.Integer, default=250, nullable=False)  # Meta por bloque de canje
+    valor_canje_usd = db.Column(db.Float, default=10.0, nullable=False)  # Valor de 1 bloque en USD
+    valor_canje_cordobas = db.Column(db.Float, default=366.20, nullable=False)  # Valor de 1 bloque en C$
+    updated_at = db.Column(db.DateTime, default=ni_now, onupdate=ni_now)
+    updated_by = db.Column(db.String(100), nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'activo': bool(self.activo),
+            'tasa_cambio': round(float(self.tasa_cambio or 36.62), 2),
+            'cordobas_por_punto': round(float(self.cordobas_por_punto or 36.62), 2),
+            'puntos_por_canje': int(self.puntos_por_canje or 250),
+            'valor_canje_usd': round(float(self.valor_canje_usd or 10.0), 2),
+            'valor_canje_cordobas': round(float(self.valor_canje_cordobas or 366.20), 2),
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'updated_by': self.updated_by,
+        }
+
+
+class LoyaltyTransaction(db.Model):
+    """Historial auditable (Kardex) de puntos ganados, canjeados, revertidos o ajustados."""
+    __tablename__ = 'loyalty_transactions'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    tipo = db.Column(db.String(25), nullable=False)  # ganado, canjeado, reversion, ajuste
+    puntos = db.Column(db.Integer, nullable=False)  # positivo o negativo
+    saldo_resultante = db.Column(db.Integer, nullable=False, default=0)
+    monto_relacionado = db.Column(db.Float, default=0.0)
+    order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=True)
+    invoice_id = db.Column(db.Integer, db.ForeignKey('invoices.id'), nullable=True)
+    descripcion = db.Column(db.String(240), nullable=True)
+    fecha = db.Column(db.DateTime, default=ni_now)
+    usuario = db.relationship('User', foreign_keys=[user_id])
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'usuario': self.usuario.nombre if self.usuario else None,
+            'tipo': self.tipo,
+            'puntos': int(self.puntos or 0),
+            'saldo_resultante': int(self.saldo_resultante or 0),
+            'monto_relacionado': round(float(self.monto_relacionado or 0), 2),
+            'order_id': self.order_id,
+            'invoice_id': self.invoice_id,
+            'descripcion': self.descripcion,
+            'fecha': self.fecha.isoformat() if self.fecha else None,
         }

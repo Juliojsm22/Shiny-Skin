@@ -377,6 +377,11 @@ function openOrderDetail(id) {
         ${o.monto_pago_cliente ? `<div><strong>Paga con:</strong> ${formatCurrency(o.monto_pago_cliente)} · <strong>Cambio:</strong> <span style="color:#fbbf24;">${formatCurrency(o.cambio_entregar)}</span></div>` : ''}
         <div><strong>Envío:</strong> ${formatCurrency(o.costo_envio || 0)}</div>
         <div style="font-size:1rem;margin-top:4px;"><strong>Total:</strong> <strong style="color:#34d399;">${formatCurrency(o.total)}</strong></div>
+        ${(o.puntos_usados > 0 || o.puntos_ganados > 0) ? `
+          <div style="margin-top:6px;padding-top:6px;border-top:1px dashed rgba(255,255,255,0.12);font-size:0.78rem;color:#fde68a;">
+            ${o.puntos_usados > 0 ? `<div>🎁 Canje Club Shiny: -${o.puntos_usados} pts (-${formatCurrency(o.descuento_puntos)})</div>` : ''}
+            ${o.puntos_ganados > 0 ? `<div>⭐ Puntos: +${o.puntos_ganados} pts (${o.puntos_acreditados ? 'Acreditados ✅' : 'Se acreditan al entregar'})</div>` : ''}
+          </div>` : ''}
       </div>
     </div>
 

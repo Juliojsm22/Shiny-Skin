@@ -2,12 +2,16 @@ from flask import Blueprint, jsonify, request, current_app, Response, stream_wit
 from sqlalchemy import or_, func
 from models import (
     db, Order, OrderItem, OrderStatusHistory,
-    Product, InventoryMovement, Motorizado, StorePromotion
+    Product, InventoryMovement, Motorizado, StorePromotion, User
 )
 from routes.utils import (
     get_current_user_obj, get_staff_from_request_or_query, is_staff_request,
     staff_required, admin_required, upsert_client, now_ni, now_ni_naive,
     validate_full_name, validate_ni_phone
+)
+from routes.loyalty import (
+    get_or_create_loyalty_config, find_customer_user,
+    calculate_points_earned, compute_redemption, apply_loyalty_tx
 )
 from events import order_event_bus
 from datetime import datetime
@@ -317,7 +321,43 @@ def create_order():
         except (TypeError, ValueError):
             return jsonify({'error': 'El descuento indicado no es válido.'}), 400
 
+    # Identificar cuenta registrada del cliente para Club Shiny Points
+    loyalty_cfg = get_or_create_loyalty_config()
+    if user and not staff_caller:
+        customer_user = user
+    elif staff_caller:
+        customer_user = find_customer_user(
+            user_id=data.get('cliente_user_id'),
+            telefono=telefono_cliente,
+            email=data.get('email_cliente')
+        )
+        if customer_user and customer_user.rol != 'cliente' and not data.get('cliente_user_id'):
+            customer_user = None
+    else:
+        customer_user = None
+
+    # Canje de puntos Club Shiny (bloques de 250 pts = $10 / C$ 366.20)
+    try:
+        canjear_bloques = int(data.get('canjear_bloques') or 0)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Cantidad de bloques de puntos a canjear inválida.'}), 400
+    if canjear_bloques < 0:
+        return jsonify({'error': 'Cantidad de bloques de puntos inválida.'}), 400
+
+    base_tras_cupon = max(0.0, round(subtotal - descuento, 2))
+    puntos_usados, descuento_puntos, err_pts = compute_redemption(
+        customer_user, canjear_bloques, base_tras_cupon, loyalty_cfg
+    )
+    if err_pts:
+        return jsonify({'error': err_pts}), 400
+
+    if descuento_puntos > 0:
+        descuento = round(descuento + descuento_puntos, 2)
+        nota_pts = f'[Canje Club Shiny: -{puntos_usados} pts / -C$ {descuento_puntos:.2f}]'
+        nota_cupon = f'{nota_cupon} {nota_pts}'.strip()
+
     base_imponible = max(0.0, round(subtotal - descuento, 2))
+    puntos_ganados = calculate_points_earned(base_imponible, loyalty_cfg) if customer_user else 0
 
     # Cálculo seguro del costo de envío y dirección
     if metodo_entrega == 'retiro':
@@ -386,9 +426,10 @@ def create_order():
 
     numero_pedido = generar_numero_pedido()
     now_ts = now_ni_naive()
+    acreditar_ahora = bool(customer_user and estado_inicial == 'entregado' and puntos_ganados > 0)
     order = Order(
         numero_pedido=numero_pedido,
-        user_id=user.id if user else None,
+        user_id=customer_user.id if customer_user else None,
         client_id=client.id if client else None,
         motorizado_id=motorizado_id,
         nombre_cliente=nombre_cliente,
@@ -402,6 +443,10 @@ def create_order():
         costo_envio=costo_envio,
         iva=iva,
         total=total,
+        puntos_usados=puntos_usados,
+        descuento_puntos=descuento_puntos,
+        puntos_ganados=puntos_ganados,
+        puntos_acreditados=acreditar_ahora,
         metodo_pago=metodo_pago,
         monto_pago_cliente=monto_pago_cliente,
         cambio_entregar=cambio_entregar,
@@ -413,6 +458,27 @@ def create_order():
     )
     db.session.add(order)
     db.session.flush()
+
+    # Registrar movimientos de puntos (canje inmediato + acreditación si ya nació entregado)
+    if customer_user and puntos_usados > 0:
+        apply_loyalty_tx(
+            customer_user,
+            tipo='canjeado',
+            puntos_delta=-puntos_usados,
+            descripcion=f'Canje en pedido {numero_pedido} (-C$ {descuento_puntos:.2f})',
+            monto_relacionado=descuento_puntos,
+            order_id=order.id,
+        )
+    if acreditar_ahora:
+        apply_loyalty_tx(
+            customer_user,
+            tipo='ganado',
+            puntos_delta=puntos_ganados,
+            descripcion=f'Puntos ganados por pedido {numero_pedido}',
+            monto_relacionado=base_imponible,
+            order_id=order.id,
+            count_towards_lifetime=True,
+        )
 
     # Descontar stock y registrar kardex
     for pid, qty in agrupados.items():
@@ -515,8 +581,44 @@ def update_estado(id):
             order.invoice.estado = 'anulada'
             order.invoice.motivo_anulacion = f'Pedido {order.numero_pedido} cancelado'
 
+        # Reversión automática de puntos ganados y devolución de puntos canjeados al cancelar
+        cust = db.session.get(User, order.user_id) if order.user_id else None
+        if cust:
+            if order.puntos_acreditados and (order.puntos_ganados or 0) > 0:
+                apply_loyalty_tx(
+                    cust,
+                    tipo='reversion',
+                    puntos_delta=-int(order.puntos_ganados),
+                    descripcion=f'Reversión de puntos por cancelación de {order.numero_pedido}',
+                    order_id=order.id,
+                )
+                order.puntos_acreditados = False
+            if (order.puntos_usados or 0) > 0:
+                apply_loyalty_tx(
+                    cust,
+                    tipo='reversion',
+                    puntos_delta=int(order.puntos_usados),
+                    descripcion=f'Devolución de puntos canjeados por cancelación de {order.numero_pedido}',
+                    monto_relacionado=order.descuento_puntos or 0,
+                    order_id=order.id,
+                )
+
     # Si se reactiva un pedido previamente cancelado -> volver a validar y descontar stock
     elif estado_anterior == 'cancelado' and nuevo_estado != 'cancelado':
+        cust = db.session.get(User, order.user_id) if order.user_id else None
+        if cust and (order.puntos_usados or 0) > 0:
+            if int(cust.puntos_saldo or 0) < int(order.puntos_usados):
+                return jsonify({
+                    'error': f'El cliente ya no cuenta con {order.puntos_usados} puntos para reactivar este pedido.'
+                }), 400
+            apply_loyalty_tx(
+                cust,
+                tipo='canjeado',
+                puntos_delta=-int(order.puntos_usados),
+                descripcion=f'Canje re-aplicado por reactivación de {order.numero_pedido}',
+                monto_relacionado=order.descuento_puntos or 0,
+                order_id=order.id,
+            )
         for item in order.items:
             if item.product_id:
                 product = db.session.get(Product, item.product_id)
@@ -544,6 +646,20 @@ def update_estado(id):
     order.estado = nuevo_estado
     if nuevo_estado == 'entregado':
         order.fecha_entrega = now_ts
+        # Acreditar puntos Club Shiny al confirmarse la entrega real (anti-fraude)
+        if order.user_id and not order.puntos_acreditados and (order.puntos_ganados or 0) > 0:
+            cust = db.session.get(User, order.user_id)
+            if cust:
+                apply_loyalty_tx(
+                    cust,
+                    tipo='ganado',
+                    puntos_delta=int(order.puntos_ganados),
+                    descripcion=f'Puntos ganados por pedido entregado {order.numero_pedido}',
+                    monto_relacionado=max(0.0, round((order.subtotal or 0) - (order.descuento or 0), 2)),
+                    order_id=order.id,
+                    count_towards_lifetime=True,
+                )
+                order.puntos_acreditados = True
 
     db.session.add(OrderStatusHistory(
         order_id=order.id,
