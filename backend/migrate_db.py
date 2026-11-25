@@ -1,4 +1,5 @@
 from sqlalchemy import inspect, text
+from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, Product, Category, Brand, Client, Motorizado, Expense, Order, User
 
 
@@ -109,11 +110,32 @@ def run_migrations():
             elif makeup_cat and cat.parent_id == makeup_cat.id:
                 cat.linea = 'Makeup'
 
-    # Asignar usernames iniciales si faltan
+    # Asignar usernames iniciales únicos si faltan y normalizar cuentas demo heredadas (.com -> .ni)
+    used_usernames = {u.username.lower() for u in User.query.all() if u.username}
     for u in User.query.all():
         if not u.username and u.email:
             base = u.email.split('@')[0].lower()
-            u.username = base
+            candidate = base
+            suffix = 1
+            while candidate in used_usernames:
+                candidate = f'{base}{suffix}'
+                suffix += 1
+            u.username = candidate
+            used_usernames.add(candidate)
+
+    # Normalizar correos de demostración heredados si aún están en .com para coincidir con el login oficial (.ni)
+    legacy_admin = User.query.filter(db.func.lower(User.email) == 'admin@shinyskin.com').first()
+    if legacy_admin and not User.query.filter(db.func.lower(User.email) == 'admin@shinyskin.ni').first():
+        legacy_admin.email = 'admin@shinyskin.ni'
+        legacy_admin.username = 'admin'
+
+    legacy_vend = User.query.filter(db.func.lower(User.email) == 'vendedor@shinyskin.com').first()
+    if legacy_vend and not User.query.filter(db.func.lower(User.email) == 'ventas@shinyskin.ni').first():
+        legacy_vend.email = 'ventas@shinyskin.ni'
+        if not User.query.filter(db.func.lower(User.username) == 'ventas', User.id != legacy_vend.id).first():
+            legacy_vend.username = 'ventas'
+        if check_password_hash(legacy_vend.password_hash, 'vendedor123'):
+            legacy_vend.password_hash = generate_password_hash('ventas123')
 
     # Sincronizar stock dual, SKUs vacíos, imágenes rotas y metadatos de productos existentes
     maybelline = Brand.query.filter(Brand.nombre.ilike('maybelline')).first()
@@ -132,8 +154,8 @@ def run_migrations():
     serums_cat = Category.query.filter_by(nombre='Sueros & Esencias').first()
 
     for p in Product.query.all():
-        # Normalizar SKU vacío
-        if p.sku is not None and p.sku.strip() == '':
+        # Normalizar SKU vacío o nulo
+        if p.sku is None or p.sku.strip() == '':
             p.sku = f'SS-PRD-{str(p.id).zfill(3)}'
         # Arreglar productos creados en pruebas previas con nombres/categorías/imágenes incompletas
         if p.nombre and p.nombre.strip().lower() == 'maybelline':
@@ -170,7 +192,8 @@ def run_migrations():
                 p.precio_costo = 310
                 p.precio_venta = 550
 
-        if p.sku in VERIFIED_COSMETIC_IMAGES:
+        # Solo rellenar imagen verificada si falta o apunta a URL inválida (nunca sobrescribir fotos subidas por el admin)
+        if p.sku in VERIFIED_COSMETIC_IMAGES and (not p.imagen_url or 'google.com/search' in p.imagen_url):
             p.imagen_url = VERIFIED_COSMETIC_IMAGES[p.sku]
 
         if p.sku in PRODUCT_DEFAULTS:

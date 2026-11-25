@@ -101,9 +101,16 @@
   </div>
 </div>
 
+<script src="js/config.js"></script>
 <script src="js/api.js"></script>
 <script>
 if (window.location.hash === '#register') setTimeout(() => switchTab('register'), 30);
+(function checkSessionNotice() {
+  const reason = new URLSearchParams(window.location.search).get('reason');
+  if (reason === 'expired') {
+    setTimeout(() => showToast('Tu sesión expiró o cambió el servidor. Inicia sesión nuevamente.', 'info'), 150);
+  }
+})();
 
 function fillDemo(user, pass) {
   document.getElementById('loginEmail').value = user;
@@ -141,21 +148,6 @@ async function doLogin(e) {
       window.location.href = 'index.html';
     }
   } catch (err) {
-    if (err.isNetworkError) {
-      // Respaldo offline solo cuando no hay backend activo
-      if ((identifier === 'admin@shinyskin.ni' || identifier === 'admin@shinyskin.com' || identifier === 'admin') && password === 'admin123') {
-        localStorage.setItem('sisco_token', 'offline-demo-token');
-        localStorage.setItem('sisco_user', JSON.stringify({ id: 1, nombre: 'Valeska Martínez (Admin)', email: 'admin@shinyskin.ni', rol: 'admin' }));
-        window.location = 'admin/dashboard.html';
-        return;
-      }
-      if ((identifier === 'ventas@shinyskin.ni' || identifier === 'ventas') && password === 'ventas123') {
-        localStorage.setItem('sisco_token', 'offline-demo-token');
-        localStorage.setItem('sisco_user', JSON.stringify({ id: 2, nombre: 'Asesora Concept Store', email: 'ventas@shinyskin.ni', rol: 'vendedor' }));
-        window.location = 'admin/dashboard.html';
-        return;
-      }
-    }
     showToast(err.message || 'Credenciales incorrectas.', 'error');
     btn.disabled = false;
     btn.textContent = 'Ingresar al sistema';

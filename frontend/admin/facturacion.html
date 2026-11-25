@@ -13,6 +13,7 @@
   <header class="admin-topbar">
     <div class="topbar-title">🧾 Punto de Venta (POS) y Facturación</div>
     <div class="topbar-actions">
+      <button type="button" class="btn-admin-secondary" onclick="exportInvoicesCSV()">📊 Exportar Excel</button>
       <button class="btn-admin-primary" onclick="openPosModal()">➕ Nueva Venta / Factura</button>
     </div>
   </header>
@@ -196,6 +197,7 @@
   </div>
 </div>
 
+<script src="../js/config.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/admin-common.js"></script>
 <script>
@@ -269,7 +271,7 @@ function renderFacturas() {
       <td>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
           <button class="btn-table btn-table-view" onclick="viewReceipt(${f.id})">👁 Ver</button>
-          <button class="btn-table btn-table-edit" onclick="viewReceipt(${f.id}, true)">📄 PDF</button>
+          <button class="btn-table btn-table-edit" onclick="downloadInvoicePDF(${f.id})">📄 PDF</button>
           ${f.estado === 'emitida' ? `<button class="btn-table btn-table-edit" onclick="markPaid(${f.id})">✅ Cobrar</button>` : ''}
           ${f.estado !== 'anulada' ? `<button class="btn-table btn-table-delete" onclick="annulInvoice(${f.id})">✕ Anular</button>` : ''}
         </div>
@@ -532,6 +534,24 @@ async function annulInvoice(id) {
   } catch (err) {
     showToast(err.message || 'No se pudo anular la factura', 'error');
   }
+}
+
+function downloadInvoicePDF(id) {
+  if (window.SISCO_MODE === 'server') {
+    window.open(api.facturas.pdfUrl(id, false), '_blank', 'noopener');
+  } else {
+    viewReceipt(id, true);
+  }
+}
+
+function exportInvoicesCSV() {
+  const headers = ['N.° Factura', 'Pedido', 'Cliente', 'Teléfono', 'Canal', 'Método Pago', 'Subtotal (C$)', 'Descuento (C$)', 'Total (C$)', 'Estado', 'Fecha'];
+  const rows = allFacturas.map(f => [
+    f.numero_factura, f.numero_pedido || '', f.nombre_cliente, f.telefono_cliente || '',
+    f.canal || 'colectivo', f.metodo_pago || 'efectivo', f.subtotal, f.descuento || 0,
+    f.total, f.estado, formatDateTime(f.fecha)
+  ]);
+  downloadCSVFile(`SISCO_Facturas_${getLocalDateYMD()}.csv`, headers, rows);
 }
 
 init();

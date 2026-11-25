@@ -14,6 +14,7 @@ for %%P in (
     "%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
     "%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
     "%LOCALAPPDATA%\Programs\Python\Python310\python.exe"
+    "C:\Python313\python.exe"
     "C:\Python312\python.exe"
     "C:\Python311\python.exe"
 ) do (
@@ -23,20 +24,21 @@ for %%P in (
     )
 )
 
-where py >nul 2>nul
+py -3 -c "import sys" >nul 2>nul
 if %errorlevel%==0 (
     set PYTHON_CMD=py -3
     goto :found_python
 )
 
-where python >nul 2>nul
+python -c "import sys" >nul 2>nul
 if %errorlevel%==0 (
     set PYTHON_CMD=python
     goto :found_python
 )
 
 echo [AVISO] No se detecto Python en esta PC.
-echo Abriendo SISCO directamente en el navegador con Base de Datos Local...
+echo Para recibir pedidos desde otros dispositivos (celulares/PCs), instala Python 3.11+ o despliega en Render.
+echo Abriendo SISCO en modo demostracion local...
 start "" "%~dp0frontend\index.html"
 exit /b 0
 
@@ -46,7 +48,9 @@ echo Verificando librerias del backend...
 cd /d "%~dp0backend"
 %PYTHON_CMD% -m pip install -r requirements.txt --quiet
 
-echo [2/2] Iniciando servidor SISCO en http://localhost:5000 ...
+echo [2/2] Iniciando servidor SISCO (compatible con multiples dispositivos en tu Wi-Fi)...
+echo       Abre en esta PC: http://localhost:5000
+echo       (La IP para celulares en tu Wi-Fi aparecera abajo al arrancar)
 start "" http://localhost:5000
 %PYTHON_CMD% app.py
 pause

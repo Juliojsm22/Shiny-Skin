@@ -13,6 +13,7 @@
   <header class="admin-topbar">
     <div class="topbar-title">👥 Cartera de Clientes e Historial (HU-05)</div>
     <div class="topbar-actions">
+      <button type="button" class="btn-admin-secondary" onclick="exportClientsCSV()">📊 Exportar Excel</button>
       <button class="btn-admin-primary" onclick="openClientModal()">➕ Registrar Cliente</button>
     </div>
   </header>
@@ -125,6 +126,7 @@
   </div>
 </div>
 
+<script src="../js/config.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/admin-common.js"></script>
 <script>
@@ -177,6 +179,7 @@ function renderClients() {
           <div style="display:flex;gap:6px;">
             <button class="btn-table btn-table-view" onclick="viewClientHistory(${c.id})">📜 Pedidos</button>
             <button class="btn-table btn-table-edit" onclick="editClient(${c.id})">✏️</button>
+            ${window.IS_ADMIN ? `<button class="btn-table btn-table-delete" onclick="deleteClient(${c.id})" title="Eliminar cliente">🗑</button>` : ''}
           </div>
         </td>
       </tr>`;
@@ -244,6 +247,27 @@ async function viewClientHistory(id) {
   } catch (err) {
     showToast(err.message || 'No se pudo cargar el historial', 'error');
   }
+}
+
+async function deleteClient(id) {
+  const c = allClients.find(x => x.id == id);
+  if (!c || !confirm(`¿Eliminar a "${c.nombre}" de la cartera de clientes? (Sus pedidos históricos se conservarán intactos.)`)) return;
+  try {
+    await api.clientes.delete(id);
+    showToast('Cliente eliminado de la cartera', 'info');
+    await loadClients();
+  } catch (err) {
+    showToast(err.message || 'No se pudo eliminar el cliente', 'error');
+  }
+}
+
+function exportClientsCSV() {
+  const headers = ['Nombre', 'Teléfono', 'Correo', 'Dirección', 'Pedidos Válidos', 'Total Comprado (C$)', 'Notas'];
+  const rows = allClients.map(c => [
+    c.nombre, c.telefono || '', c.email || '', c.direccion || '',
+    c.cantidad_pedidos || 0, c.total_compras || 0, c.notas || ''
+  ]);
+  downloadCSVFile(`SISCO_Clientes_${getLocalDateYMD()}.csv`, headers, rows);
 }
 
 loadClients();

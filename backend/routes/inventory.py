@@ -7,6 +7,7 @@ inventory_bp = Blueprint('inventory', __name__)
 
 
 @inventory_bp.route('/movimientos', methods=['GET'])
+@staff_required
 def get_movements():
     product_id = request.args.get('product_id', type=int)
     tipo = request.args.get('tipo')
@@ -28,7 +29,10 @@ def entrada_stock():
     """FRQ-0010 / UC5: Entrada manual de inventario por importación o compra."""
     data = request.get_json(silent=True) or {}
     pid = data.get('product_id')
-    cantidad = int(data.get('cantidad') or 0)
+    try:
+        cantidad = int(data.get('cantidad') or 0)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'La cantidad debe ser un número entero válido.'}), 400
     ubicacion = (data.get('ubicacion') or 'online').lower()
 
     if not pid or cantidad <= 0:
@@ -71,7 +75,10 @@ def salida_stock():
     """FRQ-0011 / UC5: Salida manual justificada por merma, daño o vencimiento."""
     data = request.get_json(silent=True) or {}
     pid = data.get('product_id')
-    cantidad = int(data.get('cantidad') or 0)
+    try:
+        cantidad = int(data.get('cantidad') or 0)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'La cantidad debe ser un número entero válido.'}), 400
     ubicacion = (data.get('ubicacion') or 'fisico').lower()
     motivo = (data.get('motivo') or 'Salida por merma / daño').strip()
 
@@ -122,7 +129,10 @@ def traslado_stock():
     """FRQ-0009: Traslado de existencias entre Concept Store (Físico) y E-commerce (Online)."""
     data = request.get_json(silent=True) or {}
     pid = data.get('product_id')
-    cantidad = int(data.get('cantidad') or 0)
+    try:
+        cantidad = int(data.get('cantidad') or 0)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'La cantidad debe ser un número entero válido.'}), 400
     origen = (data.get('origen') or 'online').lower()
 
     if not pid or cantidad <= 0:
@@ -176,7 +186,10 @@ def ajuste_stock():
     if not pid or raw_nuevo is None:
         return jsonify({'error': 'Producto y nuevo stock exacto son requeridos.'}), 400
 
-    nuevo_stock = max(0, int(raw_nuevo))
+    try:
+        nuevo_stock = max(0, int(raw_nuevo))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'El nuevo stock debe ser un número entero válido.'}), 400
     ubicacion = (data.get('ubicacion') or 'ambos').lower()
     product = Product.query.get_or_404(pid)
     stock_ant = product.stock or 0
@@ -214,25 +227,36 @@ def ajuste_stock():
 
 
 @inventory_bp.route('/resumen', methods=['GET'])
+@staff_required
 def resumen():
     activos = Product.query.filter_by(activo=True).all()
     total_productos = len(activos)
-    stock_critico = sum(1 for p in activos if 0 < (p.stock or 0) <= (p.stock_minimo or 5))
+    criticos = [p for p in activos if (p.stock or 0) <= (p.stock_minimo if p.stock_minimo is not None else 5)]
+    stock_critico = sum(1 for p in activos if 0 < (p.stock or 0) <= (p.stock_minimo if p.stock_minimo is not None else 5))
     sin_stock = sum(1 for p in activos if (p.stock or 0) == 0)
+    por_vencer = [p for p in activos if p.dias_para_vencer is not None and p.dias_para_vencer <= 60]
     unidades_fisico = sum(p.stock_fisico or 0 for p in activos)
     unidades_online = sum(p.stock_online or 0 for p in activos)
-    valor_inventario = round(sum((p.stock or 0) * (p.precio_costo or 0) for p in activos), 2)
+    valor_costo = round(sum((p.stock or 0) * (p.precio_costo or 0) for p in activos), 2)
+    valor_venta = round(sum((p.stock or 0) * (p.precio_final or 0) for p in activos), 2)
     return jsonify({
         'total_productos': total_productos,
+        'total_unidades': unidades_fisico + unidades_online,
         'stock_critico': stock_critico,
+        'stock_critico_count': len(criticos),
         'sin_stock': sin_stock,
+        'por_vencer_count': len(por_vencer),
         'unidades_fisico': unidades_fisico,
         'unidades_online': unidades_online,
-        'valor_inventario': valor_inventario
+        'valor_inventario': valor_costo,
+        'valor_costo_total': valor_costo,
+        'valor_venta_total': valor_venta,
+        'ganancia_potencial': round(valor_venta - valor_costo, 2)
     })
 
 
 @inventory_bp.route('/rotacion', methods=['GET'])
+@staff_required
 def rotacion_inventario():
     """HU-11 / UC7: Clasificación en Bajo Stock, Sin Stock, Alta Rotación, Stock Estancado y Por Vencer."""
     activos = Product.query.filter_by(activo=True).all()

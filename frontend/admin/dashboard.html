@@ -134,6 +134,7 @@
   </div>
 </div>
 
+<script src="../js/config.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/admin-common.js"></script>
 <script>
@@ -205,11 +206,11 @@ async function loadRecentOrders() {
   }
   tbody.innerHTML = orders.slice(0, 6).map(o => `
     <tr>
-      <td><a href="pedidos.html" style="font-weight:700;color:var(--color-brand-pastel);">${o.numero_pedido}</a></td>
-      <td>${o.nombre_cliente}</td>
-      <td><span class="badge badge-muted">${o.canal || 'web'}</span></td>
+      <td><a href="pedidos.html?highlight=${o.id}" style="font-weight:700;color:var(--color-brand-pastel);">${escapeHtml(o.numero_pedido)}</a></td>
+      <td>${escapeHtml(o.nombre_cliente)}</td>
+      <td><span class="badge badge-muted">${escapeHtml(o.canal || 'web')}</span></td>
       <td style="font-weight:700;">${formatCurrency(o.total)}</td>
-      <td><span class="status-badge status-${o.estado}">${o.estado.replace('_', ' ')}</span></td>
+      <td><span class="status-badge status-${escapeHtml(o.estado)}">${escapeHtml(o.estado.replace('_', ' '))}</span></td>
     </tr>`).join('');
 }
 
@@ -255,6 +256,26 @@ loadChart();
 loadTopProducts();
 loadRecentOrders();
 loadCriticalStock();
+
+// Actualizar automáticamente el Dashboard en tiempo real cuando entra o cambia un pedido
+let _dashRefreshTimer = null;
+function refreshDashboardLive() {
+  if (_dashRefreshTimer) return;
+  _dashRefreshTimer = setTimeout(() => {
+    _dashRefreshTimer = null;
+    loadKPIs();
+    loadChart();
+    loadTopProducts();
+    loadRecentOrders();
+    loadCriticalStock();
+  }, 250);
+}
+window.addEventListener('sisco:orders-changed', refreshDashboardLive);
+window.addEventListener('sisco:db-updated', refreshDashboardLive);
+window.addEventListener('focus', refreshDashboardLive);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshDashboardLive();
+});
 </script>
 </body>
 </html>

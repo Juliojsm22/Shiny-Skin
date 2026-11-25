@@ -13,6 +13,7 @@
   <header class="admin-topbar">
     <div class="topbar-title">💸 Control de Gastos Operativos (HU-13)</div>
     <div class="topbar-actions">
+      <button type="button" class="btn-admin-secondary" onclick="exportExpensesCSV()">📊 Exportar Excel</button>
       <button class="btn-admin-primary" onclick="openExpenseModal()">➕ Registrar Gasto</button>
     </div>
   </header>
@@ -121,13 +122,14 @@
   </div>
 </div>
 
+<script src="../js/config.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/admin-common.js"></script>
 <script>
 renderAdminSidebar('gastos');
 
 let allExpenses = [];
-document.getElementById('filterMesGasto').value = new Date().toISOString().slice(0, 7);
+document.getElementById('filterMesGasto').value = typeof getLocalMonthYM === 'function' ? getLocalMonthYM() : new Date().toISOString().slice(0, 7);
 
 async function loadGastos() {
   const categoria = document.getElementById('filterCatGasto').value;
@@ -174,7 +176,7 @@ function openExpenseModal(g = null) {
   document.getElementById('expId').value = g ? g.id : '';
   document.getElementById('expModalTitle').textContent = g ? '✏️ Editar Gasto' : '➕ Registrar Gasto Operativo';
   document.getElementById('eCategoria').value = g ? g.categoria_gasto : 'IMPORTACION';
-  document.getElementById('eFecha').value = g ? g.fecha : new Date().toISOString().slice(0, 10);
+  document.getElementById('eFecha').value = g ? g.fecha : (typeof getLocalDateYMD === 'function' ? getLocalDateYMD() : new Date().toISOString().slice(0, 10));
   document.getElementById('eConcepto').value = g ? g.concepto : '';
   document.getElementById('eMonto').value = g ? g.monto : '';
   document.getElementById('eNotas').value = g ? (g.notas || '') : '';
@@ -216,6 +218,14 @@ async function removeExpense(id) {
   } catch (err) {
     showToast(err.message || 'Error al eliminar', 'error');
   }
+}
+
+function exportExpensesCSV() {
+  const headers = ['Fecha', 'Categoría', 'Concepto', 'Notas', 'Registrado por', 'Monto (C$)'];
+  const rows = allExpenses.map(g => [
+    g.fecha, g.categoria_gasto, g.concepto, g.notas || '', g.usuario || 'Admin', g.monto
+  ]);
+  downloadCSVFile(`SISCO_Gastos_${getLocalDateYMD()}.csv`, headers, rows);
 }
 
 loadGastos();

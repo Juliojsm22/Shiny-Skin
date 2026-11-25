@@ -38,15 +38,28 @@ Sistema de información web desarrollado para la microempresa **Shiny Skin** (Co
 
 ---
 
-## Instalación y Ejecución Local
+## Instalación, Acceso Multi-Dispositivo y Alertas en Tiempo Real
 
+### 1. En tienda / red local Wi-Fi (varios celulares + PC de caja)
 ```bash
 cd sisco-shinyskin/backend
 pip install -r requirements.txt
 python app.py
 ```
+O simplemente ejecuta `iniciar_servidor.bat`. Al arrancar mostrará dos direcciones:
+- **PC de caja:** `http://localhost:5000`
+- **Celulares / tablets en el mismo Wi-Fi:** `http://<IP-DE-TU-PC>:5000`
 
-Abrir en el navegador: `http://localhost:5000`
+### 2. En Internet desde cualquier lugar del mundo (Render + PostgreSQL)
+- Despliega este repositorio en **Render** usando el `render.yaml` incluido (sirve tanto la tienda pública como el panel admin y el canal en tiempo real SSE).
+- Configura la variable `DATABASE_URL` (PostgreSQL en Supabase o Render) para persistencia permanente.
+- Si además publicas el frontend en **GitHub Pages**, coloca la URL de tu servidor Render en `frontend/js/config.js` (`API_SERVER_URL: 'https://tu-app.onrender.com'`).
+
+### Alertas en Tiempo Real de Nuevos Pedidos
+Cada vez que un cliente realiza un pedido desde cualquier dispositivo, el Panel Administrativo muestra de inmediato:
+- Tarjeta flotante animada con datos completos del cliente, productos, vuelto y botones de **Confirmar Ahora** / **WhatsApp**.
+- Franja persistente superior mientras existan pedidos pendientes.
+- Alerta sonora (Web Audio API), parpadeo de pestaña y notificación de escritorio (Windows/Android/macOS).
 
 ### Credenciales de Prueba
 

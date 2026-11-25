@@ -1,9 +1,9 @@
 from models import (
     db, User, Category, Brand, Product, Order, OrderItem,
-    Invoice, InvoiceItem, InventoryMovement, Client, Motorizado, Expense, OrderStatusHistory
+    Invoice, InvoiceItem, InventoryMovement, Client, Motorizado, Expense, OrderStatusHistory, ni_now
 )
 from werkzeug.security import generate_password_hash
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 
 def seed_db():
@@ -17,7 +17,7 @@ def seed_db():
     admin = User(
         nombre='Geoconda Martínez',
         username='admin',
-        email='admin@shinyskin.com',
+        email='admin@shinyskin.ni',
         password_hash=generate_password_hash('admin123'),
         rol='admin',
         telefono='505-8888-0001',
@@ -25,9 +25,9 @@ def seed_db():
     )
     vendedor = User(
         nombre='María Altamirano',
-        username='vendedora',
-        email='vendedor@shinyskin.com',
-        password_hash=generate_password_hash('vendedor123'),
+        username='ventas',
+        email='ventas@shinyskin.ni',
+        password_hash=generate_password_hash('ventas123'),
         rol='vendedor',
         telefono='505-8888-0002',
         direccion='Concept Store Camino de Oriente'
@@ -268,7 +268,7 @@ def seed_db():
             monto_pago_cliente=(int(total // 500) + 1) * 500 if i % 2 == 0 else None,
             cambio_entregar=round(((int(total // 500) + 1) * 500) - total, 2) if i % 2 == 0 else 0,
             canal=canal,
-            fecha=datetime.utcnow() - timedelta(days=dias)
+            fecha=ni_now() - timedelta(days=dias)
         )
         order.items.append(OrderItem(product_id=prod1.id, nombre_producto=prod1.nombre, cantidad=1, precio_unitario=prod1.precio_final, subtotal=sub1))
         order.items.append(OrderItem(product_id=prod2.id, nombre_producto=prod2.nombre, cantidad=1, precio_unitario=prod2.precio_final, subtotal=sub2))

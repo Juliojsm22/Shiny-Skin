@@ -13,6 +13,7 @@
   <header class="admin-topbar">
     <div class="topbar-title">🛒 Gestión Omnicanal de Pedidos y Motorizados</div>
     <div class="topbar-actions">
+      <button class="btn-admin-secondary" onclick="refreshOrdersNow()" title="Sincronizar nuevos pedidos">🔄 Actualizar</button>
       <button class="btn-admin-secondary" onclick="openMotoModal()">🛵 Motorizados</button>
       <button class="btn-admin-primary" onclick="openManualOrderModal()">➕ Pedido Manual (WhatsApp / IG)</button>
     </div>
@@ -22,8 +23,8 @@
 
     <!-- Pestañas por estado -->
     <div class="admin-tabs">
-      <div class="admin-tab active" onclick="setOrderState('', this)">Todos</div>
-      <div class="admin-tab" onclick="setOrderState('pendiente', this)">⏳ Pendientes</div>
+      <div class="admin-tab active" onclick="setOrderState('', this)">Todos <span id="tabCountAll" style="opacity:0.7;font-size:0.75rem;margin-left:3px;"></span></div>
+      <div class="admin-tab" onclick="setOrderState('pendiente', this)">⏳ Pendientes <span id="tabCountPending" style="display:none;background:#f59e0b;color:#0f172a;font-weight:800;font-size:0.7rem;padding:1px 6px;border-radius:99px;margin-left:4px;">0</span></div>
       <div class="admin-tab" onclick="setOrderState('confirmado', this)">✅ Confirmados</div>
       <div class="admin-tab" onclick="setOrderState('en_camino', this)">🛵 En Camino</div>
       <div class="admin-tab" onclick="setOrderState('entregado', this)">🎉 Entregados</div>
@@ -186,6 +187,7 @@
   </div>
 </div>
 
+<script src="../js/config.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/admin-common.js"></script>
 <script>
@@ -196,11 +198,19 @@ let allProducts = [];
 let motorizadosList = [];
 let stateFilter = '';
 let manualItems = [];
+let highlightedOrderId = null;
 
 async function init() {
   allProducts = await fetchProductos();
   await loadMotorizados();
   await loadOrders();
+  const hl = new URLSearchParams(window.location.search).get('highlight');
+  if (hl) {
+    highlightedOrderId = Number(hl);
+    renderOrders();
+    const target = allOrders.find(x => Number(x.id) === highlightedOrderId);
+    if (target) openOrderDetail(target.id);
+  }
   if (window.location.hash === '#manual') openManualOrderModal();
 }
 
@@ -211,14 +221,40 @@ async function loadMotorizados() {
 
 async function loadOrders() {
   allOrders = await fetchPedidos();
+  updateOrderTabBadges();
   renderOrders();
+  if (typeof refreshAdminNotifications === 'function') {
+    refreshAdminNotifications();
+  }
 }
 
-function setOrderState(st, el) {
+function updateOrderTabBadges() {
+  const totalEl = document.getElementById('tabCountAll');
+  if (totalEl) totalEl.textContent = allOrders.length ? `(${allOrders.length})` : '';
+  const pendingCount = (allOrders || []).filter(o => o.estado === 'pendiente').length;
+  const pendEl = document.getElementById('tabCountPending');
+  if (pendEl) {
+    if (pendingCount > 0) {
+      pendEl.textContent = pendingCount;
+      pendEl.style.display = 'inline-block';
+    } else {
+      pendEl.style.display = 'none';
+    }
+  }
+}
+
+async function refreshOrdersNow() {
+  allProducts = await fetchProductos();
+  await loadMotorizados();
+  await loadOrders();
+  showToast('Lista de pedidos sincronizada en tiempo real', 'info');
+}
+
+async function setOrderState(st, el) {
   stateFilter = st;
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
-  renderOrders();
+  await loadOrders();
 }
 
 function renderOrders() {
@@ -240,30 +276,50 @@ function renderOrders() {
   }
 
   tbody.innerHTML = list.map(o => `
-    <tr>
-      <td><strong style="color:var(--color-brand-pastel);">${o.numero_pedido}</strong></td>
+    <tr class="${Number(o.id) === Number(highlightedOrderId) ? 'order-row-highlight' : ''}">
+      <td><strong style="color:var(--color-brand-pastel);">${escapeHtml(o.numero_pedido)}</strong></td>
       <td>
-        <div class="table-product-name">${o.nombre_cliente}</div>
-        <div class="table-product-sku">${o.telefono_cliente || 'Sin teléfono'}</div>
+        <div class="table-product-name">${escapeHtml(o.nombre_cliente)}</div>
+        <div class="table-product-sku">${escapeHtml(o.telefono_cliente || 'Sin teléfono')}</div>
       </td>
-      <td><span class="badge badge-muted">${o.canal || 'web'}</span></td>
+      <td><span class="badge badge-muted">${escapeHtml(o.canal || 'web')}</span></td>
       <td style="font-size:0.8rem;">
         <div>${o.metodo_entrega === 'retiro' ? '🏬 Retiro en tienda' : '🛵 Domicilio'}</div>
-        ${o.motorizado_nombre ? `<div style="color:#38bdf8;">Repartidor: ${o.motorizado_nombre}</div>` : ''}
+        ${o.motorizado_nombre ? `<div style="color:#38bdf8;">Repartidor: ${escapeHtml(o.motorizado_nombre)}</div>` : ''}
       </td>
       <td style="font-weight:700;color:#34d399;">${formatCurrency(o.total)}</td>
-      <td><span class="status-badge status-${o.estado}">${o.estado.replace('_', ' ')}</span></td>
+      <td><span class="status-badge status-${escapeHtml(o.estado)}">${escapeHtml(o.estado.replace('_', ' '))}</span></td>
       <td>
         ${o.numero_factura
-          ? `<a href="facturacion.html" class="badge badge-success">${o.numero_factura}</a>`
+          ? `<a href="facturacion.html" class="badge badge-success">${escapeHtml(o.numero_factura)}</a>`
           : (o.estado !== 'cancelado' ? `<button class="btn-table btn-table-edit" onclick="quickInvoice(${o.id})">🧾 Facturar</button>` : '—')}
       </td>
       <td style="font-size:0.78rem;white-space:nowrap;">${formatDateTime(o.fecha)}</td>
       <td style="white-space:nowrap;">
+        ${o.estado === 'pendiente'
+          ? `<button class="btn-table" style="background:rgba(16,185,129,0.2);color:#34d399;border:1px solid rgba(16,185,129,0.45);font-weight:700;margin-right:4px;" onclick="quickConfirmOrder(${o.id})" title="Confirmar pedido inmediatamente">✅ Confirmar</button>`
+          : ''}
         <button class="btn-table btn-table-view" onclick="openOrderDetail(${o.id})">👁 Gestionar</button>
         <button class="btn-table" style="background:rgba(52,211,153,0.14);color:#34d399;border:1px solid rgba(52,211,153,0.3);margin-left:4px;" onclick="notifyOrderWhatsApp(${o.id})" title="Avisar estado por WhatsApp al cliente">💬 WhatsApp</button>
       </td>
     </tr>`).join('');
+}
+
+async function quickConfirmOrder(orderId, closeDet = false) {
+  const o = allOrders.find(x => x.id == orderId);
+  try {
+    await api.pedidos.updateEstado(orderId, 'confirmado', {
+      observacion: 'Pedido confirmado por personal en Panel SISCO'
+    });
+    if (typeof dismissOrderAlertCard === 'function') dismissOrderAlertCard(orderId, true);
+    showToast(`✅ Pedido ${o ? o.numero_pedido : ''} confirmado con éxito`, 'success');
+    if (closeDet) document.getElementById('detailModal').classList.remove('active');
+    allProducts = await fetchProductos();
+    await loadOrders();
+    if (typeof pollOrderAlerts === 'function') pollOrderAlerts({ initial: false, skipNewTrigger: true });
+  } catch (err) {
+    showToast(err.message || 'Error al confirmar el pedido', 'error');
+  }
 }
 
 function notifyOrderWhatsApp(orderId) {
@@ -348,7 +404,12 @@ function openOrderDetail(id) {
           ? `<button type="button" class="btn-admin-secondary" onclick="quickInvoice(${o.id}, true)">🧾 Emitir Factura de este Pedido</button>`
           : (o.numero_factura ? `<span class="badge badge-success">Facturado: ${o.numero_factura}</span>` : '')}
       </div>
-      <button type="button" class="btn-admin-primary" onclick="saveOrderChanges(${o.id})">💾 Guardar Cambios</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${o.estado === 'pendiente'
+          ? `<button type="button" class="btn-admin-primary" style="background:#10b981;" onclick="quickConfirmOrder(${o.id}, true)">✅ Confirmar Pedido Ahora</button>`
+          : ''}
+        <button type="button" class="btn-admin-primary" onclick="saveOrderChanges(${o.id})">💾 Guardar Cambios</button>
+      </div>
     </div>
   `;
   document.getElementById('detailModal').classList.add('active');
@@ -359,11 +420,12 @@ async function saveOrderChanges(orderId) {
   const motorizado_id = document.getElementById('detMotoSel').value || null;
   try {
     await api.pedidos.updateEstado(orderId, estado, { motorizado_id });
+    if (estado !== 'pendiente' && typeof dismissOrderAlertCard === 'function') dismissOrderAlertCard(orderId, true);
     showToast('Pedido actualizado correctamente', 'success');
     document.getElementById('detailModal').classList.remove('active');
     allProducts = await fetchProductos();
     await loadOrders();
-    renderAdminSidebar('pedidos');
+    if (typeof pollOrderAlerts === 'function') pollOrderAlerts({ initial: false, skipNewTrigger: true });
   } catch (err) {
     showToast(err.message || 'Error al actualizar pedido', 'error');
   }
@@ -530,6 +592,26 @@ async function saveMotorizado(e) {
 }
 
 init();
+
+// Sincronización automática en tiempo real al llegar o actualizarse pedidos desde cualquier dispositivo
+let _syncingOrders = false;
+async function autoSyncOrders(ev) {
+  if (_syncingOrders) return;
+  _syncingOrders = true;
+  try {
+    if (ev && ev.detail && ev.detail.order && ev.detail.type === 'new_order') {
+      highlightedOrderId = Number(ev.detail.order.id);
+    }
+    await loadOrders();
+  } catch {}
+  _syncingOrders = false;
+}
+window.addEventListener('sisco:orders-changed', autoSyncOrders);
+window.addEventListener('sisco:db-updated', autoSyncOrders);
+window.addEventListener('focus', autoSyncOrders);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') autoSyncOrders();
+});
 </script>
 </body>
 </html>

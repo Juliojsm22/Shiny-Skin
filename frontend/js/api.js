@@ -1,27 +1,121 @@
 /**
- * SISCO – Shiny Skin | api.js
- * Cliente HTTP unificado + Motor de Persistencia Local (localStorage) automático
- * Funciona tanto conectado al backend Flask (localhost:5000) como en modo navegador directo.
+ * SISCO – Shiny Skin | api.js (v2.1)
+ * Cliente HTTP unificado multi-dispositivo + detección real de servidor +
+ * respaldo de demostración local únicamente cuando no existe backend configurado.
  */
 
-const API_BASE = (() => {
-  if (window.location.protocol === 'file:') return 'http://localhost:5000/api';
-  if ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port && window.location.port !== '5000') {
-    return 'http://localhost:5000/api';
-  }
-  return '/api';
-})();
+function resolveApiConfig() {
+  // 1. Permitir enlazar backend vía parámetro ?api=https://tu-servidor.onrender.com
+  try {
+    const urlParam = new URLSearchParams(window.location.search).get('api');
+    if (urlParam && /^https?:\/\//i.test(urlParam.trim())) {
+      const clean = urlParam.trim().replace(/\/+$/, '').replace(/\/api$/i, '');
+      localStorage.setItem('sisco_api_server_url', clean);
+    }
+  } catch {}
 
-const BACKEND_ORIGIN = API_BASE.startsWith('http') ? API_BASE.replace(/\/api$/, '') : window.location.origin;
+  // 2. Configuración explícita en frontend/js/config.js
+  const fromConfig = (window.SISCO_CONFIG && window.SISCO_CONFIG.API_SERVER_URL)
+    ? String(window.SISCO_CONFIG.API_SERVER_URL).trim().replace(/\/+$/, '').replace(/\/api$/i, '')
+    : '';
+
+  // 3. URL guardada manualmente desde el Panel Admin
+  let fromStorage = '';
+  try {
+    const saved = (localStorage.getItem('sisco_api_server_url') || '').trim();
+    if (/^https?:\/\//i.test(saved)) {
+      fromStorage = saved.replace(/\/+$/, '').replace(/\/api$/i, '');
+    }
+  } catch {}
+
+  const explicitOrigin = fromConfig || fromStorage;
+  if (explicitOrigin) {
+    return {
+      apiBase: `${explicitOrigin}/api`,
+      backendOrigin: explicitOrigin,
+      isStaticWithoutBackend: false,
+      isFileProtocol: false
+    };
+  }
+
+  const host = (window.location.hostname || '').toLowerCase();
+  const isStaticHost =
+    host.endsWith('github.io') ||
+    host.endsWith('netlify.app') ||
+    host.endsWith('vercel.app') ||
+    host.endsWith('pages.dev');
+
+  if (isStaticHost) {
+    return {
+      apiBase: null,
+      backendOrigin: window.location.origin,
+      isStaticWithoutBackend: true,
+      isFileProtocol: false
+    };
+  }
+
+  if (window.location.protocol === 'file:') {
+    return {
+      apiBase: 'http://localhost:5000/api',
+      backendOrigin: 'http://localhost:5000',
+      isStaticWithoutBackend: false,
+      isFileProtocol: true
+    };
+  }
+
+  // Si se abre con Live Server (5500, 3000, etc.) en localhost o en IP Wi-Fi LAN (192.168.x.x)
+  if (window.location.port && !['5000', '80', '443'].includes(window.location.port)) {
+    const origin = `${window.location.protocol}//${window.location.hostname}:5000`;
+    return {
+      apiBase: `${origin}/api`,
+      backendOrigin: origin,
+      isStaticWithoutBackend: false,
+      isFileProtocol: false
+    };
+  }
+
+  // Despliegue integrado: Flask sirve frontend + /api en el mismo dominio (Render, VPS, LAN, localhost:5000)
+  return {
+    apiBase: '/api',
+    backendOrigin: window.location.origin,
+    isStaticWithoutBackend: false,
+    isFileProtocol: false
+  };
+}
+
+const SISCO_NET = resolveApiConfig();
+const API_BASE = SISCO_NET.apiBase || '/api';
+const BACKEND_ORIGIN = SISCO_NET.backendOrigin;
 const FALLBACK_PRODUCT_IMG = 'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?auto=format&fit=crop&w=600&q=80';
 const LOCAL_DB_KEY = 'sisco_local_db_v2';
+const MY_ORDERS_KEY = 'sisco_my_orders_v1';
 
-// ---- Semilla Inicial para Base de Datos Local ----
+window.SISCO_MODE = SISCO_NET.isStaticWithoutBackend ? 'local' : 'checking';
+window.SISCO_SERVER_INFO = null;
+
+// ---- Escape HTML anti-XSS ----
+function escapeHtml(val) {
+  return String(val ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ---- Cupones promocionales compartidos (validados también en backend) ----
+const VALID_COUPONS = {
+  SHINY10: { code: 'SHINY10', pct: 10, label: '10% OFF Bienvenida Shiny Skin' },
+  VIP15:   { code: 'VIP15',   pct: 15, label: '15% OFF Clienta VIP K-Beauty' },
+  KBEAUTY: { code: 'KBEAUTY', pct: 10, label: '10% OFF Rutina Coreana' },
+};
+
+// ---- Semilla Inicial para Base de Datos Local (solo modo demo sin servidor) ----
 const INITIAL_PRODUCTS = [
   { id: 1, nombre: 'ANUA Heartleaf 77% Soothing Serum', sku: 'SKN-SER-001', marca: 'ANUA', linea: 'Skincare', categoria: 'Sueros & Esencias', tamano: '30 ml', tono: '', fecha_vencimiento: '2027-08-15', precio_costo: 400, porcentaje_ganancia: 80, precio_venta: 720, precio_final: 720, descuento: 0, stock: 30, stock_fisico: 14, stock_online: 16, stock_minimo: 8, es_nuevo: true, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=600&q=80', descripcion: 'Suero calmante con 77% de hoja de corazón. Calma irritaciones y reduce el enrojecimiento.', beneficios: 'Calma irritaciones · Reduce enrojecimiento · Equilibra el sebo', ingredientes: 'Houttuynia Cordata Extract 77%, Pantenol, Ácido Hialurónico' },
   { id: 2, nombre: 'COSRX Advanced Snail 96 Mucin Essence', sku: 'SKN-SER-003', marca: 'COSRX', linea: 'Skincare', categoria: 'Sueros & Esencias', tamano: '100 ml', tono: '', fecha_vencimiento: '2027-06-20', precio_costo: 350, porcentaje_ganancia: 77.1, precio_venta: 620, precio_final: 527, descuento: 15, stock: 22, stock_fisico: 10, stock_online: 12, stock_minimo: 5, es_nuevo: false, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1611930022073-b7a4ba5fcccd?auto=format&fit=crop&w=600&q=80', descripcion: 'Esencia de mucina de caracol al 96% para regeneración celular e hidratación profunda.', beneficios: 'Regeneración cutánea · Hidratación profunda · Textura glass skin', ingredientes: 'Snail Secretion Filtrate 96%, Sodium Hyaluronate, Allantoin' },
   { id: 3, nombre: 'Purito Daily Go-To Sunscreen SPF50+ PA++++', sku: 'SKN-SOL-001', marca: 'Purito', linea: 'Skincare', categoria: 'Protectores Solares', tamano: '60 ml', tono: '', fecha_vencimiento: '2027-05-10', precio_costo: 380, porcentaje_ganancia: 78.9, precio_venta: 680, precio_final: 680, descuento: 0, stock: 35, stock_fisico: 18, stock_online: 17, stock_minimo: 6, es_nuevo: false, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=600&q=80', descripcion: 'Protector solar ligero de acabado invisible sin rastro blanco.', beneficios: 'SPF50+ PA++++ · Sin white cast · Con Centella Asiática', ingredientes: 'Centella Asiatica Extract, Uvinul A Plus, Tinosorb S' },
-  { id: 4, nombre: 'rom&nd Juicy Lasting Tint – 21 Grab Cherry', sku: 'MKP-LAB-001', marca: 'rom&nd', linea: 'Skincare' === 'Makeup' ? 'Skincare' : 'Makeup', categoria: 'Labios', tamano: '5.5 g', tono: '21 Grab Cherry', fecha_vencimiento: '2027-09-30', precio_costo: 310, porcentaje_ganancia: 80.6, precio_venta: 560, precio_final: 560, descuento: 0, stock: 25, stock_fisico: 12, stock_online: 13, stock_minimo: 5, es_nuevo: true, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1586495777744-4413f21062fa?auto=format&fit=crop&w=600&q=80', descripcion: 'Tinta labial coreana ultra duradera con acabado jugoso brillante.', beneficios: 'Brillo espejo · Alta pigmentación · Hidratación frutal', ingredientes: 'Extractos de papaya, pomelo y coco, escualano vegetal' },
+  { id: 4, nombre: 'rom&nd Juicy Lasting Tint – 21 Grab Cherry', sku: 'MKP-LAB-001', marca: 'rom&nd', linea: 'Makeup', categoria: 'Labios', tamano: '5.5 g', tono: '21 Grab Cherry', fecha_vencimiento: '2027-09-30', precio_costo: 310, porcentaje_ganancia: 80.6, precio_venta: 560, precio_final: 560, descuento: 0, stock: 25, stock_fisico: 12, stock_online: 13, stock_minimo: 5, es_nuevo: true, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1586495777744-4413f21062fa?auto=format&fit=crop&w=600&q=80', descripcion: 'Tinta labial coreana ultra duradera con acabado jugoso brillante.', beneficios: 'Brillo espejo · Alta pigmentación · Hidratación frutal', ingredientes: 'Extractos de papaya, pomelo y coco, escualano vegetal' },
   { id: 5, nombre: 'Numbuzin No.5 Vitamin Niacinamide Serum', sku: 'SKN-SER-002', marca: 'Numbuzin', linea: 'Skincare', categoria: 'Sueros & Esencias', tamano: '30 ml', tono: '', fecha_vencimiento: '2026-12-15', precio_costo: 490, porcentaje_ganancia: 81.6, precio_venta: 890, precio_final: 890, descuento: 0, stock: 4, stock_fisico: 2, stock_online: 2, stock_minimo: 5, es_nuevo: false, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1617897903246-719242758050?auto=format&fit=crop&w=600&q=80', descripcion: 'Suero iluminador con vitamina C, glutatión y niacinamida al 5%.', beneficios: 'Despigmentante · Antioxidante · Unifica el tono', ingredientes: 'Niacinamide 5%, Tranexamic Acid, Glutathione, Vitamin C' },
   { id: 6, nombre: 'Biodance Bio-Collagen Real Deep Mask Cream', sku: 'SKN-HID-001', marca: 'Biodance', linea: 'Skincare', categoria: 'Hidratantes & Cremas', tamano: '50 ml', tono: '', fecha_vencimiento: '2027-07-01', precio_costo: 430, porcentaje_ganancia: 81.4, precio_venta: 780, precio_final: 663, descuento: 15, stock: 16, stock_fisico: 8, stock_online: 8, stock_minimo: 5, es_nuevo: true, es_destacado: false, activo: true, imagen_url: 'https://images.unsplash.com/photo-1570194065650-d99fb4b8ccb0?auto=format&fit=crop&w=600&q=80', descripcion: 'Crema hidratante intensiva con bio-colágeno y ácido hialurónico.', beneficios: 'Efecto reafirmante · Barrera cutánea · Elasticidad', ingredientes: 'Low Molecular Collagen, Oligo-Hyaluronic Acid, Galactomyces' },
   { id: 7, nombre: 'ANUA Heartleaf Pore Control Cleansing Oil', sku: 'SKN-LMP-001', marca: 'ANUA', linea: 'Skincare', categoria: 'Limpiadores', tamano: '200 ml', tono: '', fecha_vencimiento: '2027-04-20', precio_costo: 320, porcentaje_ganancia: 81.3, precio_venta: 580, precio_final: 522, descuento: 10, stock: 25, stock_fisico: 12, stock_online: 13, stock_minimo: 5, es_nuevo: false, es_destacado: true, activo: true, imagen_url: 'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?auto=format&fit=crop&w=600&q=80', descripcion: 'Aceite limpiador suave para doble limpieza coreana.', beneficios: 'Disuelve maquillaje waterproof · Limpia poros · No comedogénico', ingredientes: 'Houttuynia Cordata Extract, Jojoba Seed Oil, Grape Seed Oil' },
@@ -32,13 +126,27 @@ const INITIAL_PRODUCTS = [
   { id: 12, nombre: 'Innisfree Green Tea Hyaluronic Toner', sku: 'SKN-TON-001', marca: 'Innisfree', linea: 'Skincare', categoria: 'Tónicos', tamano: '170 ml', tono: '', fecha_vencimiento: '2027-09-14', precio_costo: 300, porcentaje_ganancia: 76.7, precio_venta: 530, precio_final: 530, descuento: 0, stock: 22, stock_fisico: 11, stock_online: 11, stock_minimo: 5, es_nuevo: false, es_destacado: false, activo: true, imagen_url: 'https://images.unsplash.com/photo-1601049541289-9b1b7bbbfe19?auto=format&fit=crop&w=600&q=80', descripcion: 'Tónico hidratante con té verde de la isla Jeju y 5 ácidos hialurónicos.', beneficios: 'Absorción inmediata · Refrescante · Calma la sed de la piel', ingredientes: 'Camellia Sinensis Leaf Extract, 5-Hyaluronic Acid Complex' },
 ];
 
+function getLocalDateYMD(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function getLocalMonthYM(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+
 function enrichProductComputed(p) {
   const fis = Math.max(0, parseInt(p.stock_fisico ?? p.stock ?? 0) || 0);
   const onl = Math.max(0, parseInt(p.stock_online ?? 0) || 0);
   p.stock_fisico = fis;
   p.stock_online = onl;
   p.stock = fis + onl;
-  p.stock_minimo = parseInt(p.stock_minimo ?? 5) || 5;
+  p.stock_minimo = parseInt(p.stock_minimo ?? 5);
+  if (isNaN(p.stock_minimo)) p.stock_minimo = 5;
   p.precio_costo = Math.round((parseFloat(p.precio_costo) || 0) * 100) / 100;
   p.precio_venta = Math.round((parseFloat(p.precio_venta) || 0) * 100) / 100;
   p.descuento = Math.round((parseFloat(p.descuento) || 0) * 100) / 100;
@@ -49,13 +157,16 @@ function enrichProductComputed(p) {
     ? Math.round(p.precio_venta * (1 - p.descuento / 100) * 100) / 100
     : p.precio_venta;
   p.stock_critico = p.stock <= p.stock_minimo;
+  p.alerta_stock = p.stock_critico;
 
   if (p.fecha_vencimiento) {
-    const diff = Math.ceil((new Date(p.fecha_vencimiento) - new Date()) / (1000 * 60 * 60 * 24));
+    const diff = Math.ceil((new Date(p.fecha_vencimiento + 'T00:00:00') - new Date()) / (1000 * 60 * 60 * 24));
     p.dias_para_vencer = isNaN(diff) ? null : diff;
+    p.vencido = p.dias_para_vencer !== null && p.dias_para_vencer < 0;
     p.por_vencer = p.dias_para_vencer !== null && p.dias_para_vencer <= 60;
   } else {
     p.dias_para_vencer = null;
+    p.vencido = false;
     p.por_vencer = false;
   }
   return p;
@@ -63,11 +174,11 @@ function enrichProductComputed(p) {
 
 function createInitialLocalDB() {
   const todayIso = new Date().toISOString();
-  const todayDate = todayIso.slice(0, 10);
+  const todayDate = getLocalDateYMD();
   return {
     usuarios: [
       { id: 1, nombre: 'Administradora Shiny Skin', username: 'admin', email: 'admin@shinyskin.ni', rol: 'admin', telefono: '505-8585-1000', activo: true, ultimo_acceso: todayIso, created_at: '2026-01-15T08:00:00' },
-      { id: 2, nombre: 'Sofía Martínez (Ventas)', username: 'vendedora', email: 'vendedora@shinyskin.ni', rol: 'vendedor', telefono: '505-8585-2000', activo: true, ultimo_acceso: todayIso, created_at: '2026-02-10T09:00:00' },
+      { id: 2, nombre: 'Sofía Martínez (Ventas)', username: 'ventas', email: 'ventas@shinyskin.ni', rol: 'vendedor', telefono: '505-8585-2000', activo: true, ultimo_acceso: todayIso, created_at: '2026-02-10T09:00:00' },
     ],
     categorias: [
       { id: 1, nombre: 'Skincare', linea: 'Skincare', parent_id: null },
@@ -162,55 +273,58 @@ function createInitialLocalDB() {
       { id: 2, categoria_gasto: 'IMPORTACION', concepto: 'Desaduanaje lote cosmética coreana DHL', monto: 4200, fecha: todayDate, notas: 'Póliza consolidada', usuario: 'Administradora Shiny Skin' },
       { id: 3, categoria_gasto: 'EMPAQUE', concepto: 'Bolsas satinadas, stickers holográficos y papel seda Shiny Skin', monto: 1450, fecha: todayDate, notas: '200 unidades', usuario: 'Administradora Shiny Skin' },
     ],
+    _updated_at: 1,
   };
 }
 
 let MEMORY_DB = null;
 const WN_PREFIX = 'SISCO_WN_DB:';
+const siscoSyncChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('sisco_sync_channel') : null;
+
+function parseDBCandidate(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && Array.isArray(parsed.productos)) return parsed;
+  } catch {}
+  return null;
+}
 
 function getLocalDB() {
-  if (MEMORY_DB && Array.isArray(MEMORY_DB.productos)) {
-    MEMORY_DB.productos = MEMORY_DB.productos.map(enrichProductComputed);
-    return MEMORY_DB;
-  }
-  try {
-    const raw = localStorage.getItem(LOCAL_DB_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.productos)) {
-        parsed.productos = parsed.productos.map(enrichProductComputed);
-        MEMORY_DB = parsed;
-        return parsed;
-      }
-    }
-  } catch {}
+  let lsDB = null;
+  let wnDB = null;
+  try { lsDB = parseDBCandidate(localStorage.getItem(LOCAL_DB_KEY)); } catch {}
   try {
     if (window.name && window.name.startsWith(WN_PREFIX)) {
-      const parsed = JSON.parse(window.name.slice(WN_PREFIX.length));
-      if (parsed && Array.isArray(parsed.productos)) {
-        parsed.productos = parsed.productos.map(enrichProductComputed);
-        MEMORY_DB = parsed;
-        try { localStorage.setItem(LOCAL_DB_KEY, JSON.stringify(parsed)); } catch {}
-        return parsed;
-      }
+      wnDB = parseDBCandidate(window.name.slice(WN_PREFIX.length));
     }
   } catch {}
+
+  const chosen = lsDB && wnDB
+    ? (Number(lsDB._updated_at || 0) >= Number(wnDB._updated_at || 0) ? lsDB : wnDB)
+    : (lsDB || wnDB || MEMORY_DB);
+
+  if (chosen && Array.isArray(chosen.productos)) {
+    chosen.productos = chosen.productos.map(enrichProductComputed);
+    MEMORY_DB = chosen;
+    return chosen;
+  }
+
   const fresh = createInitialLocalDB();
   MEMORY_DB = fresh;
-  saveLocalDB(fresh);
+  saveLocalDB(fresh, { preserveTimestamp: true, silent: true });
   return fresh;
 }
 
-function saveLocalDB(db) {
+function saveLocalDB(db, opts = {}) {
+  if (!db || typeof db !== 'object') return;
+  if (!opts.preserveTimestamp) db._updated_at = Date.now();
   MEMORY_DB = db;
   const serialized = JSON.stringify(db);
-  try {
-    window.name = WN_PREFIX + serialized;
-  } catch {}
+  try { window.name = WN_PREFIX + serialized; } catch {}
   try {
     localStorage.setItem(LOCAL_DB_KEY, serialized);
   } catch (e) {
-    // Si una imagen Base64 excedió la cuota de 5MB de localStorage, compactar imágenes grandes y reintentar
     try {
       (db.productos || []).forEach(p => {
         if (p.imagen_url && p.imagen_url.startsWith('data:image/') && p.imagen_url.length > 180000) {
@@ -220,11 +334,39 @@ function saveLocalDB(db) {
       const compact = JSON.stringify(db);
       localStorage.setItem(LOCAL_DB_KEY, compact);
       window.name = WN_PREFIX + compact;
-    } catch (e2) {
-      console.warn('Advertencia al guardar en localStorage:', e2);
+    } catch {}
+  }
+  if (!opts.silent) {
+    const detail = { updated_at: db._updated_at, newOrder: opts.newOrder || null };
+    try { if (siscoSyncChannel) siscoSyncChannel.postMessage({ type: opts.newOrder ? 'new-order' : 'db-updated', ...detail }); } catch {}
+    try { window.dispatchEvent(new CustomEvent('sisco:db-updated', { detail })); } catch {}
+    if (opts.newOrder) {
+      try { window.dispatchEvent(new CustomEvent('sisco:new-order', { detail: opts.newOrder })); } catch {}
     }
   }
 }
+
+if (siscoSyncChannel) {
+  siscoSyncChannel.onmessage = (ev) => {
+    if (!ev || !ev.data) return;
+    if (ev.data.type === 'db-updated' || ev.data.type === 'new-order') {
+      MEMORY_DB = null;
+      getLocalDB();
+      try { window.dispatchEvent(new CustomEvent('sisco:db-updated', { detail: ev.data })); } catch {}
+      if (ev.data.type === 'new-order' && ev.data.newOrder) {
+        try { window.dispatchEvent(new CustomEvent('sisco:new-order', { detail: ev.data.newOrder })); } catch {}
+      }
+    }
+  };
+}
+
+window.addEventListener('storage', (ev) => {
+  if (!ev.key || ev.key === LOCAL_DB_KEY) {
+    MEMORY_DB = null;
+    getLocalDB();
+    try { window.dispatchEvent(new CustomEvent('sisco:db-updated', { detail: { source: 'storage' } })); } catch {}
+  }
+});
 
 function fileToDataUrl(file) {
   return new Promise((resolve) => {
@@ -233,7 +375,6 @@ function fileToDataUrl(file) {
     reader.onload = () => {
       const rawDataUrl = typeof reader.result === 'string' ? reader.result : '';
       if (!rawDataUrl) return resolve('');
-      // Comprimir imagen mediante Canvas para que ocupe ~25KB en localStorage y nunca falle por cuota
       const img = new Image();
       img.onload = () => {
         try {
@@ -247,10 +388,8 @@ function fileToDataUrl(file) {
           const canvas = document.createElement('canvas');
           canvas.width = w;
           canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, w, h);
-          const compressed = canvas.toDataURL('image/jpeg', 0.74);
-          resolve(compressed || rawDataUrl);
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.74) || rawDataUrl);
         } catch {
           resolve(rawDataUrl);
         }
@@ -263,8 +402,9 @@ function fileToDataUrl(file) {
   });
 }
 
-// ---- Motor Local que procesa todos los endpoints cuando el servidor Flask no está activo ----
+// ---- Motor Local de Demostración (usado SOLO sin servidor backend) ----
 async function handleLocalApi(method, path, body) {
+  window.SISCO_MODE = 'local';
   const db = getLocalDB();
   const urlObj = new URL(path, 'http://localhost');
   const pathname = urlObj.pathname.replace(/\/+$/, '') || '/';
@@ -282,41 +422,45 @@ async function handleLocalApi(method, path, body) {
     }
   }
 
-  let currentUser = { nombre: 'Administradora Shiny Skin', rol: 'admin' };
-  try {
-    const u = JSON.parse(localStorage.getItem('sisco_user') || 'null');
-    if (u && u.nombre) currentUser = u;
-  } catch {}
-
+  const { user: activeUser } = getActiveSession();
+  const currentUser = activeUser || { nombre: 'Administradora Shiny Skin', rol: 'admin' };
   const nextId = (arr) => arr.reduce((m, x) => Math.max(m, Number(x.id) || 0), 0) + 1;
   const nowIso = new Date().toISOString();
+  const todayPrefix = getLocalDateYMD();
 
   // ==================== AUTH & USUARIOS ====================
   if (pathname === '/auth/login' && method === 'POST') {
     const idf = String(data.email || data.username || '').trim().toLowerCase();
     const pwd = String(data.password || '');
     let u = db.usuarios.find(x => (x.email || '').toLowerCase() === idf || (x.username || '').toLowerCase() === idf);
-    if (!u && (idf === 'admin' || idf === 'admin@shinyskin.ni' || idf === 'admin@shinyskin.com')) u = db.usuarios[0];
-    if (!u && (idf === 'vendedora' || idf === 'vendedora@shinyskin.ni' || idf === 'ventas' || idf === 'ventas@shinyskin.ni')) u = db.usuarios[1];
-    if (!u || (u.password && u.password !== pwd)) {
+    if (!u && ['admin', 'admin@shinyskin.ni', 'admin@shinyskin.com'].includes(idf)) u = db.usuarios[0];
+    if (!u && ['ventas', 'vendedora', 'vendedor', 'ventas@shinyskin.ni', 'vendedora@shinyskin.ni', 'vendedor@shinyskin.com'].includes(idf)) u = db.usuarios[1];
+    const expectedPwd = u?.password || (u?.rol === 'admin' ? 'admin123' : (u?.rol === 'vendedor' ? 'ventas123' : ''));
+    if (!u || (expectedPwd && expectedPwd !== pwd)) {
       const err = new Error('Credenciales inválidas. Verifica tu usuario y contraseña.');
       err.status = 401;
       throw err;
     }
-    if (u.activo === false) {
-      throw new Error('Esta cuenta de usuario se encuentra desactivada.');
-    }
+    if (u.activo === false) throw new Error('Esta cuenta de usuario se encuentra desactivada.');
     u.ultimo_acceso = nowIso;
-    saveLocalDB(db);
+    saveLocalDB(db, { silent: true });
     return { token: `local_jwt_${u.id}_${Date.now()}`, user: u, usuario: u };
   }
 
   if (pathname === '/auth/register' && method === 'POST') {
+    const email = String(data.email || '').trim().toLowerCase();
+    if (!email || !data.nombre || String(data.password || '').length < 6) {
+      throw new Error('Completa nombre, correo y contraseña (mín. 6 caracteres).');
+    }
+    if (db.usuarios.some(x => (x.email || '').toLowerCase() === email)) {
+      throw new Error('Este correo electrónico ya está registrado.');
+    }
     const u = {
       id: nextId(db.usuarios),
-      nombre: data.nombre || 'Cliente Shiny Skin',
-      username: data.username || (data.email || '').split('@')[0],
-      email: data.email || `cliente${Date.now()}@shinyskin.ni`,
+      nombre: data.nombre.trim(),
+      username: data.username || email.split('@')[0],
+      email,
+      password: data.password,
       rol: 'cliente',
       telefono: data.telefono || '',
       activo: true,
@@ -324,7 +468,7 @@ async function handleLocalApi(method, path, body) {
       created_at: nowIso
     };
     db.usuarios.push(u);
-    saveLocalDB(db);
+    saveLocalDB(db, { silent: true });
     return { token: `local_jwt_${u.id}_${Date.now()}`, user: u, usuario: u };
   }
 
@@ -332,35 +476,29 @@ async function handleLocalApi(method, path, body) {
     const code = String(Math.floor(100000 + Math.random() * 900000));
     db.last_reset_code = code;
     db.last_reset_target = data.email || data.identificador || '';
-    saveLocalDB(db);
-    return { mensaje: 'Código de recuperación generado.', codigo_demo: code, reset_token: code };
+    saveLocalDB(db, { silent: true });
+    return { message: 'Código de recuperación generado.', codigo_demo: code, reset_token: code };
   }
 
   if (pathname === '/auth/reset-password' && method === 'POST') {
     const u = db.usuarios.find(x =>
-      (x.email || '').toLowerCase() === String(db.last_reset_target || '').toLowerCase() ||
-      (x.username || '').toLowerCase() === String(db.last_reset_target || '').toLowerCase()
+      (x.email || '').toLowerCase() === String(data.email || db.last_reset_target || '').toLowerCase()
     ) || db.usuarios[0];
     const newPass = data.new_password || data.nueva_password;
     if (u && newPass) u.password = newPass;
-    saveLocalDB(db);
-    return { mensaje: 'Contraseña actualizada exitosamente.' };
+    saveLocalDB(db, { silent: true });
+    return { message: 'Contraseña actualizada exitosamente.' };
   }
 
-  if (pathname === '/auth/me' && method === 'GET') {
-    return currentUser;
-  }
-
-  if (pathname === '/auth/usuarios' && method === 'GET') {
-    return db.usuarios;
-  }
+  if (pathname === '/auth/me' && method === 'GET') return currentUser;
+  if (pathname === '/auth/usuarios' && method === 'GET') return db.usuarios;
 
   if (pathname === '/auth/usuarios' && method === 'POST') {
     const u = {
       id: nextId(db.usuarios),
       nombre: (data.nombre || '').trim(),
-      username: (data.username || '').trim(),
-      email: (data.email || '').trim(),
+      username: (data.username || (data.email || '').split('@')[0]).trim().toLowerCase(),
+      email: (data.email || '').trim().toLowerCase(),
       rol: data.rol || 'vendedor',
       telefono: (data.telefono || '').trim(),
       activo: data.activo !== false && data.activo !== 'false',
@@ -370,7 +508,7 @@ async function handleLocalApi(method, path, body) {
     };
     db.usuarios.push(u);
     saveLocalDB(db);
-    return { mensaje: 'Usuario registrado correctamente', usuario: u };
+    return { message: 'Usuario registrado correctamente', usuario: u };
   }
 
   const userMatch = pathname.match(/^\/auth\/usuarios\/(\d+)$/);
@@ -380,50 +518,40 @@ async function handleLocalApi(method, path, body) {
     if (!u) throw new Error('Usuario no encontrado');
     if (method === 'PUT') {
       if (data.nombre !== undefined) u.nombre = data.nombre.trim();
-      if (data.username !== undefined) u.username = data.username.trim();
-      if (data.email !== undefined) u.email = data.email.trim();
+      if (data.username !== undefined && data.username.trim()) u.username = data.username.trim().toLowerCase();
+      if (data.email !== undefined) u.email = data.email.trim().toLowerCase();
       if (data.rol !== undefined) u.rol = data.rol;
       if (data.telefono !== undefined) u.telefono = data.telefono.trim();
       if (data.activo !== undefined) u.activo = data.activo !== false && data.activo !== 'false';
       if (data.password) u.password = data.password;
       saveLocalDB(db);
-      return { mensaje: 'Usuario actualizado', usuario: u };
+      return { message: 'Usuario actualizado', usuario: u };
     }
     if (method === 'DELETE') {
-      u.activo = false;
+      u.activo = !u.activo;
       saveLocalDB(db);
-      return { mensaje: 'Usuario desactivado', usuario: u };
+      return { message: `Usuario ${u.activo ? 'activado' : 'desactivado'} correctamente.`, user: u, usuario: u };
     }
   }
 
   // ==================== PRODUCTOS ====================
-  if (pathname === '/productos/categorias' && method === 'GET') {
-    return db.categorias;
-  }
-  if (pathname === '/productos/marcas' && method === 'GET') {
-    return db.marcas;
-  }
+  if (pathname === '/productos/categorias' && method === 'GET') return db.categorias;
+  if (pathname === '/productos/marcas' && method === 'GET') return db.marcas;
   if (pathname === '/productos/stock-critico' && method === 'GET') {
     return db.productos.filter(p => p.activo !== false && p.stock <= (p.stock_minimo ?? 5));
   }
 
   if (pathname === '/productos' && method === 'GET') {
     let list = [...db.productos];
-    if (params.incluir_inactivos !== 'true') {
-      list = list.filter(p => p.activo !== false);
-    }
-    if (params.categoria) {
-      list = list.filter(p => matchesCategoryFilter(p, params.categoria));
-    }
-    if (params.linea) {
-      list = list.filter(p => matchesCategoryFilter(p, params.linea));
-    }
+    if (params.incluir_inactivos !== 'true') list = list.filter(p => p.activo !== false);
+    if (params.categoria) list = list.filter(p => matchesCategoryFilter(p, params.categoria));
+    if (params.linea) list = list.filter(p => matchesCategoryFilter(p, params.linea));
     if (params.marca) {
       const mNorm = normalizeText(params.marca);
       list = list.filter(p => normalizeText(p.marca) === mNorm || String(p.brand_id) === String(params.marca));
     }
-    if (params.destacados === 'true') list = list.filter(p => p.es_destacado);
-    if (params.nuevos === 'true') list = list.filter(p => p.es_nuevo);
+    if (params.destacado === 'true' || params.destacados === 'true') list = list.filter(p => p.es_destacado);
+    if (params.nuevo === 'true' || params.nuevos === 'true') list = list.filter(p => p.es_nuevo);
     if (params.q) {
       const qn = normalizeText(params.q);
       list = list.filter(p => normalizeText(`${p.nombre} ${p.sku || ''} ${p.marca || ''} ${p.categoria || ''} ${p.descripcion || ''}`).includes(qn));
@@ -434,7 +562,6 @@ async function handleLocalApi(method, path, body) {
   if (pathname === '/productos' && method === 'POST') {
     const nombre = String(data.nombre || '').trim();
     if (!nombre) throw new Error('El nombre del producto es obligatorio.');
-
     const marcaNombre = String(data.marca_nombre || data.marca || 'K-Beauty').trim();
     const catNombre = String(data.categoria_nombre || data.categoria || 'Skincare').trim();
     const linea = String(data.linea || 'Skincare').trim();
@@ -450,17 +577,11 @@ async function handleLocalApi(method, path, body) {
     const prefix = linea.toLowerCase() === 'makeup' ? 'MKP' : 'SKN';
     const catCode = normalizeText(catNombre).slice(0, 3).toUpperCase() || 'GEN';
     const sku = String(data.sku || '').trim() || `${prefix}-${catCode}-${String(newId).padStart(3, '0')}`;
-
     const fis = Math.max(0, parseInt(data.stock_fisico ?? data.stock ?? 0) || 0);
     const onl = Math.max(0, parseInt(data.stock_online ?? 0) || 0);
 
     const newProd = enrichProductComputed({
-      id: newId,
-      nombre,
-      sku,
-      marca: marcaNombre,
-      categoria: catNombre,
-      linea,
+      id: newId, nombre, sku, marca: marcaNombre, categoria: catNombre, linea,
       tamano: String(data.tamano || '').trim(),
       tono: String(data.tono || '').trim(),
       fecha_vencimiento: String(data.fecha_vencimiento || '').trim(),
@@ -468,8 +589,7 @@ async function handleLocalApi(method, path, body) {
       porcentaje_ganancia: parseFloat(data.porcentaje_ganancia) || 0,
       precio_venta: parseFloat(data.precio_venta) || 0,
       descuento: parseFloat(data.descuento) || 0,
-      stock_fisico: fis,
-      stock_online: onl,
+      stock_fisico: fis, stock_online: onl,
       stock_minimo: parseInt(data.stock_minimo) || 5,
       descripcion: String(data.descripcion || '').trim(),
       beneficios: String(data.beneficios || '').trim(),
@@ -480,26 +600,15 @@ async function handleLocalApi(method, path, body) {
       activo: data.activo !== false && data.activo !== 'false',
       created_at: nowIso
     });
-
     db.productos.unshift(newProd);
-
     if (newProd.stock > 0) {
       db.movimientos.unshift({
-        id: nextId(db.movimientos),
-        product_id: newProd.id,
-        producto: newProd.nombre,
-        sku: newProd.sku,
-        tipo: 'entrada',
-        ubicacion: fis > 0 && onl > 0 ? 'ambos' : (fis > 0 ? 'fisico' : 'online'),
-        cantidad: newProd.stock,
-        stock_anterior: 0,
-        stock_nuevo: newProd.stock,
-        motivo: 'Stock inicial al registrar producto',
-        usuario: currentUser.nombre,
-        fecha: nowIso
+        id: nextId(db.movimientos), product_id: newProd.id, producto: newProd.nombre, sku: newProd.sku,
+        tipo: 'entrada', ubicacion: fis > 0 && onl > 0 ? 'ambos' : (fis > 0 ? 'fisico' : 'online'),
+        cantidad: newProd.stock, stock_anterior: 0, stock_nuevo: newProd.stock,
+        motivo: 'Stock inicial al registrar producto', usuario: currentUser.nombre, fecha: nowIso
       });
     }
-
     saveLocalDB(db);
     return { ...newProd, mensaje: 'Producto creado exitosamente', producto: newProd };
   }
@@ -509,9 +618,7 @@ async function handleLocalApi(method, path, body) {
     const pid = Number(prodMatch[1]);
     const prod = db.productos.find(x => Number(x.id) === pid);
     if (!prod) throw new Error('Producto no encontrado');
-
     if (method === 'GET') return prod;
-
     if (method === 'PUT') {
       if (data.nombre !== undefined) prod.nombre = String(data.nombre).trim();
       if (data.sku !== undefined && String(data.sku).trim()) prod.sku = String(data.sku).trim();
@@ -535,12 +642,10 @@ async function handleLocalApi(method, path, body) {
       if (data.es_nuevo !== undefined) prod.es_nuevo = data.es_nuevo === true || data.es_nuevo === 'true';
       if (data.es_destacado !== undefined) prod.es_destacado = data.es_destacado === true || data.es_destacado === 'true';
       if (data.activo !== undefined) prod.activo = data.activo !== false && data.activo !== 'false';
-
       enrichProductComputed(prod);
       saveLocalDB(db);
       return { ...prod, mensaje: 'Producto actualizado correctamente', producto: prod };
     }
-
     if (method === 'DELETE') {
       prod.activo = false;
       saveLocalDB(db);
@@ -567,40 +672,31 @@ async function handleLocalApi(method, path, body) {
       total_unidades: activos.reduce((s, p) => s + p.stock, 0),
       unidades_fisico: activos.reduce((s, p) => s + p.stock_fisico, 0),
       unidades_online: activos.reduce((s, p) => s + p.stock_online, 0),
+      stock_critico: criticos.length,
       stock_critico_count: criticos.length,
+      sin_stock: activos.filter(p => p.stock === 0).length,
       por_vencer_count: porVencer.length,
+      valor_inventario: valorCosto,
       valor_costo_total: valorCosto,
       valor_venta_total: valorVenta,
-      ganancia_potencial: valorVenta - valorCosto,
-      productos_criticos: criticos,
-      productos_por_vencer: porVencer
+      ganancia_potencial: valorVenta - valorCosto
     };
   }
 
   if (pathname === '/inventario/rotacion' && method === 'GET') {
     const vendidosMap = {};
     db.pedidos.filter(o => o.estado !== 'cancelado').forEach(o => {
-      (o.items || []).forEach(it => {
-        vendidosMap[it.product_id] = (vendidosMap[it.product_id] || 0) + (Number(it.cantidad) || 0);
-      });
+      (o.items || []).forEach(it => { vendidosMap[it.product_id] = (vendidosMap[it.product_id] || 0) + (Number(it.cantidad) || 0); });
     });
     db.facturas.filter(f => f.estado !== 'anulada' && !f.order_id).forEach(f => {
-      (f.items || []).forEach(it => {
-        vendidosMap[it.product_id] = (vendidosMap[it.product_id] || 0) + (Number(it.cantidad) || 0);
-      });
+      (f.items || []).forEach(it => { vendidosMap[it.product_id] = (vendidosMap[it.product_id] || 0) + (Number(it.cantidad) || 0); });
     });
-    const activos = db.productos.filter(p => p.activo !== false).map(p => ({
-      ...p,
-      unidades_vendidas: vendidosMap[p.id] || 0
-    }));
-    const alta = activos.filter(p => p.unidades_vendidas > 0).sort((a, b) => b.unidades_vendidas - a.unidades_vendidas);
-    const estancado = activos.filter(p => p.unidades_vendidas === 0 && p.stock > 0);
-    const porVencer = activos.filter(p => p.por_vencer);
+    const activos = db.productos.filter(p => p.activo !== false).map(p => ({ ...p, unidades_vendidas: vendidosMap[p.id] || 0 }));
     return {
-      alta_rotacion: alta,
-      baja_rotacion: estancado,
-      stock_estancado: estancado,
-      proximos_vencer: porVencer
+      alta_rotacion: activos.filter(p => p.unidades_vendidas > 0).sort((a, b) => b.unidades_vendidas - a.unidades_vendidas),
+      baja_rotacion: activos.filter(p => p.unidades_vendidas === 0 && p.stock > 0),
+      stock_estancado: activos.filter(p => p.unidades_vendidas === 0 && p.stock > 0),
+      proximos_vencer: activos.filter(p => p.dias_para_vencer !== null && p.dias_para_vencer <= 90)
     };
   }
 
@@ -616,7 +712,7 @@ async function handleLocalApi(method, path, body) {
     const mov = { id: nextId(db.movimientos), product_id: p.id, producto: p.nombre, sku: p.sku, tipo: 'entrada', ubicacion: ubi, cantidad: cant, stock_anterior: ant, stock_nuevo: p.stock, motivo: data.motivo || 'Entrada de mercadería', usuario: currentUser.nombre, fecha: nowIso };
     db.movimientos.unshift(mov);
     saveLocalDB(db);
-    return { mensaje: 'Entrada registrada', producto: p, movimiento: mov };
+    return { message: 'Entrada registrada', producto: p, movimiento: mov };
   }
 
   if (pathname === '/inventario/salida' && method === 'POST') {
@@ -633,7 +729,7 @@ async function handleLocalApi(method, path, body) {
     const mov = { id: nextId(db.movimientos), product_id: p.id, producto: p.nombre, sku: p.sku, tipo: 'salida', ubicacion: ubi, cantidad: cant, stock_anterior: ant, stock_nuevo: p.stock, motivo: data.motivo || 'Baja por merma/daño', usuario: currentUser.nombre, fecha: nowIso };
     db.movimientos.unshift(mov);
     saveLocalDB(db);
-    return { mensaje: 'Salida registrada', producto: p, movimiento: mov };
+    return { message: 'Salida registrada', producto: p, movimiento: mov };
   }
 
   if (pathname === '/inventario/traslado' && method === 'POST') {
@@ -650,7 +746,7 @@ async function handleLocalApi(method, path, body) {
     const mov = { id: nextId(db.movimientos), product_id: p.id, producto: p.nombre, sku: p.sku, tipo: 'traslado', ubicacion: `${orig}->${dest}`, cantidad: cant, stock_anterior: p.stock, stock_nuevo: p.stock, motivo: data.motivo || `Traslado ${orig} a ${dest}`, usuario: currentUser.nombre, fecha: nowIso };
     db.movimientos.unshift(mov);
     saveLocalDB(db);
-    return { mensaje: 'Traslado realizado', producto: p, movimiento: mov };
+    return { message: 'Traslado realizado', producto: p, movimiento: mov };
   }
 
   if (pathname === '/inventario/ajuste' && method === 'POST') {
@@ -665,29 +761,44 @@ async function handleLocalApi(method, path, body) {
     const mov = { id: nextId(db.movimientos), product_id: p.id, producto: p.nombre, sku: p.sku, tipo: 'ajuste', ubicacion: ubi, cantidad: Math.abs(p.stock - ant), stock_anterior: ant, stock_nuevo: p.stock, motivo: data.motivo || 'Ajuste por conteo físico', usuario: currentUser.nombre, fecha: nowIso };
     db.movimientos.unshift(mov);
     saveLocalDB(db);
-    return { mensaje: 'Ajuste aplicado', producto: p, movimiento: mov };
+    return { message: 'Ajuste aplicado', producto: p, movimiento: mov };
   }
 
   // ==================== PEDIDOS & MOTORIZADOS ====================
-  if (pathname === '/pedidos/motorizados' && method === 'GET') {
-    return db.motorizados;
-  }
+  if (pathname === '/pedidos/motorizados' && method === 'GET') return db.motorizados;
   if (pathname === '/pedidos/motorizados' && method === 'POST') {
     const m = { id: nextId(db.motorizados), nombre: data.nombre, telefono: data.telefono, empresa: data.empresa || 'Independiente', activo: true, pedidos_asignados: 0 };
     db.motorizados.push(m);
     saveLocalDB(db);
-    return { mensaje: 'Motorizado registrado', motorizado: m };
+    return { message: 'Motorizado registrado', motorizado: m };
   }
-  if (pathname === '/pedidos/stats' && method === 'GET') {
-    const valid = db.pedidos.filter(o => o.estado !== 'cancelado');
+
+  if (pathname === '/pedidos/alertas' && method === 'GET') {
+    const sinceId = params.since_id !== undefined ? Number(params.since_id) : null;
+    const latestId = db.pedidos.reduce((m, o) => Math.max(m, Number(o.id) || 0), 0);
+    const pendingOrders = db.pedidos.filter(o => o.estado === 'pendiente');
+    const newOrders = sinceId !== null ? db.pedidos.filter(o => Number(o.id) > sinceId) : [];
     return {
+      server_time: nowIso,
+      latest_order_id: latestId,
+      pending_count: pendingOrders.length,
+      en_camino_count: db.pedidos.filter(o => o.estado === 'en_camino').length,
+      new_orders: newOrders,
+      pending_orders: pendingOrders.slice(0, 15)
+    };
+  }
+
+  if (pathname === '/pedidos/stats' && method === 'GET') {
+    const valid = db.pedidos.filter(o => ['confirmado', 'en_camino', 'entregado'].includes(o.estado));
+    return {
+      total: db.pedidos.length,
       total_pedidos: db.pedidos.length,
       pendientes: db.pedidos.filter(o => o.estado === 'pendiente').length,
       confirmados: db.pedidos.filter(o => o.estado === 'confirmado').length,
       en_camino: db.pedidos.filter(o => o.estado === 'en_camino').length,
       entregados: db.pedidos.filter(o => o.estado === 'entregado').length,
       cancelados: db.pedidos.filter(o => o.estado === 'cancelado').length,
-      ingresos_totales: valid.reduce((s, o) => s + (o.total || 0), 0)
+      ingresos_total: valid.reduce((s, o) => s + (o.total || 0), 0)
     };
   }
 
@@ -714,87 +825,82 @@ async function handleLocalApi(method, path, body) {
     const itemsReq = Array.isArray(data.items) ? data.items : [];
     if (!itemsReq.length) throw new Error('El pedido debe incluir al menos un producto.');
 
+    const oid = nextId(db.pedidos);
+    const numPedido = `SS-${String(100 + oid).padStart(6, '0')}`;
+    const canalPedido = data.canal || 'web';
+    const estadoInicial = ['pendiente', 'confirmado', 'en_camino', 'entregado'].includes(data.estado) ? data.estado : 'pendiente';
+
     let subtotal = 0;
     const builtItems = [];
-    itemsReq.forEach((it, idx) => {
+    for (let idx = 0; idx < itemsReq.length; idx++) {
+      const it = itemsReq[idx];
       const p = db.productos.find(x => Number(x.id) === Number(it.product_id));
       const qty = Math.max(1, parseInt(it.cantidad) || 1);
+      if (p && p.stock < qty) {
+        throw new Error(`Stock insuficiente para "${p.nombre}" (disponible: ${p.stock}, solicitado: ${qty}).`);
+      }
       const price = p ? p.precio_final : (parseFloat(it.precio_unitario) || 0);
       if (p) {
-        if (data.canal === 'tienda_fisica') {
-          p.stock_fisico = Math.max(0, p.stock_fisico - qty);
-        } else if (p.stock_online >= qty) {
-          p.stock_online -= qty;
-        } else {
-          const rem = qty - p.stock_online;
-          p.stock_online = 0;
-          p.stock_fisico = Math.max(0, p.stock_fisico - rem);
-        }
+        const ant = p.stock;
+        let ubi = 'online';
+        if (canalPedido === 'tienda_fisica') { p.stock_fisico = Math.max(0, p.stock_fisico - qty); ubi = 'fisico'; }
+        else if (p.stock_online >= qty) { p.stock_online -= qty; ubi = 'online'; }
+        else { const rem = qty - p.stock_online; p.stock_online = 0; p.stock_fisico = Math.max(0, p.stock_fisico - rem); ubi = 'online'; }
         enrichProductComputed(p);
+        db.movimientos.unshift({
+          id: nextId(db.movimientos), product_id: p.id, producto: p.nombre, sku: p.sku,
+          tipo: 'venta', ubicacion: ubi, cantidad: qty, stock_anterior: ant, stock_nuevo: p.stock,
+          motivo: `Pedido ${numPedido} (${canalPedido})`, usuario: canalPedido === 'web' ? 'E-Commerce Web' : currentUser.nombre, fecha: nowIso
+        });
       }
       subtotal += price * qty;
-      builtItems.push({
-        id: idx + 1,
-        product_id: p ? p.id : it.product_id,
-        nombre_producto: p ? p.nombre : (it.nombre_producto || 'Producto'),
-        sku: p ? p.sku : '',
-        cantidad: qty,
-        precio_unitario: price,
-        subtotal: price * qty
-      });
-    });
+      builtItems.push({ id: idx + 1, product_id: p ? p.id : it.product_id, nombre_producto: p ? p.nombre : (it.nombre_producto || 'Producto'), sku: p ? p.sku : '', cantidad: qty, precio_unitario: price, subtotal: price * qty });
+    }
 
-    const desc = parseFloat(data.descuento) || 0;
-    const envio = parseFloat(data.costo_envio) || 0;
-    const total = Math.max(0, subtotal - desc + envio);
+    let desc = parseFloat(data.descuento) || 0;
+    if (data.cupon && VALID_COUPONS[String(data.cupon).toUpperCase()]) {
+      const pct = VALID_COUPONS[String(data.cupon).toUpperCase()].pct;
+      desc = Math.round(subtotal * pct) / 100;
+    }
+    const base = Math.max(0, subtotal - desc);
+    const envio = data.metodo_entrega === 'retiro' ? 0 : (data.costo_envio !== undefined ? (parseFloat(data.costo_envio) || 0) : (base >= 1500 ? 0 : 100));
+    const total = Math.max(0, base + envio);
     const pagoCli = parseFloat(data.monto_pago_cliente) || null;
-    const cambio = pagoCli && pagoCli > total ? pagoCli - total : 0;
+    const cambio = pagoCli && pagoCli >= total ? pagoCli - total : 0;
+    const motoObj = data.motorizado_id ? db.motorizados.find(x => Number(x.id) === Number(data.motorizado_id)) : null;
 
-    const oid = nextId(db.pedidos);
-    const numPedido = `SS-${String(100100 + oid).slice(-6)}`;
     const newOrder = {
-      id: oid,
-      numero_pedido: numPedido,
+      id: oid, numero_pedido: numPedido,
       nombre_cliente: data.nombre_cliente || 'Cliente Shiny Skin',
       telefono_cliente: data.telefono_cliente || '',
       email_cliente: data.email_cliente || '',
       metodo_entrega: data.metodo_entrega || 'domicilio',
       direccion_entrega: data.direccion_entrega || 'Managua, Nicaragua',
-      estado: 'pendiente',
-      subtotal,
-      descuento: desc,
-      costo_envio: envio,
-      iva: 0,
-      total,
+      estado: estadoInicial,
+      motorizado_id: motoObj ? motoObj.id : null,
+      motorizado_nombre: motoObj ? motoObj.nombre : null,
+      motorizado_telefono: motoObj ? motoObj.telefono : null,
+      subtotal, descuento: desc, costo_envio: envio, iva: 0, total,
       metodo_pago: data.metodo_pago || 'efectivo_entrega',
-      monto_pago_cliente: pagoCli,
-      cambio_entregar: cambio,
-      notas: data.notas || '',
-      canal: data.canal || 'web',
-      factura_id: null,
-      numero_factura: null,
-      fecha: nowIso,
+      monto_pago_cliente: pagoCli, cambio_entregar: cambio,
+      notas: data.notas || '', canal: canalPedido,
+      factura_id: null, numero_factura: null, fecha: nowIso,
       items: builtItems,
-      historial: [{ id: 1, estado_anterior: null, estado_nuevo: 'pendiente', observacion: 'Pedido registrado', fecha: nowIso }]
+      historial: [{ id: 1, estado_anterior: null, estado_nuevo: estadoInicial, observacion: `Pedido registrado (${canalPedido})`, fecha: nowIso }]
     };
     db.pedidos.unshift(newOrder);
 
-    // Upsert cliente en cartera
     if (newOrder.nombre_cliente) {
       const existingCli = db.clientes.find(c => normalizeText(c.nombre) === normalizeText(newOrder.nombre_cliente) || (newOrder.telefono_cliente && c.telefono === newOrder.telefono_cliente));
       if (!existingCli) {
         db.clientes.unshift({
-          id: nextId(db.clientes),
-          nombre: newOrder.nombre_cliente,
-          telefono: newOrder.telefono_cliente,
-          email: newOrder.email_cliente,
-          direccion: newOrder.direccion_entrega,
-          notas: `Registrado desde pedido ${numPedido}`
+          id: nextId(db.clientes), nombre: newOrder.nombre_cliente,
+          telefono: newOrder.telefono_cliente, email: newOrder.email_cliente,
+          direccion: newOrder.direccion_entrega, notas: `Registrado desde pedido ${numPedido}`
         });
       }
     }
-
-    saveLocalDB(db);
+    saveLocalDB(db, { newOrder });
     return { ...newOrder, mensaje: 'Pedido creado exitosamente', pedido: newOrder };
   }
 
@@ -809,16 +915,25 @@ async function handleLocalApi(method, path, body) {
       (o.items || []).forEach(it => {
         const p = db.productos.find(x => Number(x.id) === Number(it.product_id));
         if (p) {
+          const stockAnt = p.stock;
           if (o.canal === 'tienda_fisica') p.stock_fisico += Number(it.cantidad) || 0;
           else p.stock_online += Number(it.cantidad) || 0;
           enrichProductComputed(p);
+          db.movimientos.unshift({
+            id: nextId(db.movimientos), product_id: p.id, producto: p.nombre, sku: p.sku,
+            tipo: 'anulacion', ubicacion: o.canal === 'tienda_fisica' ? 'fisico' : 'online',
+            cantidad: Number(it.cantidad) || 0, stock_anterior: stockAnt, stock_nuevo: p.stock,
+            motivo: `Cancelación de pedido ${o.numero_pedido}`, usuario: currentUser.nombre, fecha: nowIso
+          });
         }
       });
     }
     o.estado = nuevo;
-    if (data.motorizado_id) {
-      const m = db.motorizados.find(x => Number(x.id) === Number(data.motorizado_id));
-      if (m) { o.motorizado_id = m.id; o.motorizado_nombre = m.nombre; o.motorizado_telefono = m.telefono; }
+    if (data.motorizado_id !== undefined) {
+      const m = data.motorizado_id ? db.motorizados.find(x => Number(x.id) === Number(data.motorizado_id)) : null;
+      o.motorizado_id = m ? m.id : null;
+      o.motorizado_nombre = m ? m.nombre : null;
+      o.motorizado_telefono = m ? m.telefono : null;
     }
     o.historial = o.historial || [];
     o.historial.push({ id: o.historial.length + 1, estado_anterior: ant, estado_nuevo: nuevo, observacion: data.observacion || `Cambio a ${nuevo}`, fecha: nowIso });
@@ -828,14 +943,13 @@ async function handleLocalApi(method, path, body) {
 
   const orderMotoMatch = pathname.match(/^\/pedidos\/(\d+)\/motorizado$/);
   if (orderMotoMatch && method === 'PUT') {
-    const oid = Number(orderMotoMatch[1]);
-    const o = db.pedidos.find(x => Number(x.id) === oid);
+    const o = db.pedidos.find(x => Number(x.id) === Number(orderMotoMatch[1]));
     if (!o) throw new Error('Pedido no encontrado');
     const m = db.motorizados.find(x => Number(x.id) === Number(data.motorizado_id));
     o.motorizado_id = m ? m.id : null;
     o.motorizado_nombre = m ? m.nombre : null;
     o.motorizado_telefono = m ? m.telefono : null;
-    if (data.estado) o.estado = data.estado;
+    if (data.pasar_en_camino && ['pendiente', 'confirmado'].includes(o.estado)) o.estado = 'en_camino';
     saveLocalDB(db);
     return { ...o, mensaje: 'Motorizado asignado', pedido: o };
   }
@@ -850,12 +964,18 @@ async function handleLocalApi(method, path, body) {
   // ==================== FACTURAS / POS ====================
   if (pathname === '/facturas/stats' && method === 'GET') {
     const pagadas = db.facturas.filter(f => f.estado === 'pagada');
+    const totalIng = pagadas.reduce((s, f) => s + (Number(f.total) || 0), 0);
+    const ingHoy = pagadas.filter(f => String(f.fecha || '').slice(0, 10) === todayPrefix).reduce((s, f) => s + (Number(f.total) || 0), 0);
+    const emitidas = db.facturas.filter(f => f.estado === 'emitida').length;
     return {
       total_facturas: db.facturas.length,
       pagadas: pagadas.length,
-      emitidas: db.facturas.filter(f => f.estado === 'emitida').length,
+      emitidas,
+      pendientes_pago: emitidas,
       anuladas: db.facturas.filter(f => f.estado === 'anulada').length,
-      total_facturado: pagadas.reduce((s, f) => s + (f.total || 0), 0)
+      total_facturado: totalIng,
+      total_ingresos: totalIng,
+      ingresos_hoy: ingHoy
     };
   }
 
@@ -863,6 +983,8 @@ async function handleLocalApi(method, path, body) {
     let list = [...db.facturas];
     if (params.estado) list = list.filter(f => f.estado === params.estado);
     if (params.canal) list = list.filter(f => f.canal === params.canal);
+    if (params.fecha_desde) list = list.filter(f => String(f.fecha || '').slice(0, 10) >= params.fecha_desde);
+    if (params.fecha_hasta) list = list.filter(f => String(f.fecha || '').slice(0, 10) <= params.fecha_hasta);
     if (params.q) {
       const qn = normalizeText(params.q);
       list = list.filter(f => normalizeText(`${f.numero_factura} ${f.nombre_cliente} ${f.numero_pedido || ''}`).includes(qn));
@@ -873,11 +995,7 @@ async function handleLocalApi(method, path, body) {
   if (pathname === '/facturas' && method === 'POST') {
     const fid = nextId(db.facturas);
     const numFac = `FAC-${String(fid).padStart(6, '0')}`;
-    let subtotal = 0;
-    let descMonto = 0;
-    let total = 0;
-    let itemsFac = [];
-    let linkedOrder = null;
+    let subtotal = 0, descMonto = 0, total = 0, itemsFac = [], linkedOrder = null;
 
     if (data.order_id) {
       linkedOrder = db.pedidos.find(o => Number(o.id) === Number(data.order_id));
@@ -888,6 +1006,7 @@ async function handleLocalApi(method, path, body) {
       itemsFac = (linkedOrder.items || []).map(it => ({ ...it, descuento: 0 }));
       linkedOrder.factura_id = fid;
       linkedOrder.numero_factura = numFac;
+      if (linkedOrder.estado === 'pendiente') linkedOrder.estado = 'confirmado';
     } else {
       const reqItems = Array.isArray(data.items) ? data.items : [];
       if (!reqItems.length) throw new Error('Agrega al menos un producto para emitir la factura.');
@@ -912,8 +1031,7 @@ async function handleLocalApi(method, path, body) {
     const cambio = recibido && recibido > total ? recibido - total : 0;
 
     const newFac = {
-      id: fid,
-      numero_factura: numFac,
+      id: fid, numero_factura: numFac,
       order_id: linkedOrder ? linkedOrder.id : null,
       numero_pedido: linkedOrder ? linkedOrder.numero_pedido : null,
       nombre_cliente: data.nombre_cliente || (linkedOrder ? linkedOrder.nombre_cliente : 'Consumidor Final'),
@@ -921,18 +1039,10 @@ async function handleLocalApi(method, path, body) {
       email_cliente: data.email_cliente || (linkedOrder ? linkedOrder.email_cliente : ''),
       canal: data.canal || (linkedOrder && linkedOrder.canal !== 'tienda_fisica' ? 'online' : 'colectivo'),
       tipo_descuento: data.tipo_descuento || 'monto',
-      subtotal,
-      descuento: descMonto,
-      iva: 0,
-      total,
+      subtotal, descuento: descMonto, iva: 0, total,
       metodo_pago: data.metodo_pago || 'efectivo',
-      monto_recibido: recibido,
-      cambio,
-      estado: 'pagada',
-      notas: data.notas || '',
-      emisor: currentUser.nombre,
-      fecha: nowIso,
-      items: itemsFac
+      monto_recibido: recibido, cambio, estado: 'pagada',
+      notas: data.notas || '', emisor: currentUser.nombre, fecha: nowIso, items: itemsFac
     };
     db.facturas.unshift(newFac);
     saveLocalDB(db);
@@ -946,10 +1056,7 @@ async function handleLocalApi(method, path, body) {
     if (data.estado === 'anulada' && f.estado !== 'anulada' && !f.order_id) {
       (f.items || []).forEach(it => {
         const p = db.productos.find(x => Number(x.id) === Number(it.product_id));
-        if (p) {
-          p.stock_fisico += Number(it.cantidad) || 0;
-          enrichProductComputed(p);
-        }
+        if (p) { p.stock_fisico += Number(it.cantidad) || 0; enrichProductComputed(p); }
       });
     }
     f.estado = data.estado;
@@ -969,11 +1076,7 @@ async function handleLocalApi(method, path, body) {
   if (pathname === '/clientes' && method === 'GET') {
     let list = db.clientes.map(c => {
       const peds = db.pedidos.filter(o => o.estado !== 'cancelado' && (o.client_id === c.id || normalizeText(o.nombre_cliente) === normalizeText(c.nombre)));
-      return {
-        ...c,
-        cantidad_pedidos: peds.length,
-        total_compras: peds.reduce((s, o) => s + (o.total || 0), 0)
-      };
+      return { ...c, cantidad_pedidos: peds.length, total_compras: peds.reduce((s, o) => s + (o.total || 0), 0) };
     });
     if (params.q) {
       const qn = normalizeText(params.q);
@@ -1024,19 +1127,16 @@ async function handleLocalApi(method, path, body) {
     if (params.mes) list = list.filter(g => (g.fecha || '').startsWith(params.mes));
     const porCatMap = {};
     list.forEach(g => { porCatMap[g.categoria_gasto] = (porCatMap[g.categoria_gasto] || 0) + (Number(g.monto) || 0); });
-    const porCatArr = Object.entries(porCatMap).map(([categoria, monto]) => ({ categoria, monto }));
     const totalMes = list.reduce((s, g) => s + (Number(g.monto) || 0), 0);
     return {
-      total_mes: totalMes,
-      total_gastos: totalMes,
-      total_historico: totalHist,
+      total_mes: totalMes, total_gastos: totalMes, total_historico: totalHist,
       cantidad_registros: list.length,
-      por_categoria: porCatArr
+      por_categoria: Object.entries(porCatMap).map(([categoria, monto]) => ({ categoria, monto }))
     };
   }
 
   if (pathname === '/gastos' && method === 'POST') {
-    const g = { id: nextId(db.gastos), categoria_gasto: data.categoria_gasto || 'OTRO', concepto: data.concepto, monto: parseFloat(data.monto) || 0, fecha: data.fecha || nowIso.slice(0, 10), notas: data.notas || '', usuario: currentUser.nombre };
+    const g = { id: nextId(db.gastos), categoria_gasto: data.categoria_gasto || 'OTRO', concepto: data.concepto, monto: parseFloat(data.monto) || 0, fecha: data.fecha || todayPrefix, notas: data.notas || '', usuario: currentUser.nombre };
     db.gastos.unshift(g);
     saveLocalDB(db);
     return { ...g, mensaje: 'Gasto registrado', gasto: g };
@@ -1059,25 +1159,28 @@ async function handleLocalApi(method, path, body) {
     }
   }
 
-  // ==================== DASHBOARD ====================
+  // ==================== DASHBOARD & BACKUP LOCAL ====================
+  if (pathname === '/dashboard/backup' && method === 'GET') {
+    return { ...db, source: 'local_browser', exported_at: nowIso };
+  }
+  if (pathname === '/dashboard/restore' && method === 'POST') {
+    if (!data || !Array.isArray(data.productos)) throw new Error('Archivo de respaldo inválido.');
+    saveLocalDB(data);
+    return { message: 'Respaldo restaurado en navegador local.' };
+  }
+
   if (pathname === '/dashboard/kpis' && method === 'GET') {
-    const todayPrefix = nowIso.slice(0, 10);
-    const validOrders = db.pedidos.filter(o => o.estado !== 'cancelado');
-    const directFacs = db.facturas.filter(f => f.estado !== 'anulada' && !f.order_id);
-    const ventasRegistros = validOrders.reduce((s, o) => s + (o.total || 0), 0) + directFacs.reduce((s, f) => s + (f.total || 0), 0);
-    const ventasHoy = validOrders.filter(o => (o.fecha || '').startsWith(todayPrefix)).reduce((s, o) => s + (o.total || 0), 0)
-      + directFacs.filter(f => (f.fecha || '').startsWith(todayPrefix)).reduce((s, f) => s + (f.total || 0), 0);
-    const baseHistoricoMes = 21520; // Ventas acumuladas de las semanas previas del mes
-    const ventasMes = baseHistoricoMes + ventasRegistros;
+    const validOrders = db.pedidos.filter(o => ['confirmado', 'en_camino', 'entregado'].includes(o.estado));
+    const directFacs = db.facturas.filter(f => f.estado === 'pagada' && !f.order_id);
+    const ventasMes = validOrders.reduce((s, o) => s + (o.total || 0), 0) + directFacs.reduce((s, f) => s + (f.total || 0), 0);
+    const ventasHoy = validOrders.filter(o => String(o.fecha || '').slice(0, 10) === todayPrefix).reduce((s, o) => s + (o.total || 0), 0)
+      + directFacs.filter(f => String(f.fecha || '').slice(0, 10) === todayPrefix).reduce((s, f) => s + (f.total || 0), 0);
     const gastosMes = db.gastos.reduce((s, g) => s + (Number(g.monto) || 0), 0);
     const activos = db.productos.filter(p => p.activo !== false);
     return {
-      ventas_hoy: ventasHoy || ventasRegistros,
-      ventas_mes: ventasMes,
-      gastos_mes: gastosMes,
-      balance_mes: ventasMes - gastosMes,
+      ventas_hoy: ventasHoy, ventas_mes: ventasMes, gastos_mes: gastosMes, balance_mes: ventasMes - gastosMes,
       pedidos_pendientes: db.pedidos.filter(o => o.estado === 'pendiente').length,
-      pedidos_hoy: db.pedidos.filter(o => (o.fecha || '').startsWith(todayPrefix)).length || db.pedidos.length,
+      pedidos_hoy: db.pedidos.filter(o => String(o.fecha || '').slice(0, 10) === todayPrefix).length,
       total_productos: activos.length,
       stock_critico: activos.filter(p => p.stock_critico).length,
       facturas_pendientes: db.facturas.filter(f => f.estado === 'emitida').length,
@@ -1087,43 +1190,31 @@ async function handleLocalApi(method, path, body) {
 
   if (pathname === '/dashboard/ventas-semana' && method === 'GET') {
     const dias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-    const baseDiasPrevios = [2840, 3520, 2190, 4120, 3890, 4960];
     const result = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      const ds = d.toISOString().slice(0, 10);
-      const totalDia = db.pedidos.filter(o => o.estado !== 'cancelado' && (o.fecha || '').startsWith(ds)).reduce((s, o) => s + (o.total || 0), 0)
-        + db.facturas.filter(f => f.estado !== 'anulada' && !f.order_id && (f.fecha || '').startsWith(ds)).reduce((s, f) => s + (f.total || 0), 0);
-      const fallbackDia = i > 0 ? baseDiasPrevios[6 - i] : 2120;
-      result.push({
-        fecha: `${dias[d.getDay()]} ${d.getDate()}`,
-        dia: `${dias[d.getDay()]} ${d.getDate()}`,
-        total: totalDia > 0 ? totalDia : fallbackDia
-      });
+      const ds = getLocalDateYMD(d);
+      const totalDia = db.pedidos.filter(o => ['confirmado', 'en_camino', 'entregado'].includes(o.estado) && String(o.fecha || '').slice(0, 10) === ds).reduce((s, o) => s + (o.total || 0), 0)
+        + db.facturas.filter(f => f.estado === 'pagada' && !f.order_id && String(f.fecha || '').slice(0, 10) === ds).reduce((s, f) => s + (f.total || 0), 0);
+      result.push({ fecha: `${dias[d.getDay()]} ${d.getDate()}`, total: totalDia });
     }
     return result;
   }
 
   if (pathname === '/dashboard/top-productos' && method === 'GET') {
-    const map = {
-      'ANUA Heartleaf 77% Soothing Serum': { producto: 'ANUA Heartleaf 77% Soothing Serum', nombre: 'ANUA Heartleaf 77% Soothing Serum', total_vendido: 8, ingresos: 5760 },
-      'Purito Daily Go-To Sunscreen SPF50+ PA++++': { producto: 'Purito Daily Go-To Sunscreen SPF50+ PA++++', nombre: 'Purito Daily Go-To Sunscreen SPF50+ PA++++', total_vendido: 6, ingresos: 4080 },
-      'COSRX Advanced Snail 96 Mucin Essence': { producto: 'COSRX Advanced Snail 96 Mucin Essence', nombre: 'COSRX Advanced Snail 96 Mucin Essence', total_vendido: 5, ingresos: 2635 },
-      'rom&nd Juicy Lasting Tint – 21 Grab Cherry': { producto: 'rom&nd Juicy Lasting Tint – 21 Grab Cherry', nombre: 'rom&nd Juicy Lasting Tint – 21 Grab Cherry', total_vendido: 5, ingresos: 2800 },
-      'Numbuzin No.5 Vitamin Niacinamide Serum': { producto: 'Numbuzin No.5 Vitamin Niacinamide Serum', nombre: 'Numbuzin No.5 Vitamin Niacinamide Serum', total_vendido: 4, ingresos: 3560 },
-    };
+    const map = {};
     db.pedidos.filter(o => o.estado !== 'cancelado').forEach(o => {
       (o.items || []).forEach(it => {
-        const key = it.nombre_producto || 'Producto K-Beauty';
+        const key = it.nombre_producto || 'Producto';
         if (!map[key]) map[key] = { producto: key, nombre: key, total_vendido: 0, ingresos: 0 };
         map[key].total_vendido += Number(it.cantidad) || 0;
         map[key].ingresos += Number(it.subtotal) || 0;
       });
     });
-    db.facturas.filter(f => f.estado !== 'anulada' && !f.order_id).forEach(f => {
+    db.facturas.filter(f => f.estado === 'pagada' && !f.order_id).forEach(f => {
       (f.items || []).forEach(it => {
-        const key = it.nombre_producto || 'Producto K-Beauty';
+        const key = it.nombre_producto || 'Producto';
         if (!map[key]) map[key] = { producto: key, nombre: key, total_vendido: 0, ingresos: 0 };
         map[key].total_vendido += Number(it.cantidad) || 0;
         map[key].ingresos += Number(it.subtotal) || 0;
@@ -1139,10 +1230,9 @@ async function handleLocalApi(method, path, body) {
   return {};
 }
 
-// ---- HTTP client con Fallback Automático a Persistencia Local y GitHub Pages ----
+// ---- Cliente HTTP real con reintento para Cold Start y separación estricta Servidor vs Demo Local ----
 async function request(method, path, body = null, auth = false) {
-  const host = (window.location.hostname || '').toLowerCase();
-  if (host.endsWith('github.io') || host.endsWith('netlify.app') || host.endsWith('vercel.app') || host.endsWith('pages.dev')) {
+  if (SISCO_NET.isStaticWithoutBackend) {
     return await handleLocalApi(method, path, body);
   }
 
@@ -1151,10 +1241,8 @@ async function request(method, path, body = null, auth = false) {
     headers['Content-Type'] = 'application/json';
   }
 
-  const token = localStorage.getItem('sisco_token');
-  if (auth && token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  } else if (token && method !== 'GET') {
+  const { token } = getActiveSession();
+  if (token && (auth || method !== 'GET')) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
@@ -1163,31 +1251,73 @@ async function request(method, path, body = null, auth = false) {
     opts.body = body instanceof FormData ? body : JSON.stringify(body);
   }
 
+  const url = `${API_BASE}${path}`;
   let res;
-  try {
-    res = await fetch(`${API_BASE}${path}`, opts);
-  } catch (netErr) {
-    // Si el servidor Python/Flask no está corriendo, procesa y persiste en localStorage automáticamente
-    return await handleLocalApi(method, path, body);
-  }
+  let lastNetErr = null;
+  const maxAttempts = (method === 'POST' && path.startsWith('/pedidos')) ? 2 : 1;
 
-  if (!res.ok) {
-    // En servidores estáticos (GitHub Pages / Live Server) o con token local, usa el motor local
-    const contentType = res.headers.get('content-type') || '';
-    if (res.status === 405 || (res.status === 404 && !contentType.includes('application/json'))) {
-      return await handleLocalApi(method, path, body);
-    }
-    if (res.status === 401 || res.status === 422) {
-      if (token && (token.startsWith('local_jwt_') || token === 'demo_token')) {
-        return await handleLocalApi(method, path, body);
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      res = await fetch(url, opts);
+      lastNetErr = null;
+      break;
+    } catch (netErr) {
+      lastNetErr = netErr;
+      if (attempt < maxAttempts) {
+        await new Promise(r => setTimeout(r, 1800));
       }
     }
+  }
+
+  if (lastNetErr) {
+    // Si se abrió como archivo local file:// sin Python activo, permitir modo demo local
+    if (SISCO_NET.isFileProtocol) {
+      return await handleLocalApi(method, path, body);
+    }
+    // En un sitio web real (HTTP/HTTPS), NUNCA ocultar una falla al crear un pedido fingiendo éxito local
+    if (method === 'POST' && path.startsWith('/pedidos')) {
+      const e = new Error('No pudimos conectar con el servidor de Shiny Skin para registrar tu pedido. Revisa tu conexión e inténtalo nuevamente.');
+      e.isNetworkError = true;
+      e.status = 0;
+      throw e;
+    }
+    // En endpoints de lectura o demo local si el backend de desarrollo está apagado en localhost
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return await handleLocalApi(method, path, body);
+    }
+    const e = new Error('El servidor de Shiny Skin no responde en este momento. Intenta recargar en unos segundos.');
+    e.isNetworkError = true;
+    e.status = 0;
+    throw e;
+  }
+
+  // Si llegamos aquí, el servidor HTTP respondió
+  const contentType = res.headers.get('content-type') || '';
+  if (!res.ok) {
+    // Live Server sin backend corriendo devuelve 404/405 en HTML plano
+    if ((res.status === 405 || res.status === 404) && !contentType.includes('application/json') && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || SISCO_NET.isFileProtocol)) {
+      return await handleLocalApi(method, path, body);
+    }
+
+    // Si el servidor real rechaza el token (401/422), NO mostrar datos falsos locales: pedir login real
+    if ((res.status === 401 || res.status === 422) && auth) {
+      window.SISCO_MODE = 'server';
+      const isAdminPage = document.body && document.body.classList.contains('admin-body');
+      if (isAdminPage && !window._SISCO_REDIRECTING_AUTH) {
+        window._SISCO_REDIRECTING_AUTH = true;
+        clearActiveSession();
+        window.location.replace('../login.html?reason=expired&next=' + encodeURIComponent(window.location.pathname));
+      }
+    }
+
     const errBody = await res.json().catch(() => ({}));
     const e = new Error(errBody.error || errBody.msg || `Error HTTP ${res.status}`);
     e.status = res.status;
     e.isNetworkError = false;
     throw e;
   }
+
+  window.SISCO_MODE = 'server';
   return res.json();
 }
 
@@ -1205,6 +1335,24 @@ const api = {
   post:   (path, body, auth = false) => request('POST',   path, body, auth),
   put:    (path, body, auth = false) => request('PUT',    path, body, auth),
   delete: (path, auth = false)       => request('DELETE', path, null, auth),
+
+  health: async () => {
+    if (SISCO_NET.isStaticWithoutBackend) {
+      window.SISCO_MODE = 'local';
+      return { status: 'local', mode: 'local', database: 'localStorage', realtime_sse: false };
+    }
+    try {
+      const r = await fetch(`${API_BASE}/health`, { cache: 'no-store' });
+      if (r.ok) {
+        const info = await r.json();
+        window.SISCO_MODE = 'server';
+        window.SISCO_SERVER_INFO = info;
+        return info;
+      }
+    } catch {}
+    window.SISCO_MODE = 'local';
+    return { status: 'offline', mode: 'local', database: 'localStorage', realtime_sse: false };
+  },
 
   // ---- Auth & Usuarios ----
   auth: {
@@ -1233,36 +1381,49 @@ const api = {
 
   // ---- Pedidos & Motorizados ----
   pedidos: {
-    list:             (params = {}) => api.get('/pedidos/' + buildQuery(params)),
-    get:              (id)          => api.get(`/pedidos/${id}`),
+    list:             (params = {}) => api.get('/pedidos/' + buildQuery(params), true),
+    get:              (id)          => api.get(`/pedidos/${id}`, true),
     seguimiento:      (codigo)      => api.get(`/pedidos/seguimiento/${encodeURIComponent(codigo)}`),
     create:           (data)        => api.post('/pedidos/', data),
     updateEstado:     (id, estado, extra = {}) => api.put(`/pedidos/${id}/estado`, { estado, ...extra }, true),
     assignMotorizado: (id, data)    => api.put(`/pedidos/${id}/motorizado`, data, true),
-    motorizados:      (activos = true) => api.get(`/pedidos/motorizados?activos=${activos}`),
+    motorizados:      (activos = true) => api.get(`/pedidos/motorizados?activos=${activos}`, true),
     createMotorizado: (data)        => api.post('/pedidos/motorizados', data, true),
     updateMotorizado: (id, data)    => api.put(`/pedidos/motorizados/${id}`, data, true),
     stats:            ()            => api.get('/pedidos/stats', true),
+    alertas:          (sinceId)     => api.get('/pedidos/alertas' + (sinceId !== undefined && sinceId !== null ? `?since_id=${sinceId}` : ''), true),
+    streamUrl:        ()            => {
+      const { token } = getActiveSession();
+      if (!token || SISCO_NET.isStaticWithoutBackend) return null;
+      return `${API_BASE}/pedidos/stream?token=${encodeURIComponent(token)}`;
+    },
   },
 
   // ---- Facturas / POS ----
   facturas: {
-    list:         (params = {}) => api.get('/facturas/' + buildQuery(params)),
+    list:         (params = {}) => api.get('/facturas/' + buildQuery(params), true),
     get:          (id)          => api.get(`/facturas/${id}`, true),
     create:       (data)        => api.post('/facturas/', data, true),
     updateEstado: (id, estado, extra = {}) => api.put(`/facturas/${id}/estado`, { estado, ...extra }, true),
     stats:        ()            => api.get('/facturas/stats', true),
-    pdfUrl:       (id, download = false) => `${API_BASE}/facturas/${id}/pdf${download ? '?download=1' : ''}`,
+    pdfUrl:       (id, download = false) => {
+      const { token } = getActiveSession();
+      const qs = new URLSearchParams();
+      if (download) qs.set('download', '1');
+      if (token) qs.set('token', token);
+      const suffix = qs.toString();
+      return `${API_BASE}/facturas/${id}/pdf${suffix ? '?' + suffix : ''}`;
+    },
   },
 
   // ---- Inventario Dual ----
   inventario: {
-    movimientos: (params = {}) => api.get('/inventario/movimientos' + buildQuery(params)),
+    movimientos: (params = {}) => api.get('/inventario/movimientos' + buildQuery(params), true),
     entrada:     (data)        => api.post('/inventario/entrada', data, true),
     salida:      (data)        => api.post('/inventario/salida', data, true),
     traslado:    (data)        => api.post('/inventario/traslado', data, true),
     ajuste:      (data)        => api.post('/inventario/ajuste', data, true),
-    resumen:     ()            => api.get('/inventario/resumen'),
+    resumen:     ()            => api.get('/inventario/resumen', true),
     rotacion:    ()            => api.get('/inventario/rotacion', true),
   },
 
@@ -1284,24 +1445,20 @@ const api = {
     delete:  (id)          => api.delete(`/gastos/${id}`, true),
   },
 
-  // ---- Dashboard ----
+  // ---- Dashboard & Respaldo BD ----
   dashboard: {
     kpis:         () => api.get('/dashboard/kpis', true),
     ventasSemana: () => api.get('/dashboard/ventas-semana', true),
     topProductos: () => api.get('/dashboard/top-productos', true),
     stockCritico: () => api.get('/dashboard/stock-critico', true),
+    backup:       () => api.get('/dashboard/backup', true),
+    restore:      (data) => api.post('/dashboard/restore', data, true),
   },
 };
 
-async function fetchProductos(params = {}) {
-  return await api.productos.list(params);
-}
-async function fetchKPIs() {
-  return await api.dashboard.kpis();
-}
-async function fetchPedidos(params = {}) {
-  return await api.pedidos.list(params);
-}
+async function fetchProductos(params = {}) { return await api.productos.list(params); }
+async function fetchKPIs() { return await api.dashboard.kpis(); }
+async function fetchPedidos(params = {}) { return await api.pedidos.list(params); }
 
 // ---- Utilidades Globales ----
 function normalizeText(str) {
@@ -1317,21 +1474,11 @@ function matchesCategoryFilter(product, filterValue) {
   const prodCat = normalizeText(product.categoria);
   const prodLinea = normalizeText(product.linea);
 
-  if (f === 'skincare') {
-    return prodLinea === 'skincare' || prodCat === 'skincare' || SKINCARE_SUBCATS.some(s => prodCat.includes(s));
-  }
-  if (f === 'makeup' || f === 'maquillaje') {
-    return prodLinea === 'makeup' || prodCat === 'makeup' || MAKEUP_SUBCATS.some(s => prodCat.includes(s));
-  }
-  if (f === 'serums' || f === 'sueros' || f.includes('sueros')) {
-    return prodCat.includes('suero') || prodCat.includes('serum') || prodCat.includes('esencia');
-  }
-  if (f.includes('hidratante')) {
-    return prodCat.includes('hidratante') || prodCat.includes('crema');
-  }
-  if (f.includes('protector')) {
-    return prodCat.includes('protector') || prodCat.includes('solar');
-  }
+  if (f === 'skincare') return prodLinea === 'skincare' || prodCat === 'skincare' || SKINCARE_SUBCATS.some(s => prodCat.includes(s));
+  if (f === 'makeup' || f === 'maquillaje') return prodLinea === 'makeup' || prodCat === 'makeup' || MAKEUP_SUBCATS.some(s => prodCat.includes(s));
+  if (f === 'serums' || f === 'sueros' || f.includes('sueros')) return prodCat.includes('suero') || prodCat.includes('serum') || prodCat.includes('esencia');
+  if (f.includes('hidratante')) return prodCat.includes('hidratante') || prodCat.includes('crema');
+  if (f.includes('protector')) return prodCat.includes('protector') || prodCat.includes('solar');
   return prodCat === f || prodCat.includes(f) || f.includes(prodCat && prodCat.length > 3 ? prodCat : '___');
 }
 
@@ -1374,22 +1521,62 @@ function showToast(msg, type = 'info') {
   const icons = { success: '✅', error: '⚠️', info: '✨' };
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
-  toast.innerHTML = `<span>${icons[type] || '✨'}</span><span>${msg}</span>`;
+  toast.innerHTML = `<span>${icons[type] || '✨'}</span><span>${escapeHtml(msg)}</span>`;
   container.appendChild(toast);
   setTimeout(() => {
     toast.style.opacity = '0';
     toast.style.transform = 'translateX(20px)';
     setTimeout(() => toast.remove(), 300);
-  }, 3400);
+  }, 3600);
+}
+
+// ---- Historial privado de pedidos del propio cliente (Ley 787) ----
+function getMyLocalOrders() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(MY_ORDERS_KEY) || '[]');
+    return Array.isArray(arr) ? arr : [];
+  } catch { return []; }
+}
+function saveMyLocalOrder(order) {
+  if (!order || !order.numero_pedido) return;
+  try {
+    const list = getMyLocalOrders().filter(o => o.numero_pedido !== order.numero_pedido);
+    list.unshift({
+      numero_pedido: order.numero_pedido,
+      total: Number(order.total || 0),
+      fecha: order.fecha || new Date().toISOString()
+    });
+    localStorage.setItem(MY_ORDERS_KEY, JSON.stringify(list.slice(0, 10)));
+  } catch {}
+}
+
+// ---- Sesión activa ----
+function getActiveSession() {
+  let token = null;
+  let user = null;
+  try {
+    token = localStorage.getItem('sisco_token');
+    user = JSON.parse(localStorage.getItem('sisco_user') || 'null');
+  } catch {}
+  return { token, user };
+}
+
+function clearActiveSession() {
+  try {
+    localStorage.removeItem('sisco_token');
+    localStorage.removeItem('sisco_user');
+  } catch {}
 }
 
 // ---- Carrito compartido con control de stock y Cupones Promocionales ----
 function getCart() {
-  try { return JSON.parse(localStorage.getItem('sisco_cart') || '[]'); }
-  catch { return []; }
+  try {
+    const parsed = JSON.parse(localStorage.getItem('sisco_cart') || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
 }
 function saveCart(cart) {
-  localStorage.setItem('sisco_cart', JSON.stringify(cart));
+  try { localStorage.setItem('sisco_cart', JSON.stringify(Array.isArray(cart) ? cart : [])); } catch {}
   updateCartBadge();
 }
 function updateCartBadge() {
@@ -1400,12 +1587,6 @@ function updateCartBadge() {
     badge.classList.toggle('visible', count > 0);
   });
 }
-
-const VALID_COUPONS = {
-  SHINY10: { code: 'SHINY10', pct: 10, label: '10% OFF Bienvenida Shiny Skin' },
-  VIP15:   { code: 'VIP15',   pct: 15, label: '15% OFF Clienta VIP K-Beauty' },
-  KBEAUTY: { code: 'KBEAUTY', pct: 10, label: '10% OFF Rutina Coreana' },
-};
 
 function getAppliedCoupon() {
   try {
@@ -1423,7 +1604,7 @@ function applyPromoCoupon(rawCode) {
   }
   const found = VALID_COUPONS[code];
   if (!found) {
-    showToast('Cupón inválido. Prueba con SHINY10 o VIP15.', 'error');
+    showToast('Cupón inválido. Prueba con SHINY10, VIP15 o KBEAUTY.', 'error');
     return null;
   }
   localStorage.setItem('sisco_coupon', JSON.stringify(found));
@@ -1431,12 +1612,12 @@ function applyPromoCoupon(rawCode) {
   return found;
 }
 
-function clearPromoCoupon() {
+function clearPromoCoupon(silent = false) {
   localStorage.removeItem('sisco_coupon');
-  showToast('Cupón promocional retirado', 'info');
+  if (!silent) showToast('Cupón promocional retirado', 'info');
 }
 
-// ---- Navegación pública, sesión, Rastreo de Pedido y Test de Piel K-Beauty ----
+// ---- Navegación pública, Rastreo Seguro y Test de Piel K-Beauty ----
 function toggleMobileNav() {
   const nav = document.querySelector('.navbar-nav');
   if (nav) nav.classList.toggle('open');
@@ -1451,10 +1632,10 @@ async function openTrackingModal(prefill = '') {
     modal.innerHTML = `
       <div class="modal" style="max-width:520px;">
         <div class="modal-header">
-          <div class="modal-title">📦 Rastrear mi pedido y Mis Compras</div>
+          <div class="modal-title">📦 Rastrear mi pedido</div>
           <button class="modal-close" onclick="document.getElementById('globalTrackingModal').classList.remove('active')">✕</button>
         </div>
-        <p style="font-size:0.86rem;color:var(--color-text-muted);margin-bottom:12px;">Ingresa tu código de pedido (ej: <strong>SS-000101</strong>) o selecciona uno de tus pedidos recientes:</p>
+        <p style="font-size:0.86rem;color:var(--color-text-muted);margin-bottom:12px;">Ingresa tu código de pedido (ej: <strong>SS-000101</strong>) para ver el estado en tiempo real:</p>
         <form onsubmit="submitOrderTracking(event)" style="display:flex;gap:8px;margin-bottom:12px;">
           <input type="text" id="trackingCodeInput" class="form-control" placeholder="Ej. SS-000101" required />
           <button type="submit" class="btn btn-primary btn-sm">Consultar</button>
@@ -1467,21 +1648,23 @@ async function openTrackingModal(prefill = '') {
   }
   modal.classList.add('active');
 
-  // Mostrar acceso rápido a pedidos recientes ("Mis Pedidos")
-  try {
-    const orders = await fetchPedidos();
-    const pillsBox = document.getElementById('recentOrdersQuickPills');
-    if (pillsBox && orders && orders.length) {
+  // Mostrar SOLO pedidos hechos desde ESTE dispositivo (privacidad Ley 787)
+  const myOrders = getMyLocalOrders();
+  const pillsBox = document.getElementById('recentOrdersQuickPills');
+  if (pillsBox) {
+    if (myOrders.length) {
       pillsBox.innerHTML = `
-        <div style="font-size:0.75rem;color:var(--color-text-muted);margin-bottom:6px;font-weight:600;">📋 Mis pedidos recientes (clic para ver detalle):</div>
+        <div style="font-size:0.75rem;color:var(--color-text-muted);margin-bottom:6px;font-weight:600;">📋 Tus pedidos recientes en este dispositivo:</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
-          ${orders.slice(0, 5).map(o => `
-            <button type="button" class="badge badge-primary" style="cursor:pointer;border:none;padding:5px 10px;" onclick="document.getElementById('trackingCodeInput').value='${o.numero_pedido}';submitOrderTracking();">
-              ${o.numero_pedido} · ${formatCurrency(o.total)}
+          ${myOrders.slice(0, 5).map(o => `
+            <button type="button" class="badge badge-primary" style="cursor:pointer;border:none;padding:5px 10px;" onclick="document.getElementById('trackingCodeInput').value='${escapeHtml(o.numero_pedido)}';submitOrderTracking();">
+              ${escapeHtml(o.numero_pedido)} · ${formatCurrency(o.total)}
             </button>`).join('')}
         </div>`;
+    } else {
+      pillsBox.innerHTML = '';
     }
-  } catch {}
+  }
 
   const inp = document.getElementById('trackingCodeInput');
   if (prefill && inp) {
@@ -1505,24 +1688,24 @@ async function submitOrderTracking(e) {
       entregado: '🎉 Entregado satisfactoriamente',
       cancelado: '❌ Pedido cancelado'
     };
-    const itemsHtml = (o.items || []).map(it => `<div style="font-size:0.78rem;color:var(--color-text-muted);">• ${it.cantidad}x ${it.nombre_producto} (${formatCurrency(it.subtotal)})</div>`).join('');
+    const itemsHtml = (o.items || []).map(it => `<div style="font-size:0.78rem;color:var(--color-text-muted);">• ${it.cantidad}x ${escapeHtml(it.nombre_producto)} (${formatCurrency(it.subtotal)})</div>`).join('');
     box.innerHTML = `
       <div style="background:var(--color-surface-2);border-radius:var(--radius-md);padding:16px;border:1px solid var(--color-surface-3);">
         <div class="flex-between" style="margin-bottom:8px;">
-          <strong style="color:var(--color-primary-darker);font-size:1rem;">${o.numero_pedido}</strong>
-          <span class="badge badge-primary">${labels[o.estado] || o.estado}</span>
+          <strong style="color:var(--color-primary-darker);font-size:1rem;">${escapeHtml(o.numero_pedido)}</strong>
+          <span class="badge badge-primary">${labels[o.estado] || escapeHtml(o.estado)}</span>
         </div>
         <div style="font-size:0.84rem;color:var(--color-text-muted);line-height:1.7;">
-          <div><strong>Cliente:</strong> ${o.nombre_cliente}</div>
+          <div><strong>Cliente:</strong> ${escapeHtml(o.nombre_cliente)}</div>
           <div><strong>Modalidad:</strong> ${o.metodo_entrega === 'retiro' ? 'Retiro en Concept Store' : 'Envío a domicilio'}</div>
-          ${o.motorizado_nombre ? `<div><strong>Motorizado:</strong> 🛵 ${o.motorizado_nombre} (${o.motorizado_telefono || ''})</div>` : ''}
+          ${o.motorizado_nombre ? `<div><strong>Motorizado:</strong> 🛵 ${escapeHtml(o.motorizado_nombre)}</div>` : ''}
           <div><strong>Total:</strong> <strong style="color:var(--color-primary-darker);">${formatCurrency(o.total)}</strong></div>
           <div><strong>Fecha:</strong> ${formatDateTime(o.fecha)}</div>
           ${itemsHtml ? `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--color-surface-3);"><strong>Productos:</strong>${itemsHtml}</div>` : ''}
         </div>
       </div>`;
   } catch (err) {
-    box.innerHTML = `<div class="alert alert-danger">${err.message || 'No se encontró el pedido indicado.'}</div>`;
+    box.innerHTML = `<div class="alert alert-danger">${escapeHtml(err.message || 'No se encontró el pedido indicado.')}</div>`;
   }
 }
 
@@ -1590,7 +1773,6 @@ async function runSkinQuiz(e) {
     if (skin === 'grasa' && (text.includes('pore') || text.includes('cleansing') || text.includes('sebo') || text.includes('gel') || text.includes('tea'))) s += 5;
     if (skin === 'seca' && (text.includes('snail') || text.includes('collagen') || text.includes('hyaluronic') || text.includes('hidrat'))) s += 5;
     if (skin === 'manchas' && (text.includes('niacinamide') || text.includes('vitamin') || text.includes('spf') || text.includes('ilumina'))) s += 5;
-
     if (goal === 'rutina' && (text.includes('limpia') || text.includes('serum') || text.includes('sun'))) s += 3;
     if (goal === 'hidratacion' && (text.includes('snail') || text.includes('collagen') || text.includes('mask') || text.includes('toner'))) s += 4;
     if (goal === 'makeup' && (normalizeText(p.linea) === 'makeup' || text.includes('tint') || text.includes('cushion') || text.includes('sun'))) s += 6;
@@ -1609,10 +1791,10 @@ async function runSkinQuiz(e) {
       <div style="display:flex;flex-direction:column;gap:10px;">
         ${lastQuizRecommendations.map((p, idx) => `
           <div style="display:flex;align-items:center;gap:10px;background:#fff;padding:10px;border-radius:10px;border:1px solid var(--color-surface-3);">
-            <img src="${resolveImageUrl(p.imagen_url)}" onerror="handleImgError(this)" style="width:48px;height:48px;border-radius:8px;object-fit:cover;" alt="${p.nombre}" />
+            <img src="${resolveImageUrl(p.imagen_url)}" onerror="handleImgError(this)" style="width:48px;height:48px;border-radius:8px;object-fit:cover;" alt="${escapeHtml(p.nombre)}" />
             <div style="flex:1;min-width:0;">
-              <div style="font-size:0.7rem;font-weight:700;color:var(--color-primary);">PASO ${idx + 1} · ${p.marca || 'K-Beauty'}</div>
-              <div style="font-size:0.84rem;font-weight:700;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.nombre}</div>
+              <div style="font-size:0.7rem;font-weight:700;color:var(--color-primary);">PASO ${idx + 1} · ${escapeHtml(p.marca || 'K-Beauty')}</div>
+              <div style="font-size:0.84rem;font-weight:700;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(p.nombre)}</div>
               <div style="font-size:0.78rem;font-weight:700;color:var(--color-primary-darker);">${formatCurrency(p.precio_final)}</div>
             </div>
             <button type="button" class="btn btn-outline btn-sm" onclick="addQuizProdToCart(${p.id})">+ Agregar</button>
@@ -1648,18 +1830,20 @@ function initPublicNavbar() {
   updateCartBadge();
   const nav = document.querySelector('.navbar-nav');
   if (nav && !nav.querySelector('[data-skin-quiz]')) {
-    const li = document.createElement('li');
-    li.innerHTML = `<a href="#" data-skin-quiz class="nav-link" onclick="openSkinQuizModal();return false;" style="color:var(--color-primary-dark);font-weight:700;">✨ Test de Piel</a>`;
-    nav.appendChild(li);
+    const a = document.createElement('a');
+    a.href = '#';
+    a.setAttribute('data-skin-quiz', '');
+    a.className = 'nav-link';
+    a.style.cssText = 'color:var(--color-primary-dark);font-weight:700;';
+    a.textContent = '✨ Test de Piel';
+    a.onclick = (ev) => { ev.preventDefault(); openSkinQuizModal(); };
+    nav.appendChild(a);
   }
 
   const actions = document.querySelector('.navbar-actions');
   if (!actions) return;
 
-  let user = null;
-  try { user = JSON.parse(localStorage.getItem('sisco_user') || 'null'); } catch {}
-  const token = localStorage.getItem('sisco_token');
-
+  const { token, user } = getActiveSession();
   const adminLink = actions.querySelector('[data-nav-auth]');
   if (adminLink) {
     if (token && user && (user.rol === 'admin' || user.rol === 'vendedor')) {
@@ -1668,12 +1852,11 @@ function initPublicNavbar() {
       adminLink.className = 'btn btn-primary btn-sm';
     } else if (token && user) {
       adminLink.href = '#';
-      adminLink.innerHTML = `👤 ${user.nombre.split(' ')[0]} (Salir)`;
+      adminLink.textContent = `👤 ${(user.nombre || 'Cuenta').split(' ')[0]} (Salir)`;
       adminLink.className = 'btn btn-outline btn-sm';
       adminLink.onclick = (ev) => {
         ev.preventDefault();
-        localStorage.removeItem('sisco_token');
-        localStorage.removeItem('sisco_user');
+        clearActiveSession();
         showToast('Sesión cerrada correctamente', 'info');
         setTimeout(() => window.location.reload(), 500);
       };

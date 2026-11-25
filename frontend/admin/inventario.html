@@ -169,7 +169,7 @@
       <div class="admin-form-grid" style="margin-bottom:14px;">
         <div class="admin-form-group" id="ubicacionGroup">
           <label class="admin-form-label" id="ubicacionLabel">Ubicación destino *</label>
-          <select class="admin-form-control" id="movUbicacion">
+          <select class="admin-form-control" id="movUbicacion" onchange="updateMovProdInfo()">
             <option value="fisico">🏬 Tienda Física (Concept Store)</option>
             <option value="online">🌐 Canal Online</option>
           </select>
@@ -202,6 +202,7 @@
   </div>
 </div>
 
+<script src="../js/config.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/admin-common.js"></script>
 <script>
@@ -252,6 +253,10 @@ function updateMovProdInfo() {
   const hint = document.getElementById('movProdHint');
   if (p && hint) {
     hint.textContent = `Actual -> 🏬 Tienda Física: ${p.stock_fisico ?? p.stock} uds. | 🌐 Online: ${p.stock_online ?? 0} uds. | Total: ${p.stock} uds.`;
+  }
+  if (p && document.getElementById('movMode')?.value === 'ajuste') {
+    const ubi = document.getElementById('movUbicacion')?.value || 'fisico';
+    document.getElementById('movCantidad').value = ubi === 'online' ? (p.stock_online ?? 0) : (p.stock_fisico ?? p.stock ?? 0);
   }
 }
 
@@ -358,7 +363,7 @@ async function loadRotacion() {
 
     document.getElementById('rotVencerBox').innerHTML = venc.length
       ? venc.map(x => `<div class="flex-between" style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:0.84rem;"><span>${x.nombre}</span><span class="badge badge-danger">${x.fecha_vencimiento} (${x.dias_para_vencer}d)</span></div>`).join('')
-      : '<p style="font-size:0.84rem;color:#34d399;">✅ Ningún lote vence en los próximos 60 días</p>';
+      : '<p style="font-size:0.84rem;color:#34d399;">✅ Ningún lote vence en los próximos 90 días</p>';
   } catch {
     document.getElementById('rotAltaBox').innerHTML = '<p style="font-size:0.84rem;">Disponible con servidor activo</p>';
   }

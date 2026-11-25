@@ -3,7 +3,7 @@ services:
     name: sisco-shinyskin
     runtime: python
     buildCommand: pip install -r backend/requirements.txt
-    startCommand: gunicorn --chdir backend app:app --bind 0.0.0.0:$PORT --workers 2
+    startCommand: gunicorn --chdir backend app:app --bind 0.0.0.0:$PORT --worker-class gthread --workers 1 --threads 16 --timeout 120
     envVars:
       - key: FLASK_ENV
         value: production
@@ -13,4 +13,6 @@ services:
         generateValue: true
       - key: IVA_RATE
         value: "0.0"
-
+      # Recomendado en producción para persistencia permanente (Supabase / Render PostgreSQL):
+      # - key: DATABASE_URL
+      #   sync: false

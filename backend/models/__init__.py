@@ -1,7 +1,19 @@
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime, date
+from datetime import datetime, date, timezone, timedelta
 
 db = SQLAlchemy()
+
+NI_TZ = timezone(timedelta(hours=-6))
+
+
+def ni_now() -> datetime:
+    """Hora local de Managua, Nicaragua (UTC-6) como datetime naive consistente."""
+    return datetime.now(NI_TZ).replace(tzinfo=None)
+
+
+def ni_today() -> date:
+    """Fecha local de Managua, Nicaragua (UTC-6)."""
+    return datetime.now(NI_TZ).date()
 
 
 class User(db.Model):
@@ -16,7 +28,7 @@ class User(db.Model):
     direccion = db.Column(db.Text)
     activo = db.Column(db.Boolean, default=True)
     ultimo_acceso = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=ni_now)
     orders = db.relationship('Order', backref='usuario_cliente', lazy=True, foreign_keys='Order.user_id')
 
     def to_dict(self):
@@ -41,7 +53,7 @@ class PasswordResetToken(db.Model):
     token = db.Column(db.String(120), unique=True, nullable=False)
     expires_at = db.Column(db.DateTime, nullable=False)
     used = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=ni_now)
     user = db.relationship('User')
 
 
@@ -118,7 +130,7 @@ class Product(db.Model):
     es_nuevo = db.Column(db.Boolean, default=False)
     es_destacado = db.Column(db.Boolean, default=False)
     activo = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=ni_now)
     movements = db.relationship('InventoryMovement', backref='producto', lazy=True)
 
     def sync_stock(self):
@@ -153,12 +165,13 @@ class Product(db.Model):
             return None
         try:
             exp = datetime.strptime(self.fecha_vencimiento[:10], '%Y-%m-%d').date()
-            return (exp - date.today()).days
+            return (exp - ni_today()).days
         except Exception:
             return None
 
     def to_dict(self):
         dias_venc = self.dias_para_vencer
+        crit = self.stock_critico
         return {
             'id': self.id,
             'nombre': self.nombre,
@@ -170,6 +183,7 @@ class Product(db.Model):
             'tono': self.tono,
             'fecha_vencimiento': self.fecha_vencimiento,
             'dias_para_vencer': dias_venc,
+            'vencido': dias_venc is not None and dias_venc < 0,
             'por_vencer': dias_venc is not None and dias_venc <= 60,
             'precio_costo': round(float(self.precio_costo or 0), 2),
             'porcentaje_ganancia': round(float(self.porcentaje_ganancia or 0), 2),
@@ -180,7 +194,8 @@ class Product(db.Model):
             'stock_fisico': self.stock_fisico if self.stock_fisico is not None else (self.stock or 0),
             'stock_online': self.stock_online if self.stock_online is not None else 0,
             'stock_minimo': self.stock_minimo if self.stock_minimo is not None else 5,
-            'stock_critico': self.stock_critico,
+            'stock_critico': crit,
+            'alerta_stock': crit,
             'category_id': self.category_id,
             'categoria': self.categoria.nombre if self.categoria else None,
             'linea': self.linea_nombre,
@@ -207,7 +222,7 @@ class InventoryMovement(db.Model):
     stock_nuevo = db.Column(db.Integer)
     motivo = db.Column(db.String(200))
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha = db.Column(db.DateTime, default=ni_now)
     usuario = db.relationship('User')
 
     def to_dict(self):
@@ -235,7 +250,7 @@ class Client(db.Model):
     email = db.Column(db.String(150), nullable=True)
     direccion = db.Column(db.Text, nullable=True)
     notas = db.Column(db.Text, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=ni_now)
     orders = db.relationship('Order', backref='cliente_cartera', lazy=True)
 
     def to_dict(self, include_orders=False):
@@ -263,7 +278,7 @@ class Motorizado(db.Model):
     telefono = db.Column(db.String(25), nullable=False)
     empresa = db.Column(db.String(80), nullable=True)
     activo = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=ni_now)
     orders = db.relationship('Order', backref='motorizado', lazy=True)
 
     def to_dict(self):
@@ -301,7 +316,7 @@ class Order(db.Model):
     cambio_entregar = db.Column(db.Float, default=0)
     notas = db.Column(db.Text)
     canal = db.Column(db.String(30), default='web')  # web, whatsapp, instagram, tienda_fisica
-    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha = db.Column(db.DateTime, default=ni_now)
     fecha_entrega = db.Column(db.DateTime, nullable=True)
     items = db.relationship('OrderItem', backref='pedido', lazy=True, cascade='all, delete-orphan')
     invoice = db.relationship('Invoice', backref='pedido', lazy=True, uselist=False)
@@ -371,7 +386,7 @@ class OrderStatusHistory(db.Model):
     estado_anterior = db.Column(db.String(30), nullable=True)
     estado_nuevo = db.Column(db.String(30), nullable=False)
     observacion = db.Column(db.String(200), nullable=True)
-    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha = db.Column(db.DateTime, default=ni_now)
 
     def to_dict(self):
         return {
@@ -404,7 +419,7 @@ class Invoice(db.Model):
     cambio = db.Column(db.Float, default=0)
     estado = db.Column(db.String(20), default='pagada')  # emitida, pagada, anulada
     motivo_anulacion = db.Column(db.String(200), nullable=True)
-    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha = db.Column(db.DateTime, default=ni_now)
     notas = db.Column(db.Text)
     items = db.relationship('InvoiceItem', backref='factura', lazy=True, cascade='all, delete-orphan')
     emisor = db.relationship('User')
@@ -475,7 +490,7 @@ class Expense(db.Model):
     fecha = db.Column(db.String(20), nullable=False)  # YYYY-MM-DD
     notas = db.Column(db.Text, nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=ni_now)
     usuario = db.relationship('User')
 
     def to_dict(self):

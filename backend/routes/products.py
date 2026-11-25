@@ -42,16 +42,20 @@ def save_image_file(file):
     return None
 
 
-def _resolve_category(cat_name: str):
+def _resolve_category(cat_name: str, linea_hint: str = None):
     if not cat_name:
         return None
     norm = strip_accents(cat_name)
     for c in Category.query.all():
         if strip_accents(c.nombre) == norm:
             return c
-    # Si no existe, crearla bajo Skincare o Makeup según nombre
-    linea = 'Makeup' if any(w in norm for w in ('labio', 'rostro', 'ojo', 'makeup', 'maquillaje', 'base', 'rubor')) else 'Skincare'
-    new_cat = Category(nombre=cat_name.strip(), linea=linea)
+    # Si no existe, crearla usando la línea enviada (o inferirla por nombre)
+    if linea_hint and str(linea_hint).strip().lower() in ('makeup', 'skincare'):
+        linea = 'Makeup' if str(linea_hint).strip().lower() == 'makeup' else 'Skincare'
+    else:
+        linea = 'Makeup' if any(w in norm for w in ('labio', 'rostro', 'ojo', 'makeup', 'maquillaje', 'base', 'rubor', 'brocha')) else 'Skincare'
+    parent = Category.query.filter_by(nombre=linea, parent_id=None).first()
+    new_cat = Category(nombre=cat_name.strip(), linea=linea, parent_id=parent.id if parent else None)
     db.session.add(new_cat)
     db.session.flush()
     return new_cat
@@ -93,11 +97,11 @@ def _generate_unique_sku(nombre: str = '') -> str:
 
 @products_bp.route('/', methods=['GET'])
 def get_products():
-    categoria = request.args.get('categoria')
+    categoria = request.args.get('categoria') or request.args.get('linea')
     marca = request.args.get('marca')
     busqueda = request.args.get('q')
-    es_nuevo = request.args.get('nuevo')
-    es_destacado = request.args.get('destacado')
+    es_nuevo = request.args.get('nuevo') or request.args.get('nuevos')
+    es_destacado = request.args.get('destacado') or request.args.get('destacados')
     incluir_inactivos = request.args.get('incluir_inactivos') == 'true'
     min_precio = request.args.get('min_precio', type=float)
     max_precio = request.args.get('max_precio', type=float)
@@ -204,7 +208,7 @@ def create_product():
     if porcentaje_ganancia == 0 and precio_costo > 0 and precio_venta > 0:
         porcentaje_ganancia = round(((precio_venta - precio_costo) / precio_costo) * 100, 2)
 
-    cat = _resolve_category(data.get('categoria') or data.get('categoria_nombre'))
+    cat = _resolve_category(data.get('categoria') or data.get('categoria_nombre'), data.get('linea'))
     brand = _resolve_brand(data.get('marca') or data.get('marca_nombre'), data.get('pais_origen'))
 
     product = Product(
@@ -286,28 +290,36 @@ def update_product(id):
                 continue  # No borrar imagen actual si no se envió una nueva
             setattr(product, str_field, val or None)
 
-    for num_field in ('precio_costo', 'precio_venta', 'descuento', 'porcentaje_ganancia'):
-        if num_field in data and data[num_field] != '':
-            setattr(product, num_field, float(data[num_field]))
+    try:
+        for num_field in ('precio_costo', 'precio_venta', 'descuento', 'porcentaje_ganancia'):
+            if num_field in data and data[num_field] not in ('', None):
+                val = float(data[num_field])
+                if num_field == 'descuento' and not (0 <= val <= 100):
+                    return jsonify({'error': 'El descuento debe estar entre 0% y 100%.'}), 400
+                if num_field in ('precio_costo', 'precio_venta') and val < 0:
+                    return jsonify({'error': 'Los precios deben ser valores positivos.'}), 400
+                setattr(product, num_field, val)
 
-    if 'stock_minimo' in data and data['stock_minimo'] != '':
-        product.stock_minimo = max(0, int(float(data['stock_minimo'])))
+        if 'stock_minimo' in data and data['stock_minimo'] not in ('', None):
+            product.stock_minimo = max(0, int(float(data['stock_minimo'])))
 
-    stock_prev = product.stock or 0
-    if 'stock_fisico' in data or 'stock_online' in data:
-        if 'stock_fisico' in data and data['stock_fisico'] != '':
-            product.stock_fisico = max(0, int(float(data['stock_fisico'])))
-        if 'stock_online' in data and data['stock_online'] != '':
-            product.stock_online = max(0, int(float(data['stock_online'])))
-        product.sync_stock()
-    elif 'stock' in data and data['stock'] != '':
-        new_total = max(0, int(float(data['stock'])))
-        if new_total != stock_prev:
-            diff = new_total - stock_prev
-            product.stock_online = max(0, (product.stock_online or 0) + diff)
-            if (product.stock_fisico or 0) + product.stock_online != new_total:
-                product.stock_fisico = max(0, new_total - product.stock_online)
+        stock_prev = product.stock or 0
+        if 'stock_fisico' in data or 'stock_online' in data:
+            if 'stock_fisico' in data and data['stock_fisico'] not in ('', None):
+                product.stock_fisico = max(0, int(float(data['stock_fisico'])))
+            if 'stock_online' in data and data['stock_online'] not in ('', None):
+                product.stock_online = max(0, int(float(data['stock_online'])))
             product.sync_stock()
+        elif 'stock' in data and data['stock'] not in ('', None):
+            new_total = max(0, int(float(data['stock'])))
+            if new_total != stock_prev:
+                diff = new_total - stock_prev
+                product.stock_online = max(0, (product.stock_online or 0) + diff)
+                if (product.stock_fisico or 0) + product.stock_online != new_total:
+                    product.stock_fisico = max(0, new_total - product.stock_online)
+                product.sync_stock()
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Verifica que precios, descuento y stock sean números válidos.'}), 400
 
     if (product.stock or 0) != stock_prev:
         user = get_current_user_obj()
@@ -331,7 +343,7 @@ def update_product(id):
 
     cat_val = data.get('categoria') or data.get('categoria_nombre')
     if cat_val:
-        cat = _resolve_category(cat_val)
+        cat = _resolve_category(cat_val, data.get('linea'))
         if cat:
             product.category_id = cat.id
     marca_val = data.get('marca') or data.get('marca_nombre')

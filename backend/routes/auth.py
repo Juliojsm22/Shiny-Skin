@@ -1,10 +1,10 @@
 import secrets
-from datetime import datetime, timedelta
+from datetime import timedelta
 from flask import Blueprint, jsonify, request
 from models import db, User, PasswordResetToken
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
-from routes.utils import admin_required
+from routes.utils import admin_required, now_ni_naive, _extract_uid
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -37,7 +37,7 @@ def register():
     base_user = email.split('@')[0]
     username = base_user
     suffix = 1
-    while User.query.filter_by(username=username).first():
+    while User.query.filter(db.func.lower(User.username) == username.lower()).first():
         username = f'{base_user}{suffix}'
         suffix += 1
 
@@ -49,7 +49,7 @@ def register():
         telefono=(data.get('telefono') or '').strip() or None,
         direccion=(data.get('direccion') or '').strip() or None,
         rol='cliente',
-        ultimo_acceso=datetime.utcnow()
+        ultimo_acceso=now_ni_naive()
     )
     db.session.add(user)
     db.session.commit()
@@ -72,11 +72,11 @@ def login():
     ).first()
 
     if not user or not check_password_hash(user.password_hash, password):
-        return jsonify({'error': 'Credenciales incorrectas. Verifica tu correo y contraseña.'}), 401
+        return jsonify({'error': 'Credenciales incorrectas. Verifica tu correo/usuario y contraseña.'}), 401
     if not user.activo:
         return jsonify({'error': 'Tu cuenta se encuentra desactivada. Contacta a la administración.'}), 403
 
-    user.ultimo_acceso = datetime.utcnow()
+    user.ultimo_acceso = now_ni_naive()
     db.session.commit()
     token = _issue_token(user)
     return jsonify({'token': token, 'user': user.to_dict()})
@@ -85,9 +85,8 @@ def login():
 @auth_bp.route('/me', methods=['GET'])
 @jwt_required()
 def me():
-    identity = get_jwt_identity()
-    uid = identity.get('id') if isinstance(identity, dict) else int(identity)
-    user = db.session.get(User, uid)
+    uid = _extract_uid(get_jwt_identity())
+    user = db.session.get(User, uid) if uid else None
     if not user or not user.activo:
         return jsonify({'error': 'Usuario no encontrado o inactivo.'}), 404
     return jsonify(user.to_dict())
@@ -109,7 +108,7 @@ def forgot_password():
     reset = PasswordResetToken(
         user_id=user.id,
         token=code,
-        expires_at=datetime.utcnow() + timedelta(minutes=30),
+        expires_at=now_ni_naive() + timedelta(minutes=30),
         used=False
     )
     db.session.add(reset)
@@ -137,7 +136,7 @@ def reset_password():
         return jsonify({'error': 'Cuenta no encontrada.'}), 404
 
     reset = PasswordResetToken.query.filter_by(user_id=user.id, token=token, used=False).first()
-    if not reset or reset.expires_at < datetime.utcnow():
+    if not reset or reset.expires_at < now_ni_naive():
         return jsonify({'error': 'El código de recuperación es inválido o ha expirado.'}), 400
 
     user.password_hash = generate_password_hash(new_password)
@@ -171,7 +170,7 @@ def create_user_admin():
         return jsonify({'error': 'Ya existe un usuario con ese correo electrónico.'}), 400
 
     username = (data.get('username') or email.split('@')[0]).strip().lower()
-    if User.query.filter_by(username=username).first():
+    if User.query.filter(db.func.lower(User.username) == username).first():
         username = f"{username}_{secrets.randbelow(999)}"
 
     user = User(
@@ -192,12 +191,20 @@ def create_user_admin():
 @auth_bp.route('/usuarios/<int:user_id>', methods=['PUT'])
 @admin_required
 def update_user_admin(user_id):
-    user = User.query.get_or_404(user_id)
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({'error': 'Usuario no encontrado.'}), 404
     data = request.get_json(silent=True) or {}
 
-    if 'nombre' in data and data['nombre'].strip():
+    if 'nombre' in data and (data['nombre'] or '').strip():
         user.nombre = data['nombre'].strip()
-    if 'email' in data and data['email'].strip():
+    if 'username' in data and (data['username'] or '').strip():
+        new_username = data['username'].strip().lower()
+        existing_u = User.query.filter(db.func.lower(User.username) == new_username, User.id != user.id).first()
+        if existing_u:
+            return jsonify({'error': f'El nombre de usuario "{new_username}" ya está en uso.'}), 400
+        user.username = new_username
+    if 'email' in data and (data['email'] or '').strip():
         new_email = data['email'].strip().lower()
         existing = User.query.filter(db.func.lower(User.email) == new_email, User.id != user.id).first()
         if existing:
@@ -223,11 +230,12 @@ def update_user_admin(user_id):
 @auth_bp.route('/usuarios/<int:user_id>', methods=['DELETE'])
 @admin_required
 def deactivate_user_admin(user_id):
-    identity = get_jwt_identity()
-    current_id = identity.get('id') if isinstance(identity, dict) else int(identity)
+    current_id = _extract_uid(get_jwt_identity())
     if current_id == user_id:
         return jsonify({'error': 'No puedes desactivar tu propia cuenta activa.'}), 400
-    user = User.query.get_or_404(user_id)
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({'error': 'Usuario no encontrado.'}), 404
     user.activo = not user.activo
     db.session.commit()
     estado_txt = 'activado' if user.activo else 'desactivado'

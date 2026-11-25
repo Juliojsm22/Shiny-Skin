@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from sqlalchemy import or_
-from models import db, Client, Order
+from models import db, Client, Order, Invoice
 from routes.utils import staff_required, admin_required
 
 clients_bp = Blueprint('clients', __name__)
@@ -88,9 +88,11 @@ def delete_client(id):
     client = db.session.get(Client, id)
     if not client:
         return jsonify({'error': 'Cliente no encontrado.'}), 404
-    # Desvincular pedidos históricos sin borrarlos
+    # Desvincular pedidos y facturas históricas sin borrarlos (evita IntegrityError en PostgreSQL)
     for o in Order.query.filter_by(client_id=client.id).all():
         o.client_id = None
+    for inv in Invoice.query.filter_by(client_id=client.id).all():
+        inv.client_id = None
     db.session.delete(client)
     db.session.commit()
     return jsonify({'mensaje': 'Cliente eliminado correctamente.'})

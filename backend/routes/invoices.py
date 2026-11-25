@@ -1,7 +1,10 @@
 from flask import Blueprint, jsonify, request, current_app, send_file, Response
 from sqlalchemy import or_, func
 from models import db, Invoice, InvoiceItem, Order, Product, InventoryMovement
-from routes.utils import get_current_user_obj, staff_required, upsert_client
+from routes.utils import (
+    get_current_user_obj, get_staff_from_request_or_query,
+    staff_required, upsert_client, now_ni, now_ni_naive, today_ni
+)
 from datetime import datetime
 import io
 import html
@@ -12,12 +15,12 @@ invoices_bp = Blueprint('invoices', __name__)
 
 
 def generar_numero_factura():
-    prefix = 'FAC-' + datetime.now().strftime('%Y%m') + '-'
-    for _ in range(20):
+    prefix = 'FAC-' + now_ni().strftime('%Y%m') + '-'
+    for _ in range(25):
         code = prefix + ''.join(random.choices(string.digits, k=4))
         if not Invoice.query.filter_by(numero_factura=code).first():
             return code
-    return prefix + datetime.utcnow().strftime('%H%M%S')
+    return prefix + now_ni().strftime('%H%M%S')
 
 
 def _deduct_pos_stock(product: Product, qty: int) -> None:
@@ -36,6 +39,7 @@ def _deduct_pos_stock(product: Product, qty: int) -> None:
 
 
 @invoices_bp.route('/', methods=['GET'])
+@staff_required
 def get_invoices():
     estado = request.args.get('estado', '').strip()
     canal = request.args.get('canal', '').strip()
@@ -73,6 +77,7 @@ def get_invoices():
 
 
 @invoices_bp.route('/<int:id>', methods=['GET'])
+@staff_required
 def get_invoice(id):
     invoice = db.session.get(Invoice, id)
     if not invoice:
@@ -196,7 +201,15 @@ def create_invoice():
                     'error': f'Stock insuficiente para "{product.nombre}" (disponible: {product.stock}, solicitado: {qty}).'
                 }), 400
             productos_map[pid] = product
-            precio = float(raw_price) if (raw_price := next((r.get('precio_unitario') for r in items_data if (r.get('product_id') or r.get('id')) == pid and r.get('precio_unitario') is not None), None)) is not None else product.precio_final
+            custom_price = None
+            for r in items_data:
+                try:
+                    if int(r.get('product_id') or r.get('id') or 0) == pid and r.get('precio_unitario') is not None:
+                        custom_price = float(r.get('precio_unitario'))
+                        break
+                except (TypeError, ValueError):
+                    pass
+            precio = custom_price if (custom_price is not None and custom_price >= 0) else product.precio_final
             item_sub = round(precio * qty, 2)
             subtotal += item_sub
             inv_items.append(InvoiceItem(
@@ -348,12 +361,14 @@ def update_estado(id):
 @invoices_bp.route('/<int:id>/pdf', methods=['GET'])
 def download_invoice_pdf(id):
     """Genera el comprobante de factura en PDF (ReportLab) o HTML imprimible de respaldo (FRQ-0019)."""
+    if not get_staff_from_request_or_query():
+        return jsonify({'error': 'Autenticación de personal requerida para descargar comprobantes.'}), 401
     invoice = db.session.get(Invoice, id)
     if not invoice:
         return jsonify({'error': 'Factura no encontrada.'}), 404
 
     inv = invoice.to_dict()
-    fecha_str = inv['fecha'][:16].replace('T', ' ') if inv.get('fecha') else datetime.now().strftime('%Y-%m-%d %H:%M')
+    fecha_str = inv['fecha'][:16].replace('T', ' ') if inv.get('fecha') else now_ni().strftime('%Y-%m-%d %H:%M')
 
     try:
         from reportlab.lib.pagesizes import A5
@@ -487,8 +502,9 @@ def download_invoice_pdf(id):
 
 
 @invoices_bp.route('/stats', methods=['GET'])
+@staff_required
 def invoice_stats():
-    hoy = datetime.utcnow().date()
+    hoy = today_ni()
     total_facturas = Invoice.query.count()
     total_ingresos = db.session.query(func.sum(Invoice.total)).filter_by(estado='pagada').scalar() or 0
     ingresos_hoy = db.session.query(func.sum(Invoice.total)).filter(
@@ -500,7 +516,9 @@ def invoice_stats():
     return jsonify({
         'total_facturas': total_facturas,
         'total_ingresos': round(float(total_ingresos), 2),
+        'total_facturado': round(float(total_ingresos), 2),
         'ingresos_hoy': round(float(ingresos_hoy), 2),
         'pendientes_pago': pendientes,
+        'emitidas': pendientes,
         'anuladas': anuladas
     })

@@ -1,8 +1,7 @@
 from flask import Blueprint, jsonify, request
 from sqlalchemy import func
 from models import db, Expense
-from routes.utils import get_current_user_obj, staff_required, admin_required
-from datetime import datetime
+from routes.utils import get_current_user_obj, staff_required, admin_required, now_ni, month_ni
 
 expenses_bp = Blueprint('expenses', __name__)
 
@@ -35,7 +34,7 @@ def get_expenses():
 @expenses_bp.route('/resumen', methods=['GET'])
 @staff_required
 def resumen_gastos():
-    hoy_mes = datetime.utcnow().strftime('%Y-%m')
+    hoy_mes = month_ni()
     mes = request.args.get('mes', hoy_mes).strip()
 
     total_general = db.session.query(func.sum(Expense.monto)).scalar() or 0
@@ -81,7 +80,7 @@ def create_expense():
     if not concepto or monto <= 0:
         return jsonify({'error': 'Debe indicar un concepto y un monto mayor a cero.'}), 400
 
-    fecha = (data.get('fecha') or datetime.utcnow().strftime('%Y-%m-%d')).strip()[:10]
+    fecha = (data.get('fecha') or now_ni().strftime('%Y-%m-%d')).strip()[:10]
     user = get_current_user_obj()
 
     gasto = Expense(
@@ -114,10 +113,11 @@ def update_expense(id):
     if 'monto' in data:
         try:
             monto = float(data['monto'])
-            if monto > 0:
-                gasto.monto = round(monto, 2)
+            if monto <= 0:
+                return jsonify({'error': 'El monto del gasto debe ser mayor a cero.'}), 400
+            gasto.monto = round(monto, 2)
         except (TypeError, ValueError):
-            pass
+            return jsonify({'error': 'El monto del gasto no es válido.'}), 400
     if 'fecha' in data and (data['fecha'] or '').strip():
         gasto.fecha = data['fecha'].strip()[:10]
     if 'notas' in data:

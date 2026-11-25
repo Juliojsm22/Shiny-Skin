@@ -140,6 +140,7 @@
         </div>
         <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
           <a id="waConfirmBtn" href="#" target="_blank" rel="noopener" class="btn btn-success">💬 Enviar comprobante por WhatsApp</a>
+          <button type="button" id="trackConfirmBtn" class="btn btn-outline">📦 Rastrear mi pedido</button>
           <a href="tienda.html" class="btn btn-primary">Seguir comprando</a>
           <a href="index.html" class="btn btn-outline">Ir al inicio</a>
         </div>
@@ -157,13 +158,14 @@
   </div>
 </div>
 
+<script src="js/config.js"></script>
 <script src="js/api.js"></script>
 <script>
-// Autocompletar si hay usuario logueado
+// Autocompletar solo si hay una clienta logueada (no sobrescribir con datos de admin al probar)
 (function prefillUser() {
   try {
     const u = JSON.parse(localStorage.getItem('sisco_user') || 'null');
-    if (u) {
+    if (u && u.rol === 'cliente') {
       if (u.nombre) document.getElementById('ckNombre').value = u.nombre;
       if (u.telefono) document.getElementById('ckTel').value = u.telefono;
       if (u.email) document.getElementById('ckEmail').value = u.email;
@@ -187,18 +189,14 @@ function getTotals() {
 function applyCheckoutCoupon(codeOverride) {
   const input = document.getElementById('ckPromoInput');
   const code = codeOverride || (input ? input.value : '');
-  const res = typeof applyPromoCoupon === 'function' ? applyPromoCoupon(code) : { ok: false, msg: 'No disponible' };
-  if (res.ok) {
-    showToast(`🎉 Cupón ${res.coupon.code} (${res.coupon.pct}% OFF) aplicado`, 'success');
+  const found = typeof applyPromoCoupon === 'function' ? applyPromoCoupon(code) : null;
+  if (found) {
     renderSummary();
-  } else {
-    showToast(res.msg, 'error');
   }
 }
 
 function removeCheckoutCoupon() {
-  if (typeof clearPromoCoupon === 'function') clearPromoCoupon();
-  showToast('Cupón removido', 'info');
+  if (typeof clearPromoCoupon === 'function') clearPromoCoupon(false);
   renderSummary();
 }
 
@@ -315,38 +313,50 @@ async function placeOrder(e) {
     items: cart.map(i => ({ product_id: i.id, cantidad: i.cantidad }))
   };
 
+  let createdOrder;
   let numeroPedido;
   try {
-    const result = await api.pedidos.create(orderData);
-    numeroPedido = result.numero_pedido;
+    createdOrder = await api.pedidos.create(orderData);
+    numeroPedido = createdOrder.numero_pedido;
   } catch (err) {
-    if (!err.isNetworkError) {
-      // Error real de validación o stock insuficiente -> mostrar al usuario y NO vaciar carrito
-      showToast(err.message || 'No se pudo procesar el pedido.', 'error');
-      btn.disabled = false;
-      btn.textContent = '✅ Confirmar mi pedido';
-      return;
-    }
-    // Solo si se abre sin backend conectado (modo demostración offline)
-    numeroPedido = 'SS-' + Math.floor(100000 + Math.random() * 900000);
+    // Nunca fingir éxito ni vaciar el carrito si el servidor rechazó o no respondió
+    showToast(err.message || 'No se pudo procesar el pedido. Intenta nuevamente.', 'error');
+    btn.disabled = false;
+    btn.textContent = '✅ Confirmar mi pedido';
+    return;
+  }
+
+  // Guardar solo en el historial privado de este dispositivo (Ley 787)
+  if (typeof saveMyLocalOrder === 'function') {
+    saveMyLocalOrder({
+      numero_pedido: numeroPedido,
+      total: createdOrder?.total ?? total,
+      fecha: createdOrder?.fecha || new Date().toISOString()
+    });
   }
 
   saveCart([]);
-  if (typeof clearPromoCoupon === 'function') clearPromoCoupon();
+  if (typeof clearPromoCoupon === 'function') clearPromoCoupon(true);
   document.getElementById('st2').classList.remove('active');
   document.getElementById('st2').classList.add('done');
   document.getElementById('st2').querySelector('.step-num').textContent = '✓';
   document.getElementById('st3').classList.add('active');
 
+  const finalTotal = createdOrder?.total ?? total;
   document.getElementById('formSection').style.display = 'none';
   document.getElementById('confirmSection').style.display = 'block';
-  document.getElementById('confirmMsg').textContent = `¡Gracias por tu compra, ${orderData.nombre_cliente}! Hemos reservado tus productos.`;
+  document.getElementById('confirmMsg').textContent = `¡Gracias por tu compra, ${orderData.nombre_cliente}! Tu pedido fue enviado directamente a nuestro equipo.`;
   document.getElementById('confirmNumero').textContent = `Código de seguimiento: ${numeroPedido}`;
 
-  const msgWA = `Hola Shiny Skin ✨ Acabo de realizar el pedido *${numeroPedido}* a nombre de *${orderData.nombre_cliente}* por *${formatCurrency(total)}* (${entrega === 'retiro' ? 'Retiro en tienda' : 'Envío a domicilio'}).`;
-  document.getElementById('waConfirmBtn').href = `https://wa.me/50588880000?text=${encodeURIComponent(msgWA)}`;
+  const msgWA = `Hola Shiny Skin ✨ Acabo de realizar el pedido *${numeroPedido}* a nombre de *${orderData.nombre_cliente}* por *${formatCurrency(finalTotal)}* (${entrega === 'retiro' ? 'Retiro en tienda' : 'Envío a domicilio'}).`;
+  const storeWa = (window.SISCO_CONFIG && window.SISCO_CONFIG.STORE_WHATSAPP) || '50588880000';
+  document.getElementById('waConfirmBtn').href = `https://wa.me/${storeWa}?text=${encodeURIComponent(msgWA)}`;
+  const trackBtn = document.getElementById('trackConfirmBtn');
+  if (trackBtn && typeof openTrackingModal === 'function') {
+    trackBtn.onclick = () => openTrackingModal(numeroPedido);
+  }
 
-  showToast(`Pedido ${numeroPedido} creado exitosamente`, 'success');
+  showToast(`Pedido ${numeroPedido} registrado con éxito`, 'success');
 }
 
 renderSummary();
